@@ -45,35 +45,58 @@ class StepPicker(object):
     https://scipy-cookbook.readthedocs.io/items/Matplotlib_Interactive_Plotting.html
     """
 
-    def __init__(self, xdata, ydata, points=[], avg = None, 
-                 ax=None, steps=[]):
+    def __init__(self, xdata, ydata, points=[], ax=None):
         self.xdata = np.array(xdata)
         self.ydata = np.array(ydata)
         self.criticalPoints = dict()
-        self.steps = steps
+        self.steps = []
         
         if ax is None:
             self.ax = plt.gca()
         else:
             self.ax = ax
         
-        # initialize avg line
         self.line, = self.ax.plot([self.xdata[0]], [self.ydata[0]]) 
         
-        self.avg = avg
-        self.draw_average()
+          
+        foundPoints = self.detect_steps()
+        for (x,y) in foundPoints:
+            self.drawPoints(ax, x, y)
+
+
+
+    def _update(self, xdata=None, ydata=None, 
+                pts=None, ax=None, avg=None):
+        '''
+        Call to redraw avg line and critical point
+        markers. Can pass new x,y data, add critical points, etc.
+
+        '''
+        if xdata is not None:
+            self.xdata = xdata
+            
+        if ydata is not None:
+            self.ydata = ydata
+            
+        if ax is not None:
+            self.ax = ax
         
+        if avg is not None:
+            self.avg = avg
+        
+        # Reinitialize critical points
+        points = list(self.criticalPoints)
+        self.criticalPoints = dict()
         for (x,y) in points:
-            # If reinitializing, redraw critical points
-            self.drawPoints(ax, x, y)   
+            self.drawPoints(ax,x,y)
         
-        if len(points) == 0:
-            # Else detect and draw points
-            foundPoints = self.detect_steps()
-            for (x,y) in foundPoints:
-                self.drawPoints(ax, x, y)
 
-
+        # Redraw avg line
+        self.line, = self.ax.plot([self.xdata[0]], 
+                                  [self.ydata[0]], color=colors[0]) 
+        self.line.set_data(self.xdata, self.avg)
+        self.line.figure.canvas.draw_idle()
+        
 
     
     def __call__(self, event):
@@ -123,8 +146,8 @@ class StepPicker(object):
             
         else:
             # Draw new point, add to criticalPoints dict
-            t = ax.text(x, y, "",)
-            m = ax.scatter([x], [y], marker='d', c='r', zorder=100)
+            t = self.ax.text(x, y, "",)
+            m = self.ax.scatter([x], [y], marker='d', c='r', zorder=100)
             self.criticalPoints[(x, y)] = (t, m)
             self.ax.figure.canvas.draw_idle()
     
@@ -262,6 +285,11 @@ class StepPicker(object):
     
     def draw_average(self):
         # Redraw smoothed step line
+
+        self.line.remove()
+        self.line, = self.ax.plot([self.xdata[0]], 
+                                  [self.ydata[0]], color=colors[0]) 
+        
         self.line.set_data(self.xdata, self.avg)
         self.line.figure.canvas.draw()
     
@@ -292,6 +320,8 @@ class Index:
         self.sp = dict() # sp[i] is StepPicker obj
         
         self.slider = dict()
+        self.xs = dict()
+        self.ys = dict()
         
         i = self.ind % len(files)
         self.i = i
@@ -301,12 +331,14 @@ class Index:
         
         # Initialize plot
         name = files[i].split('/')[-1][:-4]
-        self.x = df['t'].to_numpy()
-        self.y = df['i'].to_numpy()
-        self.line, = ax.plot(self.x, self.y, 'k-')
-        ax.set_title('%s: %s'%((self.i+1), name), pad=15)
         
-        self.sp[i] = StepPicker(self.x, self.y, ax=ax)
+        self.xs[i] = df['t'].to_numpy()
+        self.ys[i] = df['i'].to_numpy()
+        
+        self.line, = ax.plot(self.xs[i], self.ys[i], 'k-')
+        ax.set_title('%s: %s'%((i+1), name), pad=15)
+        
+        self.sp[i] = StepPicker(self.xs[i], self.ys[i], ax=ax)
         self.cid = fig.canvas.mpl_connect('button_press_event', 
                                           self.sp[i])
         
@@ -329,28 +361,23 @@ class Index:
             # Create new
             df = get_data(files[i])
             
-            self.x = df['t'].to_numpy()
-            self.y = df['i'].to_numpy()
+            self.xs[i] = df['t'].to_numpy()
+            self.ys[i] = df['i'].to_numpy()
             
-            slider.set_val(self.x[0])
-            self.line, = ax.plot(self.x, self.y, 'k-')
-            self.sp[i] = StepPicker(self.x, self.y, ax=ax)
+            slider.set_val(self.xs[i][0])
+            self.line, = ax.plot(self.xs[i], self.ys[i], 'k-')
+            self.sp[i] = StepPicker(self.xs[i], self.ys[i], ax=ax)
             
         else:
             # Reinitialize
-            ind = self.slider[self.i]
             
-
-            self.x = self.sp[i].xdata
-            self.y = self.sp[i].ydata
+            ind = self.slider[i]
+            slider.set_val(self.xs[i][ind])
             
-            slider.set_val(self.x[ind])
-            self.line, = ax.plot(self.sp[i].xdata[ind:], 
-                                 self.sp[i].ydata[ind:], 'k-')
+            self.line, = ax.plot(self.xs[i][ind:], 
+                                 self.ys[i][ind:], 'k-')
             
-            self.sp[i].__init__(self.sp[i].xdata, self.sp[i].ydata, ax=ax, 
-                                points=list(self.sp[i].criticalPoints), 
-                                avg=self.sp[i].avg, steps = self.sp[i].steps)
+            self.sp[i]._update()
             
         self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
         plt.show()
@@ -372,27 +399,23 @@ class Index:
             # Create new
             df = get_data(files[i])
             
-            self.x = df['t'].to_numpy()
-            self.y = df['i'].to_numpy()
+            self.xs[i] = df['t'].to_numpy()
+            self.ys[i] = df['i'].to_numpy()
             
-            slider.set_val(self.x[0])
-            self.line, = ax.plot(self.x, self.y, 'k-')
-            self.sp[i] = StepPicker(self.x, self.y, ax=ax)
+            slider.set_val(self.xs[i][0])
+            self.line, = ax.plot(self.xs[i], self.ys[i], 'k-')
+ 
+            self.sp[i] = StepPicker(self.xs[i], self.ys[i], ax=ax)
             
         else:
             # Reinitialize
-            ind = self.slider[self.i]
-
-            self.x = self.sp[i].xdata
-            self.y = self.sp[i].ydata
             
-            slider.set_val(self.x[ind])
-            self.line, = ax.plot(self.sp[i].xdata[ind:], 
-                                 self.sp[i].ydata[ind:], 'k-')
+            ind = self.slider[i]
+            slider.set_val(self.xs[i][ind])
             
-            self.sp[i].__init__(self.sp[i].xdata, self.sp[i].ydata, ax=ax, 
-                                points=list(self.sp[i].criticalPoints), 
-                                avg=self.sp[i].avg, steps = self.sp[i].steps)
+            self.line, = ax.plot(self.xs[i][ind:], 
+                                 self.ys[i][ind:], 'k-')
+            self.sp[i]._update()
             
         self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
         
@@ -405,8 +428,8 @@ class Index:
         ind = self.slider[i]
         
         try:
-            self.sp[i].xdata = self.x[ind:]
-            self.sp[i].ydata = self.y[ind:]
+            self.sp[i].xdata = self.xs[i][ind:]
+            self.sp[i].ydata = self.ys[i][ind:]
 
             self.sp[i].calculate_steps(event)
         
@@ -467,6 +490,7 @@ class Index:
     
     
     def slider_changed(self, val):
+        i = self.i
         def find_nearest(array,value):
             idx = np.searchsorted(array, value, side="left")
             if idx > 0 and (idx == len(array) or abs(value - array[idx-1]) < abs(value - array[idx])):
@@ -474,13 +498,17 @@ class Index:
             else:
                 return array[idx]
         
-        
-        ind = np.where(self.x == find_nearest(self.x, val))[0][0]
-        self.slider[self.i] = ind
-        
-        self.line.set_xdata(self.x[ind:])
-        self.line.set_ydata(self.y[ind:])
-        ax.figure.canvas.draw_idle()
+        try:
+            ind = np.where(self.xs[i] == find_nearest(self.xs[i], val))[0][0]
+            self.slider[i] = ind
+            
+            self.line.set_xdata(self.xs[i][ind:])
+            self.line.set_ydata(self.ys[i][ind:])
+            ax.autoscale(axis='y')
+            ax.figure.canvas.draw_idle()
+
+        except KeyError:
+            pass
         
         
 
@@ -523,8 +551,8 @@ histbutton.on_clicked(callback.hist)
 
 # Starting point slider
 axslider = plt.axes([0.1, 0.2, 0.8, 0.025])
-slider = Slider(axslider, '', callback.x[0], 
-                callback.x[-1], valinit=callback.x[0])
+slider = Slider(axslider, '', callback.xs[0][0], 
+                callback.xs[0][-1], valinit=callback.xs[0][0])
 slider.on_changed(callback.slider_changed)
 
 
