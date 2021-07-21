@@ -3,9 +3,11 @@ import matplotlib
 import numpy as np
 import pandas as pd
 from matplotlib.widgets import Button
+from matplotlib.widgets import Slider
 import tkinter as tk
 from tkinter import filedialog
 matplotlib.use('qt5agg')
+plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
@@ -43,7 +45,8 @@ class StepPicker(object):
     https://scipy-cookbook.readthedocs.io/items/Matplotlib_Interactive_Plotting.html
     """
 
-    def __init__(self, xdata, ydata, points=[], avg = None, ax=None, steps=[]):
+    def __init__(self, xdata, ydata, points=[], avg = None, 
+                 ax=None, steps=[]):
         self.xdata = np.array(xdata)
         self.ydata = np.array(ydata)
         self.criticalPoints = dict()
@@ -54,6 +57,7 @@ class StepPicker(object):
         else:
             self.ax = ax
         
+        # initialize avg line
         self.line, = self.ax.plot([self.xdata[0]], [self.ydata[0]]) 
         
         self.avg = avg
@@ -265,7 +269,7 @@ class StepPicker(object):
     
     
     def get_steps(self):
-        # Save step sizes
+        # Save current step sizes to self.steps
         self.steps = []
         for (x,y) in self.criticalPoints:
             i = np.where(self.xdata==x)[0][0]
@@ -282,19 +286,30 @@ class Index:
     
     
     def __init__(self):
+        
+
         self.ind = 0
-        self.sp = dict()
+        self.sp = dict() # sp[i] is StepPicker obj
+        
+        self.slider = dict()
+        
         i = self.ind % len(files)
+        self.i = i
+        self.slider[i] =  0 #initialize slider index
         
         df = get_data(files[i])
-        name = files[i].split('/')[-1][:-4]
-        x = df['t'].to_numpy()
-        y = df['i'].to_numpy()
-        ax.plot(x,y, 'k-')
-        ax.set_title('%s: %s'%((i+1), name), pad=15)
         
-        self.sp[i] = StepPicker(x,y, ax=ax)
-        self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
+        # Initialize plot
+        name = files[i].split('/')[-1][:-4]
+        self.x = df['t'].to_numpy()
+        self.y = df['i'].to_numpy()
+        self.line, = ax.plot(self.x, self.y, 'k-')
+        ax.set_title('%s: %s'%((self.i+1), name), pad=15)
+        
+        self.sp[i] = StepPicker(self.x, self.y, ax=ax)
+        self.cid = fig.canvas.mpl_connect('button_press_event', 
+                                          self.sp[i])
+        
         
         plt.show()
     
@@ -305,21 +320,34 @@ class Index:
         fig.canvas.mpl_disconnect(self.cid)
         self.ind += 1
         i = self.ind % len(files)  
+        self.i = i
+        
         name = files[i].split('/')[-1][:-4]
         ax.set_title('%s: %s'%((i+1), name), pad=15)
         
         if i not in self.sp:
             # Create new
             df = get_data(files[i])
-            x = df['t'].to_numpy()
-            y = df['i'].to_numpy()
-            ax.plot(x,y, 'k-')
             
-            self.sp[i] = StepPicker(x,y, ax=ax)
+            self.x = df['t'].to_numpy()
+            self.y = df['i'].to_numpy()
+            
+            slider.set_val(self.x[0])
+            self.line, = ax.plot(self.x, self.y, 'k-')
+            self.sp[i] = StepPicker(self.x, self.y, ax=ax)
             
         else:
             # Reinitialize
-            ax.plot(self.sp[i].xdata, self.sp[i].ydata, 'k-')
+            ind = self.slider[self.i]
+            
+
+            self.x = self.sp[i].xdata
+            self.y = self.sp[i].ydata
+            
+            slider.set_val(self.x[ind])
+            self.line, = ax.plot(self.sp[i].xdata[ind:], 
+                                 self.sp[i].ydata[ind:], 'k-')
+            
             self.sp[i].__init__(self.sp[i].xdata, self.sp[i].ydata, ax=ax, 
                                 points=list(self.sp[i].criticalPoints), 
                                 avg=self.sp[i].avg, steps = self.sp[i].steps)
@@ -335,32 +363,55 @@ class Index:
         fig.canvas.mpl_disconnect(self.cid)
         self.ind -= 1
         i = self.ind % len(files)
+        self.i = i
+        
         name = files[i].split('/')[-1][:-4]
         ax.set_title('%s: %s'%((i+1), name), pad=15)
         
         if i not in self.sp:
             # Create new
             df = get_data(files[i])
-            x = df['t'].to_numpy()
-            y = df['i'].to_numpy()
-            ax.plot(x,y, 'k-')
-            self.sp[i] = StepPicker(x,y, ax=ax)
+            
+            self.x = df['t'].to_numpy()
+            self.y = df['i'].to_numpy()
+            
+            slider.set_val(self.x[0])
+            self.line, = ax.plot(self.x, self.y, 'k-')
+            self.sp[i] = StepPicker(self.x, self.y, ax=ax)
             
         else:
             # Reinitialize
-            ax.plot(self.sp[i].xdata, self.sp[i].ydata, 'k-')
+            ind = self.slider[self.i]
+
+            self.x = self.sp[i].xdata
+            self.y = self.sp[i].ydata
+            
+            slider.set_val(self.x[ind])
+            self.line, = ax.plot(self.sp[i].xdata[ind:], 
+                                 self.sp[i].ydata[ind:], 'k-')
+            
             self.sp[i].__init__(self.sp[i].xdata, self.sp[i].ydata, ax=ax, 
                                 points=list(self.sp[i].criticalPoints), 
                                 avg=self.sp[i].avg, steps = self.sp[i].steps)
             
         self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
+        
         plt.show()        
 
     
     def recalc(self, event):
-        i = self.ind % len(files)
-        self.sp[i].calculate_steps(event)
-    
+        # i = self.ind % len(files)
+        i = self.i
+        ind = self.slider[i]
+        
+        try:
+            self.sp[i].xdata = self.x[ind:]
+            self.sp[i].ydata = self.y[ind:]
+
+            self.sp[i].calculate_steps(event)
+        
+        except IndexError:
+            print('ERROR: remove hanging points')
     
     
     def hist(self, event):
@@ -413,6 +464,23 @@ class Index:
             print('Saved as %s' %file)
         else:
             print('No steps!')
+    
+    
+    def slider_changed(self, val):
+        def find_nearest(array,value):
+            idx = np.searchsorted(array, value, side="left")
+            if idx > 0 and (idx == len(array) or abs(value - array[idx-1]) < abs(value - array[idx])):
+                return array[idx-1]
+            else:
+                return array[idx]
+        
+        
+        ind = np.where(self.x == find_nearest(self.x, val))[0][0]
+        self.slider[self.i] = ind
+        
+        self.line.set_xdata(self.x[ind:])
+        self.line.set_ydata(self.y[ind:])
+        ax.figure.canvas.draw_idle()
         
         
 
@@ -424,29 +492,40 @@ files = filedialog.askopenfilenames(title='Select files',
                                                ('All files', '*')))
 
 fig, ax = plt.subplots(figsize=(5,6), dpi=100)
-plt.subplots_adjust(bottom=0.25)
+plt.subplots_adjust(bottom=0.3)
 
 callback = Index()
 
+# Recalculate step sizes
 axcalc = plt.axes([0.5, 0.1, 0.25, 0.075])
 bcalc = Button(axcalc, 'Recalculate')
 bcalc.on_clicked(callback.recalc)
 
+# Next file
 axnext = plt.axes([0.8, 0.1, 0.1, 0.075])
 bnext = Button(axnext, 'Next')
 bnext.on_clicked(callback.next)
 
+# Previous file
 axprev = plt.axes([0.35, 0.1, 0.1, 0.075])
 bprev = Button(axprev, 'Prev')
 bprev.on_clicked(callback.prev)
 
+# Save as xlsx
 axexport = plt.axes([0.1, 0.1, 0.2, 0.075])
 bexport = Button(axexport, 'Export')
 bexport.on_clicked(callback.save)
 
+# Plot histogram
 axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.075])
 histbutton = Button(axplotbutton, 'Plot histogram')
 histbutton.on_clicked(callback.hist)
+
+# Starting point slider
+axslider = plt.axes([0.1, 0.2, 0.8, 0.025])
+slider = Slider(axslider, '', callback.x[0], 
+                callback.x[-1], valinit=callback.x[0])
+slider.on_changed(callback.slider_changed)
 
 
 
