@@ -1,3 +1,8 @@
+# Matplotlib style sheet for scientific figure
+# To use, add the following line after importing matplotlib:
+# plt.style.use('https://raw.githubusercontent.com/SepLabUCSB/Echem/trunk/seplab.mplstyle')
+
+
 # Figure properties
 figure.figsize: 5, 5
 figure.dpi: 600
