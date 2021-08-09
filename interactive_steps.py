@@ -110,7 +110,7 @@ class StepPicker(object):
         '''
         xtol = 0.5
         deleted = False
-        if event.inaxes and fig.canvas.manager.toolbar._active is None:
+        if event.inaxes and fig.canvas.manager.toolbar.mode == "":
             clickX = event.xdata
             if (self.ax is None) or (self.ax is event.inaxes):
                 # Prioritizing removing marked point
