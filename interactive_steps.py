@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from matplotlib.widgets import Button
 from matplotlib.widgets import Slider
+from matplotlib.widgets import CheckButtons
+from matplotlib.widgets import TextBox
 import tkinter as tk
 from tkinter import filedialog
 matplotlib.use('qt5agg')
@@ -23,6 +25,10 @@ relative change). Click to select or deselect step points.
 Click "Export" when finished to save a list of all step sizes
 
 to a folder of your choice.
+
+NOTE: the script assumes current data is given in mA. Edit
+
+the get_data function to change this.
 
 """
 
@@ -108,7 +114,7 @@ class StepPicker(object):
         
         Otherwise add a new point at (x, y(x))
         '''
-        xtol = 0.5
+        xtol = 0.1
         deleted = False
         if event.inaxes and fig.canvas.manager.toolbar.mode == "":
             clickX = event.xdata
@@ -156,7 +162,7 @@ class StepPicker(object):
     
     def detect_steps(self, thresh=0.02):
         '''
-        Step detection algorithm
+        Initial step detection algorithm
         
         Finds points where step heights (determined by
             median values between points) are > thresh param.
@@ -235,7 +241,7 @@ class StepPicker(object):
     
     def calculate_steps(self, button):
         '''
-        Refines step locations
+        Refines step locations, then draws fit line and saves steps
 
         '''
         delta = np.zeros(len(self.xdata))
@@ -285,7 +291,6 @@ class StepPicker(object):
     
     def draw_average(self):
         # Redraw smoothed step line
-
         self.line.remove()
         self.line, = self.ax.plot([self.xdata[0]], 
                                   [self.ydata[0]], color=colors[0]) 
@@ -299,10 +304,13 @@ class StepPicker(object):
     def get_steps(self):
         # Save current step sizes to self.steps
         self.steps = []
+        self.abs_steps = []
         for (x,y) in self.criticalPoints:
             i = np.where(self.xdata==x)[0][0]
             step = (self.avg[i+1]-self.avg[i])/self.avg[i]
+            abs_step = self.avg[i+1]-self.avg[i]
             self.steps.append(step)
+            self.abs_steps.append(abs_step)
 
 
 class Index:
@@ -310,7 +318,7 @@ class Index:
     Class for cycling through multiple graphs
     '''
     
-    global files
+    global files, checkbox, pointsbox
     
     
     def __init__(self):
@@ -440,33 +448,69 @@ class Index:
     def hist(self, event):
         # Display current histogram
         step_list = []
-        for i in range(len(files)):
-            try:
-                steps = self.sp[i].steps
-                for step in steps:
-                    step_list.append(abs(step))
-            except KeyError:
-                print('No steps saved in File %s' %(i+1))
         
-        if step_list:
-            plt.figure(figsize=(5,5), dpi=100)
-            bins = np.arange(0, 1, 0.005)
-            plt.hist(step_list, bins, rwidth=0.8, 
-                     label="N = %s" %len(step_list))
-            plt.xlim(-0.005, 1.1*max(step_list))
-            plt.xlabel('$\Delta$$I/I_{ss}$')
-            plt.ylabel('Count')
-            plt.legend(frameon=False)
-            plt.show()
+        abs_deltaI = checkbox.get_status()
+        
+        if abs_deltaI[0] is False:
+            for i in range(len(files)):
+                try:
+                    steps = self.sp[i].steps
+                    n = 0
+                    for step in steps:
+                        if n < int(pointsbox.text):
+                            step_list.append(abs(step))
+                            n += 1
+                except KeyError:
+                    print('No steps saved in File %s' %(i+1))
+            
+            if step_list:
+                plt.figure(figsize=(6,6), dpi=100)
+                bins = np.arange(0, 1, 0.005)
+                plt.hist(step_list, bins, rwidth=0.8, 
+                         label="N = %s" %len(step_list))
+                plt.xlim(-0.005, 1.1*max(step_list))
+                plt.xlabel('$\Delta$$I/I_{ss}$')
+                plt.ylabel('Count')
+                plt.legend(frameon=False)
+                plt.show()
+        
+        elif abs_deltaI[0] is True:
+            for i in range(len(files)):
+                try:
+                    steps = self.sp[i].steps
+                    n = 0
+                    for step in steps:
+                        if n < int(pointsbox.text):
+                            step_list.append(abs(step))
+                            n += 1
+                except KeyError:
+                    print('No steps saved in File %s' %(i+1))
+            
+            if step_list:
+                plt.figure(figsize=(6,6), dpi=100)
+                bins = np.arange(0, 1, 0.005)
+                plt.hist(step_list, rwidth=0.8, 
+                         label="N = %s" %len(step_list))
+                # plt.xlim(-0.005, 1.1*max(step_list))
+                plt.xlabel('$\Delta I$')
+                plt.ylabel('Count')
+                plt.legend(frameon=False)
+                plt.show()            
     
     
     def save(self, event):
         step_list = []
+        
+        
+            
         for i in range(len(files)):
             try:
                 steps = self.sp[i].steps
+                n = 0
                 for step in steps:
-                    step_list.append(step)
+                    if n < int(pointsbox.text):
+                        step_list.append(abs(step))
+                        n += 1
             except KeyError:
                 print('No steps saved in File %s' %(i+1))
         
@@ -554,6 +598,14 @@ axslider = plt.axes([0.1, 0.2, 0.8, 0.025])
 slider = Slider(axslider, '', callback.xs[0][0], 
                 callback.xs[0][-1], valinit=callback.xs[0][0])
 slider.on_changed(callback.slider_changed)
+
+# Absolute delta I checkbox
+axcheckbox = plt.axes([0.4, 0.005, 0.35, 0.075])
+checkbox = CheckButtons(axcheckbox, ['Absolute $\Delta$I'])
+
+# Select first n points box
+axpointsbox = plt.axes([0.8, 0.005, 0.1, 0.075])
+pointsbox = TextBox(axpointsbox, '', initial='10')
 
 
 
