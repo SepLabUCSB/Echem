@@ -29,7 +29,7 @@ to a folder of your choice.
 
 
 def get_data(file):
-    df = df = pd.read_fwf(file, skiprows=1, headers=0,
+    df = pd.read_fwf(file, skiprows=1, headers=0,
                           names=('t', 'i'))
     df['i'] = df['i']/1000 #convert mA -> A
     df = df[df['t'] > 5]
