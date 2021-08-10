@@ -62,7 +62,12 @@ class StepPicker(object):
         else:
             self.ax = ax
         
+        # self.line = average (stairstep) line
+        # self.drawnpoints = step location markers
         self.line, = self.ax.plot([self.xdata[0]], [self.ydata[0]]) 
+        self.drawnpoints = self.ax.add_line(
+            matplotlib.lines.Line2D([],[],linewidth=0, 
+                                    marker='d', c='r', zorder=100))
         
           
         foundPoints = self.detect_steps()
@@ -90,33 +95,55 @@ class StepPicker(object):
         if avg is not None:
             self.avg = avg
         
-        # Reinitialize critical points
-        points = list(self.criticalPoints)
-        self.criticalPoints = dict()
-        for (x,y) in points:
-            self.drawPoints(ax,x,y)
-        
 
-        # Redraw avg line
-        self.line, = self.ax.plot([self.xdata[0]], 
-                                  [self.ydata[0]], color=colors[0]) 
-        self.line.set_data(self.xdata, self.avg)
-        self.line.figure.canvas.draw_idle()
+
+        # Redraw avg line and critical points
+        try:
+            self.line, = self.ax.plot([self.xdata[0]], 
+                                      [self.ydata[0]], color=colors[0]) 
+            self.line.set_data(self.xdata, self.avg)
+            self.ax.figure.canvas.draw_idle()
+        except:
+            # Exception if self.avg hasn't been generated yet
+            pass
+
+
+        self.drawnpoints = self.ax.add_line(matplotlib.lines.Line2D(
+            [],[],linewidth=0, marker='d', c='r', zorder=100))
         
+        xlist = []
+        ylist = []
+        for (x,y) in self.criticalPoints:
+            xlist.append(x)
+            ylist.append(y)
+        
+        self.drawnpoints.set_data(xlist, ylist)
+            
+        self.ax.figure.canvas.draw_idle()
+
+            
 
     
     def __call__(self, event):
         '''
         Called on mouse click in graph axes
         
-        Prioritizing removing marked point near cursor
+        Prioritize removing marked point near cursor
         (+- xtol seconds)
         
         Otherwise add a new point at (x, y(x))
         '''
-        xtol = 0.1
+        
+        # Set xtol based on current axis limits 
+        upper = self.ax.get_xlim()[1]
+        lower = self.ax.get_xlim()[0]
+        diff = upper-lower
+        xtol = 0.01*diff
+        
+        
         deleted = False
         if event.inaxes and fig.canvas.manager.toolbar.mode == "":
+            # print(xtol)
             clickX = event.xdata
             if (self.ax is None) or (self.ax is event.inaxes):
                 # Prioritizing removing marked point
@@ -138,29 +165,40 @@ class StepPicker(object):
     
     def drawPoints(self, ax, x, y):
         """
-        Draw or remove the point on the plot
+        Draw or remove the point on the plot and from self.criticalPoints
         """
         if (x, y) in self.criticalPoints:
-            # Remove point
-            markers = self.criticalPoints[(x, y)]
-            for m in markers:
-                m.set_visible(False)
-                m.remove()
             self.criticalPoints.pop((x,y), None)
+            
+            xlist = []
+            ylist = []
+            for (x,y) in self.criticalPoints:
+                xlist.append(x)
+                ylist.append(y)
+                
+            self.drawnpoints.set_data(xlist, ylist)
             self.ax.figure.canvas.draw_idle()
+            # print(len(self.criticalPoints))
 
             
         else:
             # Draw new point, add to criticalPoints dict
-            t = self.ax.text(x, y, "",)
-            m = self.ax.scatter([x], [y], marker='d', c='r', zorder=100)
-            self.criticalPoints[(x, y)] = (t, m)
+
+            self.criticalPoints[(x, y)] = 1
+            xlist = []
+            ylist = []
+            for (x,y) in self.criticalPoints:
+                xlist.append(x)
+                ylist.append(y)
+            
+            self.drawnpoints.set_data(xlist, ylist)
+                
             self.ax.figure.canvas.draw_idle()
+            # print(len(self.criticalPoints))
     
     
     
-    
-    def detect_steps(self, thresh=0.02):
+    def detect_steps(self, thresh=0.01):
         '''
         Initial step detection algorithm
         
@@ -242,7 +280,6 @@ class StepPicker(object):
     def calculate_steps(self, button):
         '''
         Refines step locations, then draws fit line and saves steps
-
         '''
         delta = np.zeros(len(self.xdata))
         self.avg = np.zeros(len(self.xdata))
@@ -257,8 +294,8 @@ class StepPicker(object):
             xi = np.where(self.xdata == x)[0][0] #convert to index
             n = np.where(delta == max(delta[xi-m:xi+m+1]))[0][0]
             if not n == xi:
-                for m in self.criticalPoints[(x,y)]:
-                    m.remove()
+                # for m in self.criticalPoints[(x,y)]:
+                #     m.remove()
                 self.criticalPoints.pop((x,y), None)
                 self.drawPoints(self.ax, self.xdata[n], self.ydata[n])
         
@@ -290,7 +327,9 @@ class StepPicker(object):
     
     
     def draw_average(self):
-        # Redraw smoothed step line
+        '''
+        Redraw smoothed step line
+        '''
         self.line.remove()
         self.line, = self.ax.plot([self.xdata[0]], 
                                   [self.ydata[0]], color=colors[0]) 
@@ -302,7 +341,9 @@ class StepPicker(object):
     
     
     def get_steps(self):
-        # Save current step sizes to self.steps
+        '''
+        Save current step sizes to self.steps and self.abs_steps
+        '''
         self.steps = []
         self.abs_steps = []
         for (x,y) in self.criticalPoints:
@@ -311,6 +352,8 @@ class StepPicker(object):
             abs_step = self.avg[i+1]-self.avg[i]
             self.steps.append(step)
             self.abs_steps.append(abs_step)
+
+
 
 
 class Index:
@@ -356,6 +399,9 @@ class Index:
     
     
     def next(self, event):
+        '''
+        Load next file
+        '''
         ax.clear()
         fig.canvas.mpl_disconnect(self.cid)
         self.ind += 1
@@ -391,9 +437,10 @@ class Index:
         plt.show()
         
     
-    
-    
     def prev(self, event):
+        '''
+        Load previous file
+        '''
         ax.clear()
         fig.canvas.mpl_disconnect(self.cid)
         self.ind -= 1
@@ -431,6 +478,11 @@ class Index:
 
     
     def recalc(self, event):
+        '''
+        Call calculate_steps on current graph instance
+        
+        Accounts for slider removing first data points
+        '''
         # i = self.ind % len(files)
         i = self.i
         ind = self.slider[i]
@@ -446,7 +498,13 @@ class Index:
     
     
     def hist(self, event):
-        # Display current histogram
+        '''
+        Display current histogram. Absolute value
+        
+        checkbox determines whether relative or absolute
+        
+        step sizes are used
+        '''
         step_list = []
         
         abs_deltaI = checkbox.get_status()
@@ -463,21 +521,12 @@ class Index:
                 except KeyError:
                     print('No steps saved in File %s' %(i+1))
             
-            if step_list:
-                plt.figure(figsize=(6,6), dpi=100)
-                bins = np.arange(0, 1, 0.005)
-                plt.hist(step_list, bins, rwidth=0.8, 
-                         label="N = %s" %len(step_list))
-                plt.xlim(-0.005, 1.1*max(step_list))
-                plt.xlabel('$\Delta$$I/I_{ss}$')
-                plt.ylabel('Count')
-                plt.legend(frameon=False)
-                plt.show()
-        
-        elif abs_deltaI[0] is True:
+            xlabel = '$\Delta$$I/I_{ss}$'
+            
+        if abs_deltaI[0] is True:
             for i in range(len(files)):
                 try:
-                    steps = self.sp[i].steps
+                    steps = self.sp[i].abs_steps
                     n = 0
                     for step in steps:
                         if n < int(pointsbox.text):
@@ -485,34 +534,56 @@ class Index:
                             n += 1
                 except KeyError:
                     print('No steps saved in File %s' %(i+1))
+           
+            xlabel = '$\Delta I/$ $A$'
             
-            if step_list:
-                plt.figure(figsize=(6,6), dpi=100)
-                bins = np.arange(0, 1, 0.005)
-                plt.hist(step_list, rwidth=0.8, 
-                         label="N = %s" %len(step_list))
-                # plt.xlim(-0.005, 1.1*max(step_list))
-                plt.xlabel('$\Delta I$')
-                plt.ylabel('Count')
-                plt.legend(frameon=False)
-                plt.show()            
+            
+        if step_list:
+            plt.figure(figsize=(6,6), dpi=100)
+            # bins = np.arange(0, 1, 0.005)
+            plt.hist(step_list, rwidth=0.8)
+            # plt.xlim(-0.005, 1.1*max(step_list))
+            plt.xlabel(xlabel)
+            plt.ylabel('Count')
+            plt.text(1, 1.02, 'N = %s' %len(step_list),
+                     transform=ax.transAxes,
+                     horizontalalignment='right')
+            plt.show()
+        
+         
     
     
     def save(self, event):
-        step_list = []
+        '''
+        Export list of relative and absolute step
         
+        sizes as xlsx document
+        '''
+        step_list = []
+        abs_step_list = []
         
             
         for i in range(len(files)):
+            # Create list of steps and abs_steps to export
             try:
                 steps = self.sp[i].steps
+                abs_steps = self.sp[i].abs_steps
                 n = 0
+                m = 0
+
                 for step in steps:
                     if n < int(pointsbox.text):
-                        step_list.append(abs(step))
+                        # Only keep first n steps
+                        step_list.append(step)
                         n += 1
+                for abs_step in abs_steps:
+                    if m < int(pointsbox.text):
+                        abs_step_list.append(abs_step)
+                        m += 1
+                        
             except KeyError:
                 print('No steps saved in File %s' %(i+1))
+        
         
         if step_list:
             root = tk.Tk()
@@ -525,8 +596,11 @@ class Index:
     
             
             writer = pd.ExcelWriter(file, engine = 'xlsxwriter')
-            out = pd.Series(step_list)
-            out.to_excel(writer, index=False, header=False, startcol=0)
+            out = pd.DataFrame(
+                {'dI/Iss': step_list,
+                'delta I (A)': abs_step_list}
+                )
+            out.to_excel(writer, index=False, header=True, startcol=0)
             writer.save()
             print('Saved as %s' %file)
         else:
@@ -534,7 +608,12 @@ class Index:
     
     
     def slider_changed(self, val):
+        '''
+        Redraw raw data after adding/ removing xdata using slider
+        '''        
+        
         i = self.i
+        
         def find_nearest(array,value):
             idx = np.searchsorted(array, value, side="left")
             if idx > 0 and (idx == len(array) or abs(value - array[idx-1]) < abs(value - array[idx])):
