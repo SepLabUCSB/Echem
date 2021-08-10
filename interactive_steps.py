@@ -463,21 +463,12 @@ class Index:
                 except KeyError:
                     print('No steps saved in File %s' %(i+1))
             
-            if step_list:
-                plt.figure(figsize=(6,6), dpi=100)
-                bins = np.arange(0, 1, 0.005)
-                plt.hist(step_list, bins, rwidth=0.8, 
-                         label="N = %s" %len(step_list))
-                plt.xlim(-0.005, 1.1*max(step_list))
-                plt.xlabel('$\Delta$$I/I_{ss}$')
-                plt.ylabel('Count')
-                plt.legend(frameon=False)
-                plt.show()
-        
-        elif abs_deltaI[0] is True:
+            xlabel = '$\Delta$$I/I_{ss}$'
+            
+        if abs_deltaI[0] is True:
             for i in range(len(files)):
                 try:
-                    steps = self.sp[i].steps
+                    steps = self.sp[i].abs_steps
                     n = 0
                     for step in steps:
                         if n < int(pointsbox.text):
@@ -485,34 +476,49 @@ class Index:
                             n += 1
                 except KeyError:
                     print('No steps saved in File %s' %(i+1))
+           
+            xlabel = '$\Delta I/$ $A$'
             
-            if step_list:
-                plt.figure(figsize=(6,6), dpi=100)
-                bins = np.arange(0, 1, 0.005)
-                plt.hist(step_list, rwidth=0.8, 
-                         label="N = %s" %len(step_list))
-                # plt.xlim(-0.005, 1.1*max(step_list))
-                plt.xlabel('$\Delta I$')
-                plt.ylabel('Count')
-                plt.legend(frameon=False)
-                plt.show()            
+            
+        if step_list:
+            plt.figure(figsize=(6,6), dpi=100)
+            # bins = np.arange(0, 1, 0.005)
+            plt.hist(step_list, rwidth=0.8)
+            # plt.xlim(-0.005, 1.1*max(step_list))
+            plt.xlabel(xlabel)
+            plt.ylabel('Count')
+            plt.text(1, 1.02, 'N = %s' %len(step_list),
+                     transform=ax.transAxes,
+                     horizontalalignment='right')
+            plt.show()
+        
+         
     
     
     def save(self, event):
         step_list = []
-        
+        abs_step_list = []
         
             
         for i in range(len(files)):
+            # Create list of steps and abs_steps to export
             try:
                 steps = self.sp[i].steps
+                abs_steps = self.sp[i].abs_steps
                 n = 0
+                
                 for step in steps:
                     if n < int(pointsbox.text):
-                        step_list.append(abs(step))
+                        # Only keep first n steps
+                        step_list.append(step)
                         n += 1
+                for abs_step in abs_steps:
+                    if n < int(pointsbox.text):
+                        abs_step_list.append(abs_step)
+                        
             except KeyError:
                 print('No steps saved in File %s' %(i+1))
+        
         
         if step_list:
             root = tk.Tk()
@@ -525,8 +531,11 @@ class Index:
     
             
             writer = pd.ExcelWriter(file, engine = 'xlsxwriter')
-            out = pd.Series(step_list)
-            out.to_excel(writer, index=False, header=False, startcol=0)
+            out = pd.DataFrame(
+                {'dI/Iss': step_list,
+                'delta I (A)': abs_step_list}
+                )
+            out.to_excel(writer, index=False, header=True, startcol=0)
             writer.save()
             print('Saved as %s' %file)
         else:
