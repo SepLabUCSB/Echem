@@ -6,17 +6,19 @@ from matplotlib.widgets import Button
 from matplotlib.widgets import Slider
 from matplotlib.widgets import CheckButtons
 from matplotlib.widgets import TextBox
-import tkinter as tk
-from tkinter import filedialog
-matplotlib.use('qt5agg')
+import os
+# matplotlib.use('qt5agg')
 plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
+folder = 'C:/Users/BRoehrich/Desktop/test_folder'
 
 """
+**Type %matplotlib in console before running file**
+
 Python script for interactive analysis of single entity echem step data.
 
-Run file, select data files to analyze.
+Analyzes all files in specified folder.
 
 The program will automatically try to find steps (with >2% 
 
@@ -635,15 +637,19 @@ class Index:
         
         
 
-root = tk.Tk()
-root.withdraw()
-root.attributes("-topmost", True)
-files = filedialog.askopenfilenames(title='Select files', 
-                                    filetypes=(('Text', '*.txt' ), 
-                                               ('All files', '*')))
+# root = tk.Tk()
+# root.withdraw()
+# root.attributes("-topmost", True)
+# files = filedialog.askopenfilenames(title='Select files', 
+#                                     filetypes=(('Text', '*.txt' ), 
+#                                                ('All files', '*')))
+
+os.chdir(folder)
+files = os.listdir(folder)
 
 fig, ax = plt.subplots(figsize=(5,6), dpi=100)
 plt.subplots_adjust(bottom=0.3)
+
 
 callback = Index()
 
