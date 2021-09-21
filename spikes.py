@@ -4,7 +4,18 @@ import matplotlib.pyplot as plt
 from itertools import count
 import warnings
 warnings.filterwarnings("ignore")
-plt.rcParams['figure.dpi'] = 300
+plt.style.use('Z:/Projects/Brian/scientific.mplstyle')
+
+current_unit = 1e-3
+
+def get_data(file):
+    df = pd.read_csv(file, skiprows=1, sep='\t',
+                     names=('current', 'time'), dtype='float')
+    df['current'] = df['current']*current_unit
+    df = df[df['time'] > 5]
+    return df
+
+
 
 class Spike:
     _ids = count(0)
@@ -50,28 +61,23 @@ def thresholding_algo(y, lag, threshold, influence):
             filteredY[i] = y[i]
             avgFilter[i] = np.mean(filteredY[(i-lag+1):i+1])
             stdFilter[i] = np.std(filteredY[(i-lag+1):i+1])
-
+    
+    
     return dict(signals = np.asarray(signals),
                 avgFilter = np.asarray(avgFilter),
                 stdFilter = np.asarray(stdFilter))        
 
 
-df = pd.read_fwf('C:/Users/BRoehrich/Desktop/lsv4.txt', names=('time', 'current'), widths=[23,23])
-df = df[1:]
+file = 'C:/Users/BRoehrich/Desktop/spikes.txt'
+df = get_data(file)
 
-df['current'] = df['current'].astype(float)
-df['time'] = df['time'].astype(float)
-df = df[df['time']>1]
-df = df[df['time'] > 100]
-df['current'] = df['current']*1e-3
-# df['current'] = df['current'] + 1
 current = df['current'].to_numpy()
 time = df['time'].to_numpy()
 dx = time[1] - time[0]
 
 #%%
 
-out = thresholding_algo(current, 500, 3, 0.2)
+out = thresholding_algo(current, 25, 5, 0.2)
 points = out['signals']
 avg = out['avgFilter']
 df['spike'] = points
@@ -116,6 +122,7 @@ for i in spikes:
 
 print('Integrated %s spikes.' %len(spikes))
 
+
 #%%
 plt.figure()
 plt.plot(time, current, '.-')
@@ -126,13 +133,13 @@ for i in spikes:
 plt.plot(time, out['avgFilter'], '-r')
 plt.plot(time, out['avgFilter'] + out['stdFilter'], '-g')
 plt.plot(time, out['avgFilter'] - out['stdFilter'], '-g')
-plt.xlim(427, 430)
+# plt.xlim(427, 430)
 # plt.ylim(0.5e-11, 1e-11)
 plt.show()
 
 
 
 
-plt.hist(hist, bins=np.arange(0,100,2), rwidth=0.8)
-plt.xlabel('Charge/ fC')
-plt.ylabel('Count')
+# plt.hist(hist, bins=np.arange(0,100,2), rwidth=0.8)
+# plt.xlabel('Charge/ fC')
+# plt.ylabel('Count')
