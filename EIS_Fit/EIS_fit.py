@@ -1,11 +1,13 @@
 import numpy as np
 import ga
 import circuits
+import LEVM
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize, basinhopping
+from scipy.optimize import minimize, basinhopping, least_squares
 import os
+import time
 plt.style.use('Z:/Projects/Brian/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -73,7 +75,7 @@ class DataFile:
         df = pd.read_csv(file, skiprows=1, names=
                            ('freqs', 're', 'im'), sep='\t')
         
-        
+        self.file = file
         self.circuit = circuit
         self.bounds = bounds
         
@@ -145,9 +147,9 @@ class DataFile:
                             'ftol':1e-12})
         
         # res = basinhopping(circuits.leastsq_errorfunc_array, 
-        #                    param_array, minimizer_kwargs={
-        #                        'args':(self.freqs, self.Z, self.circuit, param_names)
-        #                        })
+        #                     param_array, minimizer_kwargs={
+        #                         'args':(self.freqs, self.Z, self.circuit, param_names)
+        #                         })
         
         
         
@@ -160,11 +162,27 @@ class DataFile:
        
         self.score = circuits.leastsq_errorfunc_array(param_array, self.freqs, self.Z, 
                                                       self.circuit, param_names)
-
+        
+        
+    def LEVM_fit(self, **kwargs):
+        try:
+            self.params = LEVM.LEVM_fit(self.freqs, self.Z, self.params)
+        
+        except:
+            print('Performing GA fit. File: ', self.file)
+            self.ga_fit(starting_guess=self.params, n_iter = 50)
+        
+        # Fix handling of CPE phase!!
+        self.params['n1'] = 1.0
+        
+        self.score = circuits.leastsq_errorfunc(self.freqs, self.Z,
+                                                self.params, self.circuit)
         
 
 
 def fit_all_runs(path):
+    
+    starting_time = time.time()
     
     for folder in os.listdir(path):
         
@@ -183,40 +201,66 @@ def fit_all_runs(path):
                 
                 if i == 1:
                     # Start new fit routine with genetic algorithm
+                    fig, ax = plt.subplots()
                     while df[i].score > 100000:
-                        df[i].ga_fit(n_iter=500)
+                        df[i].ga_fit(n_iter=200)
                     
-                    # df[i].leastsq_fit()
-                    # print(df[i].params['R2'], df[i].score)
+                    df[i].LEVM_fit()
+                    
+                    print('File 1 fit complete in ', 
+                          time.time() - starting_time, 's.')
                 
                 else:
                     # Copy initial parameters from previous fit
-                    df[i].params = df[i-1].params
-                    df[i].score = df[i-1].score
+                    df[i].params = df[i-1].params  
                     
-                    # df[i].leastsq_fit()
-                    df[i].ga_fit(n_iter = 20,
-                                  starting_guess=df[i].params)
+                    df[i].LEVM_fit()
+                    
+                    if df[i].params == df[i-1].params:
+                        df[i].ga_fit(n_iter=25, r_mut=0.5,
+                                     starting_guess=df[i].params)
+
+                        
+                    if i%50 == 0:
+                        print('File %s completed.' %i)
     
                 
                 i += 1
-
+    print('Run complete. Total time: ', 
+          time.time() - starting_time, 's.')
+    
     return df
 
-df = fit_all_runs(path)
+
+
+
+
+
+
+if __name__ == '__main__':
     
-#%%
-
-param_list = [key for key, item in df[1].params.items()]
-
-for param in param_list:
-    l = []
-    fig, ax = plt.subplots()
+    df = fit_all_runs(path)
+    
+#%%    
+    param_list = [key for key, item in df[1].params.items()]
+    
+    for param in param_list:
+        l = []
+        fig, ax = plt.subplots()
+        for i in df:
+            l.append(df[i].params[param])
+        ax.plot(np.arange(0,45,0.1), l)
+        ax.set_xlabel('Time/ s')
+        ax.set_ylabel(param)
+        ax.set_title(param)
+    
+    
+    scores = []
     for i in df:
-        l.append(df[i].params[param])
-    ax.plot(np.arange(0,45,0.1), l)
-    ax.set_xlabel('Time/ s')
-    ax.set_ylabel(param)
-    ax.set_title(param)
+        scores.append(df[i].score)
+    fig, ax = plt.subplots()
+    ax.plot(range(len(df)), scores)
+    ax.set_ylabel('Score')
+
 
 
