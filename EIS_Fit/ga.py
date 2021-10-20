@@ -199,6 +199,9 @@ def genetic_algorithm(freqs, Z, bounds, circuit,
                 fit_Z = circuits.chosen_circuit(circuit, freqs, best)
                 ax.plot(np.real(fit_Z)/1e6, -np.imag(fit_Z)/1e6, 
                         color = colors[gen], alpha = (0.5*gen/n_iter)+0.2)
+                ax.set_xlabel("Z'/ M$\Omega$")
+                ax.set_ylabel("Z''/ M$\Omega$")
+                ax.set_ylim(ax.get_xlim())
 
         
         #select parents
