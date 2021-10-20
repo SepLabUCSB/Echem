@@ -14,7 +14,7 @@ inputs = {
     'IOPT':'   0',
     'DINP':'  Z',
     'DFIT':'Z',
-    'PINP':'R',
+    'PINP':'Z',
     'PFIT':'R',
     'FREEQ':'F',
     'NEG':' ',
@@ -30,11 +30,11 @@ inputs = {
     'N':'   40',
     'MAXFEV':'   99',
     'NPRINT':'    0',
-    'IRCH':'    2',
+    'IRCH':'    3',
     'MODE':'    0',
     'ICP':'    0',
     'IPRINT':'    1',
-    'IGACC':'    2',
+    'IGACC':'    1',
     'ATEMP':' .0000D+00'
     }
 
@@ -117,9 +117,9 @@ def params_to_LEVM_format(d):
     
     def _round(x):
         OOM = math.floor(math.log10(x))
-        return round(x/(10**OOM))*10**OOM
+        # return round(x/(10**OOM))*10**OOM
         # return 10**OOM
-        # return x
+        return x
     
     for i in p:
         p[i] = _round(p[i])
@@ -207,7 +207,11 @@ def write_binary_line(file, p):
     for key in keys:
         val = string_to_float(p[key])
         
-        if val != 0:
+        if val == 2:
+            # CPE assigned using NLEM == 2, fixed value
+            line = line + '0'
+        
+        elif val != 0:
             line = line + '1'
             
         elif val == 0:
@@ -243,7 +247,7 @@ def write_Z_data(file, freqs, Z):
 
 
 
-def write_input_file(file, d, freqs, Z, comment=''):
+def write_input_file(file, d, freqs, Z, comment=' '):
     '''
     Parameters
     ----------
@@ -326,7 +330,7 @@ def extract_params(file):
 
 
 
-def LEVM_fit(freqs, Z, d, comment = 'test comment'):
+def LEVM_fit(freqs, Z, d, comment = ' '):
     '''
     Main function to call to perform LEVM fit
     
@@ -392,13 +396,22 @@ Z_test = np.array([18735629.81418155-10792324.49845394j,
         1253126.61199721 -2787895.35068144j,
         1014951.57014762 -2072276.43707479j])
 
-d_test = {'R1': 265151.38227128744,
-      'R2': 8488042.354616795,
-      'R3': 41022106.03535404,
-      'Q1': 3.6273344688041505e-12,
+# d_test = {'R1': 265151.38227128744,
+#       'R2': 8488042.354616795,
+#       'R3': 41022106.03535404,
+#       'Q1': 3.6273344688041505e-12,
+#       'n1': 1.0,
+#       'Q2': 6.424844265974332e-10,
+#       'n2': 0.6790376343555156}
+
+
+d_test = {'R1': 2.3911E5,
+      'R2': 9.7956E6,
+      'R3': 3.16791E7,
+      'Q1': 4.07581E-12,
       'n1': 1.0,
-      'Q2': 6.424844265974332e-10,
-      'n2': 0.6790376343555156}
+      'Q2': 4.93661E-10,
+      'n2': 0.704902}
 
 #%%
 if __name__ == '__main__':

@@ -169,7 +169,8 @@ class DataFile:
             self.params = LEVM.LEVM_fit(self.freqs, self.Z, self.params)
         
         except:
-            print('Performing GA fit. File: ', self.file)
+            print('LEVM fit timed out, performing GA fit. File: ', 
+                  self.file)
             self.ga_fit(starting_guess=self.params, n_iter = 50)
         
         # Fix handling of CPE phase!!
@@ -216,9 +217,9 @@ def fit_all_runs(path):
                     
                     df[i].LEVM_fit()
                     
-                    if df[i].params == df[i-1].params:
-                        df[i].ga_fit(n_iter=25, r_mut=0.5,
-                                     starting_guess=df[i].params)
+                    # if df[i].params == df[i-1].params:
+                    #     df[i].ga_fit(n_iter=25, r_mut=0.5,
+                    #                  starting_guess=df[i].params)
 
                         
                     if i%50 == 0:
