@@ -3,6 +3,15 @@ import os
 import subprocess
 import numpy as np
 import math
+'''
+
+Main function to call for LEVM fitting:
+
+LEVM_fit(freqs, Z, d, circuit):
+    returns fits: dict of best-fit parameters
+
+'''
+
 
 ##############################################################################
 #####                      LEVM INPUT PARAMS                             #####
@@ -47,7 +56,7 @@ inputs = {
 
 
 def float_to_string(n, decimals = 8):
-    # Convert to scientific notation
+    # Convert scientific notation to Fortran D notation
     if type(n) == str:
         return n
     
@@ -91,7 +100,7 @@ def float_to_string(n, decimals = 8):
 
 
 def string_to_float(s):
-    # Parse LEVM format
+    # FORTRAN D to scientific notation
     
     digits = float(s[:9])
     sign = s[-3]
@@ -107,13 +116,26 @@ def string_to_float(s):
 
 
 
+def params_to_LEVM_format(d, circuit):
+    '''
+    Map initial guesses to correct parameters[0-40]
 
-def params_to_LEVM_format(d):
-    p = {}
-    p[1] = d['R1']  
-    p[4] = d['R2']  
-    p[21] = d['R3']
-    
+    Parameters
+    ----------
+    d : Dict
+        Initial parameter guesses (same as for circuits.py)
+    circuit : String
+        Name of equivalent circuit (same as for circuits.py)
+
+
+    Returns
+    -------
+    p: dict, 
+        p[0] to p[40]
+    function: string,
+        Built-in LEVM equivalent circuit to use
+
+    '''
     
     def _round(x):
         OOM = math.floor(math.log10(x))
@@ -121,21 +143,34 @@ def params_to_LEVM_format(d):
         # return 10**OOM
         return x
     
-    for i in p:
-        p[i] = _round(p[i])
     
-    p[9] = d['n2']
-    p[3] = d['Q1']
-    p[7] = d['Q2']
-    p[10] = 2
+    if circuit == 'Randles_uelec':
+        # Write initial guesses to select parameters
+        # Check LEVM manual pp. 114-150 to choose an appropriate
+        # function ('A'-'F' most appropriate for solution phase 
+        # echem) and map circuit elements to the correct parameter (0-40)
+        p = {}
+        p[1] = d['R1']
+        p[4] = d['R2']
+        p[21] = d['R3']
+        p[9] = d['n2']
+        p[3] = d['Q1']
+        p[7] = d['Q2']
+        p[10] = 2
+        function = 'C'
     
-    # print(p)
+    else:
+        print('Circuit not recognized')
+        raise ValueError
+    
+
     
     for i in range(1,41):
         if i not in p:
             p[i] = 0
-     
-    return p, 'C'
+    
+    
+    return p, function
     
 
 
@@ -145,7 +180,9 @@ def params_to_LEVM_format(d):
 ##############################################################################
 
 def write_comment_line(file, comment):
-    
+    '''
+    Write comment line. 1st line of INFL, 80 char max
+    '''
     if len(comment) > 80:
         raise ValueError('Comment is too long!')
         sys.exit()
@@ -155,9 +192,12 @@ def write_comment_line(file, comment):
     
     
 
-
 def write_input_params(file):
-
+    '''
+    Write lines 2 and 3 containing fit settings.
+    
+    Settings defined in global inputs dict
+    '''
     line2 = ''
     line3 = ''
     
@@ -182,6 +222,9 @@ def write_input_params(file):
 
 
 def write_initial_params(file, p):
+    '''
+    Write initial guesses to file (lines 4-11)
+    '''
     param_lines = {}
     param_lines[1] = '  %s  %s  %s  %s  %s'%(p[1], p[2], p[3], p[4], p[5])
     param_lines[2] = '  %s  %s  %s  %s  %s'%(p[6], p[7], p[8], p[9], p[10])
@@ -198,8 +241,15 @@ def write_initial_params(file, p):
 
 
 
-
 def write_binary_line(file, p):
+    '''
+    Line 12 is a 40 character line of binary
+    
+    If character i == 1, p[i] is free during the fit
+    If character i == 0, p[i] is fixed during the fit
+    
+    '''
+    
     line = ''
     
     keys = list(p.keys())
@@ -222,9 +272,20 @@ def write_binary_line(file, p):
 
 
 
-
 def write_Z_data(file, freqs, Z):
-    
+    '''
+    Writes lines 13-n, containing all impedance data
+
+    Parameters
+    ----------
+    file : String.
+        Output file. Generally 'INFL'
+    freqs : array-like.
+        Array of frequencies
+    Z : array-like
+        Array of impedance data in format (re + 1j*im)
+
+    '''
     freqs = np.asarray(freqs)
     re = np.real(Z)
     im = np.imag(Z)
@@ -245,20 +306,18 @@ def write_Z_data(file, freqs, Z):
     
 
 
-
-
-def write_input_file(file, d, freqs, Z, comment=' '):
+def write_input_file(file, d, freqs, Z, circuit, comment=' '):
     '''
     Parameters
     ----------
     file : String
-        Target file to write.
+        Target file to write. Should generally be 'INFL'
     d : Dict
         Initial guesses for fit parameters.
     freqs : Array-like
-        List of frequencies.
+        Array of frequencies.
     Z : Array-like
-        List of (re - 1j*im) impedances.
+        Array of (re - 1j*im) impedances.
     comment : String, optional
         Comment line to include on line 1.
         Max 80 characters.
@@ -268,7 +327,7 @@ def write_input_file(file, d, freqs, Z, comment=' '):
     global inputs
     
     
-    p, circuit = params_to_LEVM_format(d)
+    p, circuit = params_to_LEVM_format(d, circuit)
         
     inputs['FUN'] = circuit    
     inputs['M'] = str(len(freqs)).rjust(5, ' ')
@@ -290,13 +349,34 @@ def write_input_file(file, d, freqs, Z, comment=' '):
 ##############################################################################
 
 def run_LEVM():
+    '''
+    Run LEVM using subproccess.run()
+    '''
     LEVM_path = os.getcwd() + '\levm.exe'
     subprocess.run([], executable=LEVM_path, timeout=2)
            
 
 
-def extract_params(file):
-    # Function to extract fit parameters from OUTIN
+def extract_params(file, circuit):
+    '''
+    Function to extract fit parameters from OUTIN
+    
+    Parameters
+    ----------
+    file: string
+        Output file to read. Should always be 'OUTIN'
+    circuit: string
+        Name of equivalent circuit used in fit
+        (same as in circuits.py)
+
+
+    Returns
+    -------
+    d: dict 
+        Best-fit parameters, converted back to 
+        EIS_fit.py names
+    
+    ''' 
     with open(file) as f:
         for lineno, line in enumerate(f):
             if lineno == 11:
@@ -316,21 +396,26 @@ def extract_params(file):
                     if m in p.keys():
                         p[m] = element
                     m += 1
-    
-    d = {}
-    d['R1'] = string_to_float(p[1])
-    d['Q1'] = string_to_float(p[3])
-    d['R2'] = string_to_float(p[4])
-    d['Q2'] = string_to_float(p[7])
-    d['n2'] = string_to_float(p[9])
-    d['R3'] = string_to_float(p[21])
-
+                    
+    if circuit == 'Randles_uelec':
+        d = {}
+        d['R1'] = string_to_float(p[1])
+        d['Q1'] = string_to_float(p[3])
+        d['n1'] = 1.0
+        d['R2'] = string_to_float(p[4])
+        d['Q2'] = string_to_float(p[7])
+        d['n2'] = string_to_float(p[9])
+        d['R3'] = string_to_float(p[21])
+        
+    else:
+        print('Circuit not recognized')
+        raise ValueError('Circuit not recognized by extract_params()')
     
     return d
 
 
 
-def LEVM_fit(freqs, Z, d, comment = ' '):
+def LEVM_fit(freqs, Z, d, circuit, comment = ' '):
     '''
     Main function to call to perform LEVM fit
     
@@ -356,21 +441,36 @@ def LEVM_fit(freqs, Z, d, comment = ' '):
             Fitted parameters
 
     '''
+    # Determine location of LEVM.py
     path = os.path.abspath(os.path.dirname(sys.argv[0]))
     os.chdir(path)
     
+    # LEVM should always be in a subfolder called /LEVM/
+    # Executable is /LEVM/LEVM.exe
     LEVM_dir = os.getcwd() + '//LEVM/'
     os.chdir(LEVM_dir)
     
-    write_input_file('INFL', d, freqs, Z, comment)
+    write_input_file('INFL', d, freqs, Z, circuit, comment)
     run_LEVM()
-    fits = extract_params('OUTIN')
+    fits = extract_params('OUTIN', circuit)
     
+    # Return to LEVM.py directory
     os.chdir(path)
     
     return fits
 
 
+
+
+
+
+
+
+
+
+
+
+#%% Testing
 
 
 ## Test fit
@@ -396,13 +496,13 @@ Z_test = np.array([18735629.81418155-10792324.49845394j,
         1253126.61199721 -2787895.35068144j,
         1014951.57014762 -2072276.43707479j])
 
-# d_test = {'R1': 265151.38227128744,
-#       'R2': 8488042.354616795,
-#       'R3': 41022106.03535404,
-#       'Q1': 3.6273344688041505e-12,
-#       'n1': 1.0,
-#       'Q2': 6.424844265974332e-10,
-#       'n2': 0.6790376343555156}
+d_test = {'R1': 265151.38227128744,
+      'R2': 8488042.354616795,
+      'R3': 41022106.03535404,
+      'Q1': 3.6273344688041505e-12,
+      'n1': 1.0,
+      'Q2': 6.424844265974332e-10,
+      'n2': 0.6790376343555156}
 
 
 d_test = {'R1': 2.3911E5,
@@ -413,13 +513,8 @@ d_test = {'R1': 2.3911E5,
       'Q2': 4.93661E-10,
       'n2': 0.704902}
 
-#%%
 if __name__ == '__main__':
-    fits = LEVM_fit(freqs_test, Z_test, d_test)
+    fits = LEVM_fit(freqs_test, Z_test, d_test, 'Randles_uelec')
     print(fits)
     
-
-
-
-
 

@@ -100,73 +100,12 @@ class DataFile:
             starting_guess = starting_guess, **kwargs)
         
 
-
-    
-    def leastsq_fit(self, **kwargs):
-         
-        # Convert parameters to array to pass to scipy.minimize
-        param_array = []
-        param_names = []
-        upper_bounds = []
-        lower_bounds = []
-        
-        for name, val in self.params.items():
-            
-            param_names.append(name)
-            param_array.append(val)
-            
-            if self.bounds[name][0] == self.bounds[name][1]:
-                lower_bounds.append(self.bounds[name][0])
-                upper_bounds.append(self.bounds[name][1])
-            
-            else:
-                lower_bounds.append(self.bounds[name][0])
-                upper_bounds.append(self.bounds[name][1])
-            
-        
-        
-        param_array = np.array(param_array)
-        
-
-        # Do least-squares minimization         
-            
-        # res = least_squares(circuits.leastsq_errorfunc_array, param_array,
-        #                     args=(self.freqs, self.Z, self.circuit, param_names),
-        #                     verbose=0, xtol=None, ftol=1e-15, max_nfev=1e5,
-        #                     bounds = (lower_bounds, upper_bounds))
-        
-        
-        bounds = [(lower_bounds[i], upper_bounds[i]) for 
-                  i in range(len(lower_bounds))]
-        
-
-        
-        res = minimize(circuits.leastsq_errorfunc_array, param_array,
-                        args=(self.freqs, self.Z, self.circuit, param_names),
-                        bounds = bounds, method='L-BFGS-B', options={
-                            'ftol':1e-12})
-        
-        # res = basinhopping(circuits.leastsq_errorfunc_array, 
-        #                     param_array, minimizer_kwargs={
-        #                         'args':(self.freqs, self.Z, self.circuit, param_names)
-        #                         })
-        
-        
-        
-        # Save new parameters
-        self.params = {}
-        for i in range(len(param_names)):
-            name = param_names[i]
-            val = res.x[i]
-            self.params[name] = val
-       
-        self.score = circuits.leastsq_errorfunc_array(param_array, self.freqs, self.Z, 
-                                                      self.circuit, param_names)
         
         
     def LEVM_fit(self, **kwargs):
         try:
-            self.params = LEVM.LEVM_fit(self.freqs, self.Z, self.params)
+            self.params = LEVM.LEVM_fit(self.freqs, self.Z, 
+                                        self.params, self.circuit)
         
         except:
             print('LEVM fit timed out, performing GA fit. File: ', 
@@ -216,10 +155,6 @@ def fit_all_runs(path):
                     df[i].params = df[i-1].params  
                     
                     df[i].LEVM_fit()
-                    
-                    # if df[i].params == df[i-1].params:
-                    #     df[i].ga_fit(n_iter=25, r_mut=0.5,
-                    #                  starting_guess=df[i].params)
 
                         
                     if i%50 == 0:
@@ -250,7 +185,7 @@ if __name__ == '__main__':
         fig, ax = plt.subplots()
         for i in df:
             l.append(df[i].params[param])
-        ax.plot(np.arange(0,45,0.1), l)
+        ax.plot(np.arange(0,45,0.1), l, '.')
         ax.set_xlabel('Time/ s')
         ax.set_ylabel(param)
         ax.set_title(param)
