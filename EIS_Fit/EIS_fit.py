@@ -92,6 +92,9 @@ class DataFile:
     
         
     def ga_fit(self, ax=None, starting_guess=None, **kwargs):
+        '''
+        Perform genetic algorithm fit using ga.py
+        '''
         if ax is not None:
             ax.plot(self.re/1e6, -self.im/1e6, 'o')
             
@@ -103,6 +106,9 @@ class DataFile:
         
         
     def LEVM_fit(self, **kwargs):
+        '''
+        Perform least-squares fit using LEVM.py
+        '''
         try:
             self.params = LEVM.LEVM_fit(self.freqs, self.Z, 
                                         self.params, self.circuit)
@@ -177,7 +183,7 @@ if __name__ == '__main__':
     
     df = fit_all_runs(path)
     
-#%%    
+#%%    Plot parameters vs time
     param_list = [key for key, item in df[1].params.items()]
     
     for param in param_list:
