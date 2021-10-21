@@ -14,15 +14,15 @@
       MODULUS WEIGHTING: RESULTS RAISED TO THE POWER 0.00000D+00
 
  INITIAL PARAMETER GUESSES AND FIXED (0) OR FREE (1 OR 2) STATUS
-     P( 1) =    2.391100D+05    1        P(17) =    0.000000D+00    0
+     P( 1) =    2.441277D+05    1        P(17) =    0.000000D+00    0
      P( 2) =    0.000000D+00    0        P(18) =    0.000000D+00    0
-     P( 3) =    4.075810D-12    1        P(19) =    0.000000D+00    0
-     P( 4) =    9.795600D+06    1        P(20) =    0.000000D+00    0
-     P( 5) =    0.000000D+00    0        P(21) =    3.167910D+07    1
+     P( 3) =    3.552348D-12    1        P(19) =    0.000000D+00    0
+     P( 4) =    1.090993D+07    1        P(20) =    0.000000D+00    0
+     P( 5) =    0.000000D+00    0        P(21) =    6.471012D+07    1
      P( 6) =    0.000000D+00    0        P(22) =    0.000000D+00    0
-     P( 7) =    4.936610D-10    1        P(23) =    0.000000D+00    0
+     P( 7) =    3.760939D-10    1        P(23) =    0.000000D+00    0
      P( 8) =    0.000000D+00    0        P(24) =    0.000000D+00    0
-     P( 9) =    7.049020D-01    1        P(25) =    0.000000D+00    0
+     P( 9) =    7.446279D-01    1        P(25) =    0.000000D+00    0
      P(10) =    2.000000D+00    0        P(26) =    0.000000D+00    0
      P(11) =    0.000000D+00    0        P(27) =    0.000000D+00    0
      P(12) =    0.000000D+00    0        P(28) =    0.000000D+00    0
@@ -43,14 +43,14 @@
      TERMINATION: XTOL IS TOO SMALL. NO FURTHER IMPROVEMENT IN THE FREE
      PARAMETERS IS POSSIBLE.
 
-                FINAL L2 NORM OF THE RESIDUALS     .3912711D+06
-                NUMBER OF FUNCTION EVALUATIONS          19
-                NUMBER OF JACOBIAN EVALUATIONS          10
+                FINAL L2 NORM OF THE RESIDUALS     .3953179D+06
+                NUMBER OF FUNCTION EVALUATIONS          18
+                NUMBER OF JACOBIAN EVALUATIONS           9
 
-          WEIGHTED SUM OF SQUARES, S:      1.5309309570480D+11
-          SIGMAF SQUARED ESTIMATE, XS:     5.4676105608856D+09
-          SIGMAF ESTIMATE:                 7.3943292872887D+04
-          FIT QUALITY FACTOR:                   8.876D+02
+          WEIGHTED SUM OF SQUARES, S:      1.5627622648645D+11
+          SIGMAF SQUARED ESTIMATE, XS:     5.5812938030877D+09
+          SIGMAF ESTIMATE:                 7.4708057149732D+04
+          FIT QUALITY FACTOR:                   8.883D+02
           NO. DEGREES OF FREEDOM:                   28
 
 
@@ -61,26 +61,26 @@
 
 
         1           3           4           7           9          21
-    2.3196D+05  3.6449D-12  8.1424D+06  8.3422D-10  6.4104D-01  4.7843D+07
-    4.6916D+04  6.3612D-14  1.1683D+05  6.6980D-11  1.1793D-02  2.4064D+06
-    2.0226D-01  1.7452D-02  1.4348D-02  8.0291D-02  1.8398D-02  5.0298D-02
+    2.4297D+05  3.5511D-12  1.0899D+07  3.7899D-10  7.4333D-01  6.5029D+07
+    4.0896D+04  4.1215D-14  8.3720D+04  2.1586D-11  8.3610D-03  2.5959D+06
+    1.6832D-01  1.1606D-02  7.6817D-03  5.6958D-02  1.1248D-02  3.9919D-02
 
 
-      PDAV=    6.3841D-02      PDRMS=    9.1956D-02
+      PDAV=    4.9288D-02      PDRMS=    7.4708D-02
 
    ESTIMATED PARAMETER CORRELATION MATRIX
      .1000D+01
-     .8335D+00   .1000D+01
-     .2310D+00   .5567D+00   .1000D+01
-    -.3292D+00  -.5413D+00  -.8557D+00   .1000D+01
-     .3620D+00   .5818D+00   .8904D+00  -.9954D+00   .1000D+01
-    -.2850D+00  -.4914D+00  -.7780D+00   .9693D+00  -.9525D+00   .1000D+01
+     .7911D+00   .1000D+01
+     .4211D-01   .4087D+00   .1000D+01
+    -.2600D+00  -.4840D+00  -.7914D+00   .1000D+01
+     .2798D+00   .5110D+00   .8232D+00  -.9965D+00   .1000D+01
+    -.2051D+00  -.4237D+00  -.6845D+00   .9548D+00  -.9397D+00   .1000D+01
 
        AV ARR      SD WR       SD WI       SD WC       AV ARI     # IT
-     1.662D-02   6.911D+04   9.561D+04   7.394D+04   1.500D-02    0
+     1.822D-02   6.810D+04   9.782D+04   7.471D+04   1.348D-02    0
 
        AV RR      SD RR       SD RI       SD RC        SSE    # OPIT
-    -2.484D-03   3.724D-02   3.838D-02   3.352D-02   3.176D-01    0
+    -2.981D-03   4.395D-02   3.764D-02   3.627D-02   3.625D-01    0
 
      **************   END  MAIN  FIT   ***************
 
@@ -88,14 +88,14 @@
      TERMINATION: XTOL IS TOO SMALL. NO FURTHER IMPROVEMENT IN THE FREE
      PARAMETERS IS POSSIBLE.
 
-                FINAL L2 NORM OF THE RESIDUALS     .3912711D+06
-                NUMBER OF FUNCTION EVALUATIONS          12
+                FINAL L2 NORM OF THE RESIDUALS     .3953179D+06
+                NUMBER OF FUNCTION EVALUATIONS           9
                 NUMBER OF JACOBIAN EVALUATIONS           2
 
-          WEIGHTED SUM OF SQUARES, S:      1.5309309570480D+11
-          SIGMAF SQUARED ESTIMATE, XS:     5.4676105608856D+09
-          SIGMAF ESTIMATE:                 7.3943292872887D+04
-          FIT QUALITY FACTOR:                   8.876D+02
+          WEIGHTED SUM OF SQUARES, S:      1.5627622648645D+11
+          SIGMAF SQUARED ESTIMATE, XS:     5.5812938030877D+09
+          SIGMAF ESTIMATE:                 7.4708057149732D+04
+          FIT QUALITY FACTOR:                   8.883D+02
           NO. DEGREES OF FREEDOM:                   28
 
 
@@ -106,26 +106,26 @@
 
 
         1           3           4           7           9          21
-    2.3196D+05  3.6449D-12  8.1424D+06  8.3422D-10  6.4104D-01  4.7843D+07
-    4.6916D+04  6.3612D-14  1.1683D+05  6.6980D-11  1.1793D-02  2.4064D+06
-    2.0226D-01  1.7452D-02  1.4348D-02  8.0291D-02  1.8398D-02  5.0298D-02
+    2.4297D+05  3.5511D-12  1.0899D+07  3.7899D-10  7.4333D-01  6.5029D+07
+    4.0896D+04  4.1215D-14  8.3720D+04  2.1586D-11  8.3610D-03  2.5959D+06
+    1.6832D-01  1.1606D-02  7.6817D-03  5.6958D-02  1.1248D-02  3.9919D-02
 
 
-      PDAV=    6.3841D-02      PDRMS=    9.1956D-02
+      PDAV=    4.9288D-02      PDRMS=    7.4708D-02
 
    ESTIMATED PARAMETER CORRELATION MATRIX
      .1000D+01
-     .8335D+00   .1000D+01
-     .2310D+00   .5567D+00   .1000D+01
-    -.3292D+00  -.5413D+00  -.8557D+00   .1000D+01
-     .3620D+00   .5818D+00   .8904D+00  -.9954D+00   .1000D+01
-    -.2850D+00  -.4914D+00  -.7780D+00   .9693D+00  -.9525D+00   .1000D+01
+     .7911D+00   .1000D+01
+     .4211D-01   .4087D+00   .1000D+01
+    -.2600D+00  -.4840D+00  -.7914D+00   .1000D+01
+     .2798D+00   .5110D+00   .8232D+00  -.9965D+00   .1000D+01
+    -.2051D+00  -.4237D+00  -.6845D+00   .9548D+00  -.9397D+00   .1000D+01
 
        AV ARR      SD WR       SD WI       SD WC       AV ARI     # IT
-     1.662D-02   6.911D+04   9.561D+04   7.394D+04   1.500D-02    0
+     1.822D-02   6.810D+04   9.782D+04   7.471D+04   1.348D-02    0
 
        AV RR      SD RR       SD RI       SD RC        SSE    # OPIT
-    -2.484D-03   3.724D-02   3.838D-02   3.352D-02   3.176D-01    0
+    -2.981D-03   4.395D-02   3.764D-02   3.627D-02   3.625D-01    0
 
  **###**  END @DIRECT@ FWT ITERATION FIT   **###**
 

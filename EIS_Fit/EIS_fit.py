@@ -3,9 +3,7 @@ import ga
 import circuits
 import LEVM
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
-from scipy.optimize import minimize, basinhopping, least_squares
 import os
 import time
 plt.style.use('Z:/Projects/Brian/scientific.mplstyle')
@@ -114,15 +112,27 @@ class DataFile:
                                         self.params, self.circuit)
         
         except:
-            print('LEVM fit timed out, performing GA fit. File: ', 
-                  self.file)
-            self.ga_fit(starting_guess=self.params, n_iter = 50)
-        
-        # Fix handling of CPE phase!!
-        self.params['n1'] = 1.0
-        
+            # print('LEVM fit timed out, performing GA fit. File: ', 
+            #       self.file)
+            # self.ga_fit(starting_guess=self.params, n_iter = 50)
+            pass
+                
         self.score = circuits.leastsq_errorfunc(self.freqs, self.Z,
                                                 self.params, self.circuit)
+    
+        
+    def plot_fit(self, ax=None):
+        
+        circuit_list, circuit_funcs = circuits.list_circuits()
+        circuitfunc = circuit_funcs[circuit_list.index(circuit)]
+        
+        fits = circuitfunc(self.freqs, self.params)
+                
+        if ax is not None:
+            ax.plot(self.re/1e6, -self.im/1e6, 'o')
+            ax.plot(np.real(fits)/1e6, -np.imag(fits)/1e6, '-')
+            ax.set_xlabel("Z'/ M$\Omega$")
+            ax.set_ylabel("Z''/ M$\Omega$")
         
 
 
@@ -134,8 +144,10 @@ def fit_all_runs(path):
         
         folder_path = os.path.join(path, folder)
         
-        df = {}
+        d = {}
         i = 1
+        
+                
         for f in os.listdir(folder_path):
             
             # Iterate through all files in folder
@@ -143,35 +155,36 @@ def fit_all_runs(path):
                 
                 file = os.path.join(folder_path, f)
                             
-                df[i] = DataFile(file, circuit, bounds)
+                d[i] = DataFile(file, circuit, bounds)
                 
                 if i == 1:
                     # Start new fit routine with genetic algorithm
-                    fig, ax = plt.subplots()
-                    while df[i].score > 100000:
-                        df[i].ga_fit(n_iter=200)
-                    
-                    df[i].LEVM_fit()
-                    
+
+                    while d[i].score > 100000:
+                        d[i].ga_fit(n_iter=100)
+                        d[i].LEVM_fit()
+                                        
                     print('File 1 fit complete in ', 
                           time.time() - starting_time, 's.')
-                
+                    
+
                 else:
                     # Copy initial parameters from previous fit
-                    df[i].params = df[i-1].params  
+                    d[i].params = d[i-1].params  
                     
-                    df[i].LEVM_fit()
-
+                    d[i].LEVM_fit()
                         
                     if i%50 == 0:
                         print('File %s completed.' %i)
     
                 
                 i += 1
+                
+                
     print('Run complete. Total time: ', 
           time.time() - starting_time, 's.')
     
-    return df
+    return d
 
 
 
@@ -181,16 +194,16 @@ def fit_all_runs(path):
 
 if __name__ == '__main__':
     
-    df = fit_all_runs(path)
+    d = fit_all_runs(path)
     
 #%%    Plot parameters vs time
-    param_list = [key for key, item in df[1].params.items()]
+    param_list = [key for key, item in d[1].params.items()]
     
     for param in param_list:
         l = []
         fig, ax = plt.subplots()
-        for i in df:
-            l.append(df[i].params[param])
+        for i in d:
+            l.append(d[i].params[param])
         ax.plot(np.arange(0,45,0.1), l, '.')
         ax.set_xlabel('Time/ s')
         ax.set_ylabel(param)
@@ -198,10 +211,10 @@ if __name__ == '__main__':
     
     
     scores = []
-    for i in df:
-        scores.append(df[i].score)
+    for i in d:
+        scores.append(d[i].score)
     fig, ax = plt.subplots()
-    ax.plot(range(len(df)), scores)
+    ax.plot(range(len(d)), scores)
     ax.set_ylabel('Score')
 
 
