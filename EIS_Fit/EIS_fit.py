@@ -16,7 +16,7 @@ doi.org/10.1002/celc.202100778
 '''
 
 
-path = r'C:\Users\BRoehrich\Desktop\EIS fit folder'
+path = r'C:/Users/BRoehrich/Desktop/EIS fit folder/2021-06-01_FcMeOH_50 mV_beads_009 (2)'
 
 circuit = 'Randles_uelec'
 bounds = {
@@ -136,55 +136,90 @@ class DataFile:
         
 
 
+
+
 def fit_all_runs(path):
+    '''
+    Fit all specta in a given folder. Assumes spectra are 
     
+    named in order, and have only small perturbations between spectra
+    
+    (i.e. time series of sequential spectra)
+    
+    
+    Spectra should be called e.g. 0001s.txt, 
+    and have tab-separated format:
+    
+    <Frequency>	<Re(Z)>	<Im(Z)>
+    100.0	19650307.25839891	-11025535.444937838
+    110.0	18197021.855608918	-10204987.541515699
+    ...
+    
+    
+
+    Parameters
+    ----------
+    path : String.
+        Path to directory containing multiple EIS spectra.
+
+    Returns
+    -------
+    d : Dict
+        Dictionary of DataFile classes. d[i] is the fit
+        of file i.
+
+    '''
     starting_time = time.time()
     
-    for folder in os.listdir(path):
         
-        folder_path = os.path.join(path, folder)
-        
-        d = {}
-        i = 1
-        
-                
-        for f in os.listdir(folder_path):
-            
-            # Iterate through all files in folder
-            if f.endswith('s.txt'):
-                
-                file = os.path.join(folder_path, f)
-                            
-                d[i] = DataFile(file, circuit, bounds)
-                
-                if i == 1:
-                    # Start new fit routine with genetic algorithm
-
-                    while d[i].score > 100000:
-                        d[i].ga_fit(n_iter=100)
-                        d[i].LEVM_fit()
-                                        
-                    print('File 1 fit complete in ', 
-                          time.time() - starting_time, 's.')
-                    
-
-                else:
-                    # Copy initial parameters from previous fit
-                    d[i].params = d[i-1].params  
-                    
-                    d[i].LEVM_fit()
-                        
-                    if i%50 == 0:
-                        print('File %s completed.' %i)
+    d = {}
+    i = 1
     
+            
+    for f in os.listdir(path):
+        
+        # Iterate through all files in folder
+        if f.endswith('s.txt'):
+            
+            file = os.path.join(path, f)
+                        
+            d[i] = DataFile(file, circuit, bounds)
+            
+            if i == 1:
+                # Start new fit routine with genetic algorithm
+
+                while d[i].score > 100000:
+                    d[i].ga_fit(n_iter=100)
+                    d[i].LEVM_fit()
+                                    
+                print('File 1 fit complete in ', 
+                      time.time() - starting_time, 's.')
                 
-                i += 1
+
+            else:
+                # Copy initial parameters from previous fit
+                d[i].params = d[i-1].params  
                 
+                d[i].LEVM_fit()
+                    
+                if i%50 == 0:
+                    print('File %s completed.' %i)
+
+
+            i += 1
+            
                 
+    # Save params in DataFrame
+    df = pd.DataFrame([d[i].params for i in d])
+    
+    # Save as csv
+    out_path = path + '\\fits.csv'
+    df.to_csv(out_path)
+    
     print('Run complete. Total time: ', 
           time.time() - starting_time, 's.')
     
-    return d
+    return d, df
 
 
 
@@ -194,7 +229,9 @@ def fit_all_runs(path):
 
 if __name__ == '__main__':
     
-    d = fit_all_runs(path)
+    d, df = fit_all_runs(path)
+    
+    
     
 #%%    Plot parameters vs time
     param_list = [key for key, item in d[1].params.items()]
