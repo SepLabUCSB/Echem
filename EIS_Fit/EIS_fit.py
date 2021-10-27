@@ -144,7 +144,9 @@ def fit_all_runs(path):
     
     named in order, and have only small perturbations between spectra
     
-    (i.e. time series of sequential spectra)
+    (i.e. time series of sequential spectra). Takes previous spectrum's
+    
+    best-fit parameters as initial guess for next spectrum fit.
     
     
     Spectra should be called e.g. 0001s.txt, 

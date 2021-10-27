@@ -363,7 +363,7 @@ class Index:
     Class for cycling through multiple graphs
     '''
     
-    global files, checkbox, pointsbox
+    global folder, files, checkbox, pointsbox
     
     
     def __init__(self):
@@ -588,23 +588,16 @@ class Index:
         
         
         if step_list:
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-            file = filedialog.asksaveasfilename(title='Save as...',
-                                                defaultextension='.xlsx',
-                                                filetypes=[('Excel', '.xlsx')])
-    
-    
+            steps_file = folder + '/steps.xlsx'
             
-            writer = pd.ExcelWriter(file, engine = 'xlsxwriter')
+            writer = pd.ExcelWriter(steps_file, engine = 'xlsxwriter')
             out = pd.DataFrame(
                 {'dI/Iss': step_list,
                 'delta I (A)': abs_step_list}
                 )
             out.to_excel(writer, index=False, header=True, startcol=0)
             writer.save()
-            print('Saved as %s' %file)
+            print('Saved as %s' %steps_file)
         else:
             print('No steps!')
     
