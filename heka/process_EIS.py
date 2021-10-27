@@ -14,7 +14,8 @@ plt.style.use('Z:\Projects\Brian\scientific.mplstyle')
 default_params = {
     'out_dir': r'C:\Users\bwroe\Desktop\Analysis folder\Output',
     'csv_dir': r'C:\Users\bwroe\Desktop\git\Brian_scripts\HEKA\csv',
-
+    
+    'number_of_freqs': 31,
     'highest_freq' : '1k',
     'lowest_freq' : '1',
     'filter_setting': '30k',
@@ -42,6 +43,7 @@ class FT_EIS:
         self.out_dir = params['out_dir']
         self.csv_dir = params['csv_dir']
         
+        self.number_of_freqs = params['number_of_freqs']
         self.highest_freq = params['highest_freq']
         self.lowest_freq = params['lowest_freq']
         self.filter_setting = params['filter_setting']
@@ -209,8 +211,9 @@ class FT_EIS:
         '''
         
         # Get frequencies    
-        file = self.csv_dir + r'\f_%s_%s.csv' %(self.highest_freq, 
-                                               self.lowest_freq)
+        file = self.csv_dir + r'\f_%s_%s_%sfreqs.csv' %(self.highest_freq, 
+                                                        self.lowest_freq,
+                                                        self.number_of_freqs)
         f = pd.read_csv(file)
         freq_array = f['frequency'].to_numpy()
           
@@ -466,15 +469,15 @@ class FT_EIS:
 
 
 
-if __name__ == '__main__':
-    l = []
-    n = 1
-    for file in os.listdir(filedir):
-        if file.endswith('.asc'):
-            print('File %s: ' % n, file)
+# if __name__ == '__main__':
+#     l = []
+#     n = 1
+#     for file in os.listdir(filedir):
+#         if file.endswith('.asc'):
+#             print('File %s: ' % n, file)
             
-            f = os.path.join(filedir,file)
+#             f = os.path.join(filedir,file)
             
-            df = FT_EIS(f, default_params)
+#             df = FT_EIS(f, default_params)
         
 
