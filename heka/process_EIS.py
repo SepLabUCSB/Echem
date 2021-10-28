@@ -210,11 +210,22 @@ class FT_EIS:
     
         '''
         
-        # Get frequencies    
-        file = self.csv_dir + r'\f_%s_%s_%sfreqs.csv' %(self.highest_freq, 
-                                                        self.lowest_freq,
-                                                        self.number_of_freqs)
-        f = pd.read_csv(file)
+        # Get frequencies   
+        try:
+            file = self.csv_dir + r'\f_%s_%s_%sfreqs.csv' %(self.highest_freq, 
+                                                            self.lowest_freq,
+                                                            self.number_of_freqs)
+            f = pd.read_csv(file)
+        
+        except FileNotFoundError:
+            print('\nERROR: File not found:')
+            print(file)
+            print('''Check that highest_freq, lowest_freq, and number_of_freqs
+                  are correct''')
+            import sys
+            sys.exit()
+        
+        
         freq_array = f['frequency'].to_numpy()
           
         

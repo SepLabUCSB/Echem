@@ -4,7 +4,7 @@ import pandas as pd
 import os
 
 
-default_save_path = r'E:\Waveforms'
+default_save_path = r'C:\Users\BRoehrich\Desktop'
 
 
 def get_units(num):        
@@ -18,7 +18,7 @@ def get_units(num):
 
 def create_waveform(freqs, phases, sample_freq,
                     total_time, amax=0.01, 
-                    amps = None, csv = False,
+                    amps = None, csv = False, Rigol = False,
                     save_path = None, save = True, plot = True):
     
     time = np.arange(0, total_time, 1/sample_freq)
@@ -29,8 +29,8 @@ def create_waveform(freqs, phases, sample_freq,
     S = 0   # Summed multisin waveform    
     i = 0   
     
-    
-    amax = 2*amax #correct HEKA 0.5*voltage factor
+    if not Rigol:
+        amax = 2*amax #correct HEKA 0.5*voltage factor
     
 
     if amps is None:
@@ -42,8 +42,11 @@ def create_waveform(freqs, phases, sample_freq,
         S = S + sin
         i += 1
             
-            
-    S = S * (amax/S.max()) #normalize maximum potential to amax
+    
+    if abs(S.max()) > abs(S.min()):
+        S = S * (amax/S.max()) #normalize maximum potential to amax
+    elif abs(S.min()) > abs(S.max()):
+        S = S* (amax/abs(S.min()))
     S = np.array(S)
     
     
@@ -97,7 +100,7 @@ def create_waveform(freqs, phases, sample_freq,
     print('')
     print('Max frequency: %s Hz' %max(freqs))
     print('Min frequency: %s Hz' %min(freqs))
-    print('Amplitude: %s mV' %(1000*amax/2))
+    print('Amplitude: %s mV' %(1000*S.max()))
     print('Sampling frequency: %s Hz' %sample_freq)
     print('Total time: %s s' %total_time)
     if save:
@@ -110,7 +113,7 @@ def create_waveform(freqs, phases, sample_freq,
 
 
 def waveform_from_result(FT_EIS, sample_freq, total_time, 
-                         amax=0.01, save = True,
+                         amax=0.01, Rigol = False, save = True,
                          save_path = None, plot = True):
     '''
     Generates new waveform with amplitudes determined from
@@ -124,8 +127,18 @@ def waveform_from_result(FT_EIS, sample_freq, total_time,
     amps = np.sqrt(np.absolute(df['Z'].to_numpy()))
     
     # Find file with frequency array
-    file = FT_EIS.csv_dir + r'\f_%s_%s.csv' %(
-        FT_EIS.highest_freq, FT_EIS.lowest_freq)
+    try:
+        file = FT_EIS.csv_dir + r'\f_%s_%s_%sfreqs.csv' %(
+            FT_EIS.highest_freq, FT_EIS.lowest_freq, FT_EIS.number_of_freqs)
+    except:
+        print('File not recognized:')
+        print(os.path.join(FT_EIS.csv_dir, r'\f_%s_%s_%sfreqs.csv' %(
+                                            FT_EIS.highest_freq, 
+                                            FT_EIS.lowest_freq, 
+                                            FT_EIS.number_of_freqs)
+                            )
+            )
+              
     
     d = pd.read_csv(file, skiprows=1, names=('index', 'freqs', 'phases'),
                     dtype=float)
@@ -143,25 +156,32 @@ def waveform_from_result(FT_EIS, sample_freq, total_time,
         return None
     
     else:
-        S, fname = create_waveform(freqs, phases, sample_freq, total_time, amax,
+        if not Rigol:
+            S, fname = create_waveform(freqs, phases, sample_freq, total_time, amax,
                         amps=amps, save=save, save_path=save_path, plot=plot)
         
+        if Rigol:
+            S, fname = Rigol_waveform(freqs, phases, sample_freq, total_time, amax, 
+                           amps=amps)
         
         return S, fname
          
 
 
-def Rigol_waveform(S, sample_freq, total_time, amax, 
-                   save_path = r'C:\Users\BRoehrich\Desktop', 
-                   fname = 'Rigol_waveform'):
+def Rigol_waveform(freqs, phases, sample_freq, total_time, amax, 
+                   amps= None, save_path = r'C:\Users\BRoehrich\Desktop'):
     
     import csv   
+    
+    S, fname = create_waveform(freqs, phases, sample_freq, total_time,
+                               amax, amps, Rigol = True, csv = True,
+                               save_path = save_path, save = False)
     
     # RIGOL CSV Header
     headerlines = [
                 ('RIGOL:DG8:CSV DATA FILE', ),
                 ('TYPE:Arb', ),
-                ('AMP:%s Vpp'%f'{amax:.4f}', ) ,
+                ('AMP:%s Vpp'%f'{2*amax:.4f}', ) ,
                 ('PERIOD:%s S'%f'{total_time:.2E}', ),
                 ('DOTS:%s'%f'{sample_freq*total_time:.0f}', ) ,
                 ('MODE:INSERT', ),
@@ -170,9 +190,12 @@ def Rigol_waveform(S, sample_freq, total_time, amax,
                 ('x', 'y[V]'),
                 ]
     
-    if not fname.endswith('.csv'):
-        fname = fname + '.csv'
-        
+    
+    fname = 'Rigol' + fname[3:] + '.csv'
+    
+    if amps:
+        fname = 'Rigol' + fname[5:-4] + '_opt.csv'
+    
     file = os.path.join(save_path, fname)
     
     with open(file, 'w', newline = '\n') as csvfile:
@@ -186,7 +209,7 @@ def Rigol_waveform(S, sample_freq, total_time, amax,
     
     print('Saved to ', os.path.join(save_path, fname))
     
-    return S
+    return S, fname
 
 
 
@@ -194,20 +217,12 @@ def update_waveform_flash_drive():
     for file in os.listdir(r'C:\Users\BRoehrich\Desktop\git\echem\HEKA\csv'):
         if file.endswith('.csv'):
             df = pd.read_csv(os.path.join(r'C:\Users\BRoehrich\Desktop\git\echem\HEKA\csv', file))
-            
-            # create_waveform(df['frequency'], df['phase'], 100000, 1, csv=True,
-            #                 save_path = r'E:\Waveforms')
-            
-            S, fname = create_waveform(df['frequency'], df['phase'], 100000, 1, csv=True,
-                            save = False, plot=False)
-            
-            fname = 'Rigol' + fname[3:]
-            
-            # Rigol_waveform(S, 100000, 1, 1, save_path='E:\Waveforms',
-            #                fname=fname)
-            
-            Rigol_waveform(S, 100000, 1, 0.02, save_path=r'C:\Users\BRoehrich\Desktop\Waveforms',
-                           fname=fname)
+                        
+            # S, fname = create_waveform(df['frequency'], df['phase'], 100000, 1, csv=True,
+            #                 save = False, plot=False)
+                                    
+            Rigol_waveform(df['frequency'], df['phase'], 100000, 1, 0.01, 
+                           save_path=r'C:\Users\BRoehrich\Desktop\Waveforms')
 
 
 
