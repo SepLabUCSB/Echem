@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
-
+import raf_gen
 
 default_save_path = r'C:\Users\BRoehrich\Desktop'
 
@@ -17,7 +17,7 @@ def get_units(num):
 
 
 def create_waveform(freqs, phases, sample_freq,
-                    total_time, amax=0.01, 
+                    total_time, amax, 
                     amps = None, csv = False, Rigol = False,
                     save_path = None, save = True, plot = True):
     
@@ -174,8 +174,8 @@ def Rigol_waveform(freqs, phases, sample_freq, total_time, amax,
     import csv   
     
     S, fname = create_waveform(freqs, phases, sample_freq, total_time,
-                               amax, amps, Rigol = True, csv = True,
-                               save_path = save_path, save = False)
+                               amax=1, amps=amps, Rigol = True, csv = True,
+                               save_path = save_path, save = False, plot=False)
     
     # RIGOL CSV Header
     headerlines = [
@@ -221,10 +221,9 @@ def update_waveform_flash_drive():
             # S, fname = create_waveform(df['frequency'], df['phase'], 100000, 1, csv=True,
             #                 save = False, plot=False)
                                     
-            Rigol_waveform(df['frequency'], df['phase'], 100000, 1, 0.01, 
+            S, fname = Rigol_waveform(df['frequency'], df['phase'], 100000, 1, amax=1, 
                            save_path=r'C:\Users\BRoehrich\Desktop\Waveforms')
+            
 
-
-
-
+            
 

@@ -70,7 +70,7 @@ def make_new_waveform_Rigol(filedir, sample_freq, total_time, amax):
             FT = FT_EIS(f, params)
             
             S, fname = waveform_from_result(FT, sample_freq=sample_freq, 
-                             total_time=total_time, amax=amax, save=False,
+                             total_time=total_time, amax=1, save=False,
                              Rigol = True)
             
             # Rigol_waveform(S, sample_freq, total_time, 2*amax)
