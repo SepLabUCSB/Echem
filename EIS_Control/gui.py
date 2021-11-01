@@ -3,18 +3,20 @@ from tkinter import Tk, Label, Button
 
 
 class MainWindow:
-    def __init__(self, master):
-        self.master = master
-        master.title("A simple GUI")
+    def __init__(self, root):
+        self.root = root
+        root.title("A simple GUI")
+        root.attributes('-topmost', 1)
+        root.attributes('-topmost', 0)    
 
-        self.label = Label(master, text="This is our first GUI!")
-        self.label.pack()
+        self.greet_button = Button(root, text="Greet", command=self.greet)
+        self.greet_button.grid(row=1)
+        
+        self.close_button = Button(root, text="Close", command=root.destroy)
+        self.close_button.grid(row=1, column=3)
+        
+        
 
-        self.greet_button = Button(master, text="Greet", command=self.greet)
-        self.greet_button.pack()
-
-        self.close_button = Button(master, text="Close", command=master.quit)
-        self.close_button.pack()
 
     def greet(self):
         print("Greetings!")
