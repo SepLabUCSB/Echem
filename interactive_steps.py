@@ -286,6 +286,7 @@ class StepPicker(object):
         delta = np.zeros(len(self.xdata))
         self.avg = np.zeros(len(self.xdata))
         
+        
         # Refine step locations
         for i in range(len(self.xdata)-1):
             delta[i] = abs((self.ydata[i+1]-self.ydata[i])/self.ydata[i])
@@ -310,6 +311,8 @@ class StepPicker(object):
         indices.append(len(self.xdata-1))
         indices.sort()
         
+        noises = []
+        
         for i in range(len(indices)-1):
             index = indices[i]
             next_index = indices[i+1]
@@ -317,17 +320,27 @@ class StepPicker(object):
                 # m, b = np.polyfit(self.xdata[index+2:next_index-2], 
                 #                   self.ydata[index+2:next_index-2], 1)
                 # self.avg[i] = m*i + b
-                self.avg[i] = np.median(self.ydata[index+5: next_index-5])
+                this_ydata = self.ydata[index+5: next_index-5]
+                self.avg[i] = np.median(this_ydata)
+                
+                this_noise = np.sqrt(
+                    np.mean(
+                    (this_ydata-np.average(this_ydata))**2)
+                    )
+            
+                noises.append(this_noise)
+                
             if index != 0:
                 self.avg[index] = self.avg[index-1]
                 
         # Draw result on graph and save step sizes 
         self.draw_average()
         self.get_steps()
+        self.noise = np.average(noises[2:len(noises)-2])
+        print(f'Average RMS noise: {self.noise: .1E} A')
     
-        
     
-    
+            
     def draw_average(self):
         '''
         Redraw smoothed step line
@@ -371,6 +384,7 @@ class Index:
 
         self.ind = 0
         self.sp = dict() # sp[i] is StepPicker obj
+        self.files = files
         
         self.slider = dict()
         self.xs = dict()
@@ -561,27 +575,43 @@ class Index:
         
         sizes as xlsx document
         '''
+        file_index = []
+        file_list = []
         step_list = []
         abs_step_list = []
+        noise_list = []
         
             
         for i in range(len(files)):
             # Create list of steps and abs_steps to export
             try:
+                file = self.files[i]
                 steps = self.sp[i].steps
                 abs_steps = self.sp[i].abs_steps
+                noise = self.sp[i].noise
+                
                 n = 0
                 m = 0
 
                 for step in steps:
                     if n < int(pointsbox.text):
                         # Only keep first n steps
+                        file_index.append(i+1)
+                        file_list.append(file)
                         step_list.append(step)
+                        noise_list.append(noise)
                         n += 1
                 for abs_step in abs_steps:
                     if m < int(pointsbox.text):
                         abs_step_list.append(abs_step)
                         m += 1
+                
+                file_index.append('')
+                file_list.append('')
+                step_list.append('')
+                abs_step_list.append('')
+                noise_list.append('')
+                
                         
             except KeyError:
                 print('No steps saved in File %s' %(i+1))
@@ -592,14 +622,19 @@ class Index:
             
             writer = pd.ExcelWriter(steps_file, engine = 'xlsxwriter')
             out = pd.DataFrame(
-                {'dI/Iss': step_list,
-                'delta I (A)': abs_step_list}
+                {'File #': file_index,
+                'File': file_list,
+                'dI/Iss': step_list,
+                'delta I (A)': abs_step_list,
+                'RMS noise (A)': noise_list
+                }
                 )
             out.to_excel(writer, index=False, header=True, startcol=0)
             writer.save()
             print('Saved as %s' %steps_file)
         else:
             print('No steps!')
+    
     
     
     def slider_changed(self, val):
@@ -638,7 +673,11 @@ class Index:
 #                                                ('All files', '*')))
 
 os.chdir(folder)
-files = os.listdir(folder)
+files = []
+for file in os.listdir(folder):
+    if file.endswith('.txt'):
+        files.append(file)
+
 
 fig, ax = plt.subplots(figsize=(5,6), dpi=100)
 plt.subplots_adjust(bottom=0.3)
