@@ -9,7 +9,7 @@ import rigol_control
 import siglent_control
 
 csv_dir = r'C:\Users\BRoehrich\Desktop\git\echem\EIS_Control\csv'
-rigol_waves = r'C:\Users\BRoehrich\Desktop\Waveforms'
+rigol_waves = r'C:\Users\BRoehrich\Desktop\git\echem\EIS_Control\rigol_waves'
 
 
 
