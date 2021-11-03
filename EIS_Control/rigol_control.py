@@ -4,25 +4,12 @@ import pyvisa
 from time import sleep
 import pandas as pd
 plt.style.use('Z:\Projects\Brian\scientific.mplstyle')
-fileout = "gen.RAF"
 
-
-
-# Npts = 100000
-
-# t = np.arange(0,Npts)
-
-# w1 = 10/Npts
-# w2 = 6/Npts
-# s = np.sin(2*np.pi*t*w1) + np.sin(2*np.pi*t*w2 + np.pi/4)
-
-df = pd.read_csv(r'C:/Users/BRoehrich/Desktop/Waveforms/Rigol_100k_10k_1_44freqs.csv', 
-                 skiprows=9, names=('x', 'V'))
-
-s = df['V'].to_numpy()
 
 
 def to_int16(signal):
+    
+    signal = np.array(signal)
     
     if signal.max() > abs(signal.min()):
     
@@ -48,13 +35,13 @@ def get_bytes(val):
     
 
 
-def send_bytes(inst, signal):
+def send_bytes(inst, signal, channel):
     # Break signal up into 16kpts chunks (32 kB)
     number_of_blocks = int(np.floor(len(signal)/16000))
     blocks = {}
     
-    string = ':SOURCE1:TRACe:DATA:DAC16 VOLATILE,CON,'
-    end_string = ':SOURCE1:TRACe:DATA:DAC16 VOLATILE,END,'
+    string = ':SOURCE%s:TRACe:DATA:DAC16 VOLATILE,CON,'%channel
+    end_string = ':SOURCE%s:TRACe:DATA:DAC16 VOLATILE,END,'%channel
     
     for i in range(number_of_blocks+1):
         blocks[i] = signal[16000*i:16000*(i+1)]
@@ -63,7 +50,7 @@ def send_bytes(inst, signal):
     for i in range(number_of_blocks):
         # print('Sending points %s:%s'%(blocks[i][0], blocks[i][-1]))
         inst.write_binary_values(string, blocks[i], datatype='h')
-        wait()
+        wait(inst)
     
     inst.write_binary_values(end_string, blocks[number_of_blocks], datatype='h')
     # print('Sending points %s:%s'%(blocks[number_of_blocks][0], blocks[number_of_blocks][-1]))
@@ -72,7 +59,7 @@ def send_bytes(inst, signal):
 
 
 
-def wait():
+def wait(inst):
     r = False
     
     while r is False:
@@ -82,10 +69,8 @@ def wait():
             sleep(0.2)
     
 
-rm = pyvisa.ResourceManager()
-inst = rm.open_resource('USB0::0x1AB1::0x0643::DG8A232302748::INSTR')
 
-def apply_waveform(inst, s):
+def apply_waveform(inst, channel, s, Vpp):
     '''
     Apply arbitrary waveform s to Rigol DG812 AWG
     
@@ -96,9 +81,23 @@ def apply_waveform(inst, s):
     inst : pyvisa Instrument
         Handle for DG812.
         USB0::0x1AB1::0x0643::DG8A232302748::INSTR
+    channel: 1 or 2
+        Channel to apply waveform to
     s : array of int16
         Arbitrary waveform to apply.
     '''
+    
+    if not s.dtype == 'int16':
+        s = to_int16(s)
+    
+    
+    if channel == 1 or channel == 2:
+        channel = int(channel)
+    
+    else:
+        print('Invalid channel. Must be 1 or 2.')
+        import sys
+        sys.exit()
     
     
     try:
@@ -108,29 +107,49 @@ def apply_waveform(inst, s):
         import sys
         sys.exit()
     
-    inst.write('*RST')
-    wait()
-    inst.write(':SOURCE1:APPL:SEQ')
-    wait()
-    inst.write(':SOURCE1:FUNC:SEQ:FILT INSERT')
-    wait()
-    send_bytes(inst, s)
-    wait()
-    inst.write(':SOURCE1:VOLTAGE 0.02VPP')
-    inst.write(':SOURCE1:FUNC:SEQ:SRAT 100000')
-    inst.write(':SOURCE1:FUNC:SEQ:EDGETime 0.000005')
+    # inst.write('*RST')
+    inst.write(':SOURCE%s:APPL:SEQ'%(channel))
+    wait(inst)
+    inst.write(':SOURCE%s:FUNC:SEQ:FILT INSERT'%(channel))
+    wait(inst)
+    send_bytes(inst, s, channel)
+    wait(inst)
+    inst.write(':SOURCE%s:VOLTAGE %sVPP'%(channel, Vpp))
+    inst.write(':SOURCE%s:FUNC:SEQ:SRAT 100000'%(channel))
+    inst.write(':SOURCE%s:FUNC:SEQ:EDGETime 0.000005'%(channel))
     # inst.write(':SOURCE1:FUNC:SEQ:PER 1 1')
-    inst.write(':SOURCE1:FUNC:')
-    wait()
-    inst.write(':OUTPUT2 OFF')
-    inst.write(':OUTPUT1 ON;')
-    wait()
+    inst.write(':SOURCE%s:FUNC:'%(channel))
+    wait(inst)
+    inst.write(':OUTPUT%s ON;'%(channel))
+    wait(inst)
+    print('Waveform loaded!')
     inst.clear()
 
 
 #%%
 
-apply_waveform(inst, to_int16(s))
+if __name__ == '__main__':
+    Npts = 100000
+
+    # t = np.arange(0,Npts)
+    
+    # w1 = 0.5/100000
+    # w2 = 1/100000
+    # s = np.sin(2*np.pi*t*w1) + np.sin(2*np.pi*t*w2 + np.pi/4)
+    
+    df = pd.read_csv(r'C:/Users/BRoehrich/Desktop/Waveforms/Rigol_100k_1k_1_16freqs.csv', 
+                      skiprows=9, names=('x', 'V'))
+    
+    s = df['V'].to_numpy()
+    
+    
+    rm = pyvisa.ResourceManager()
+    rigol = rm.open_resource('USB0::0x1AB1::0x0643::DG8A232302748::INSTR')
+    
+    rigol.write('*RST')
+    apply_waveform(rigol, 1, to_int16(s), '1')
+    apply_waveform(rigol, 2, to_int16(s), '1')
+
     
         
 
