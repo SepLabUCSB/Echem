@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
-import raf_gen
 
 default_save_path = r'C:\Users\BRoehrich\Desktop'
 
@@ -193,8 +192,11 @@ def Rigol_waveform(freqs, phases, sample_freq, total_time, amax,
     
     fname = 'Rigol' + fname[3:] + '.csv'
     
-    if amps:
-        fname = 'Rigol' + fname[5:-4] + '_opt.csv'
+    try:
+        if len(amps) > 1:
+            fname = 'Rigol_opt' + fname[5:-4] + '.csv'
+    except:
+        pass
     
     file = os.path.join(save_path, fname)
     

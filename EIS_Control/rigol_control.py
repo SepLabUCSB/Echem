@@ -107,7 +107,6 @@ def apply_waveform(inst, channel, s, Vpp):
         import sys
         sys.exit()
     
-    # inst.write('*RST')
     inst.write(':SOURCE%s:APPL:SEQ'%(channel))
     wait(inst)
     inst.write(':SOURCE%s:FUNC:SEQ:FILT INSERT'%(channel))
@@ -148,7 +147,7 @@ if __name__ == '__main__':
     
     rigol.write('*RST')
     apply_waveform(rigol, 1, to_int16(s), '1')
-    apply_waveform(rigol, 2, to_int16(s), '1')
+    # apply_waveform(rigol, 2, to_int16(s), '1')
 
     
         
