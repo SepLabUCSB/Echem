@@ -21,8 +21,8 @@ path = r'C:/Users/BRoehrich/Desktop/EIS fit folder/2021-06-01_FcMeOH_50 mV_beads
 circuit = 'Randles_uelec'
 bounds = {
     'R1': [1e-1, 1e9],
-    'R2': [0.1, 1e9],
-    'R3': [0.1, 1e9],
+    'R2': [1e-1, 1e9],
+    'R3': [1e-1, 1e9],
     'Q1': [1e-15, 1],
     'n1': [1,1],
     'Q2': [1e-15, 1],

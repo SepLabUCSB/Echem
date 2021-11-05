@@ -1,0 +1,44 @@
+# To use, save file to "path", add this line to each python script:
+# plt.style.use("path")
+
+# Figure properties
+figure.figsize: 5, 5
+figure.dpi: 600
+
+# Font properties
+font.family: Calibri
+font.size: 16
+mathtext.default: regular
+
+# Axes properties
+axes.linewidth: 2
+axes.labelpad: 10
+
+# seaborn-deep colors
+axes.prop_cycle: cycler('color', ['4C72B0', '55A868', 'C44E52', '8172B2', 'CCB974', '64B5CD'])
+
+
+# Tick properties
+# x-axis
+xtick.top: False
+xtick.direction: out
+xtick.major.size: 7
+xtick.major.width: 2
+xtick.minor.size: 5
+xtick.minor.width: 2
+
+# y-axis
+ytick.right: False
+ytick.direction: out
+ytick.major.size: 7
+ytick.major.width: 2
+ytick.minor.size: 5
+ytick.minor.width: 2
+
+# Line properties
+lines.linewidth: 2.5
+
+# Legend properties
+legend.framealpha: 1
+legend.frameon: False
+

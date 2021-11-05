@@ -11,11 +11,18 @@ import pyvisa
 import rigol_control
 import siglent_control
 import create_waveform
-# plt.style.use('Z:\Projects\Brian\scientific.mplstyle')
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-csv_dir = r'C:\Users\BRoehrich\Desktop\git\echem\EIS_Control\csv'
-rigol_waves = r'C:\Users\BRoehrich\Desktop\git\echem\EIS_Control\rigol_waves'
+this_dir = rigol_control.__file__[:-16]
+
+
+# Find dirs with waveforms
+csv_dir = os.path.join(this_dir, 'csv')
+rigol_waves = os.path.join(this_dir, 'rigol_waves')
+
+
+# Get matplotlib style sheet and color cycle
+plt.style.use(os.path.join(this_dir, 'scientific.mplstyle'))
+colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
 
@@ -28,8 +35,10 @@ class MainWindow:
         root.title("Arb/ Scope control")
         root.attributes('-topmost', 1)
         root.attributes('-topmost', 0)    
+
         self.rm = pyvisa.ResourceManager()
         self.ft = None
+            
         
         # Initialize frames and canvas
         self.frame = tk.Frame(self.root)
