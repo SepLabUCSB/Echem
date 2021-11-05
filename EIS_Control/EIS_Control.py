@@ -21,7 +21,7 @@ rigol_waves = os.path.join(this_dir, 'rigol_waves')
 
 
 # Get matplotlib style sheet and color cycle
-plt.style.use(os.path.join(this_dir, 'scientific.mplstyle'))
+plt.style.use(os.path.join(this_dir[:-13], 'scientific.mplstyle'))
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
@@ -77,30 +77,41 @@ class MainWindow:
                 
         
         # VISA selection menu: Arb
-        text = tk.Label(self.frame, text='Arb:')
-        text.grid(row=3, column=1)
-        self.arb = tk.StringVar(self.frame)
-        self.arb.set('USB0::0x1AB1::0x0643::DG8A232302748::INSTR')
-        self.arb_selector = tk.OptionMenu(self.frame, self.arb, 
-                                               *self.rm.list_resources())
-        self.arb_selector.grid(row=3, column=2)
-        self.apply_waveform_button = tk.Button(self.frame, text='Apply Wave', 
-                                               command=self.apply_waveform)
-        self.apply_waveform_button.grid(row=3, column=3)
+        try:
+            text = tk.Label(self.frame, text='Arb:')
+            text.grid(row=3, column=1)
+            self.arb = tk.StringVar(self.frame)
+            self.arb.set('USB0::0x1AB1::0x0643::DG8A232302748::INSTR')
+            self.arb_selector = tk.OptionMenu(self.frame, self.arb, 
+                                                   *self.rm.list_resources())
+            self.arb_selector.grid(row=3, column=2)
+            self.apply_waveform_button = tk.Button(self.frame, text='Apply Wave', 
+                                                   command=self.apply_waveform)
+            self.apply_waveform_button.grid(row=3, column=3)
+            
+        except:
+            # If no instrument connected, no button
+            self.test_mode = True
+            pass
+        
         
         
         
         # VISA selection menus: Scope
-        text = tk.Label(self.frame, text='Scope:')
-        text.grid(row=4, column=1)
-        self.scope = tk.StringVar(self.frame)
-        self.scope.set('USB0::0xF4ED::0xEE3A::SDS1EDEX5R5381::INSTR')
-        self.scope_selector = tk.OptionMenu(self.frame, self.scope, 
-                                               *self.rm.list_resources())
-        self.scope_selector.grid(row=4, column=2)
+        try:
+            text = tk.Label(self.frame, text='Scope:')
+            text.grid(row=4, column=1)
+            self.scope = tk.StringVar(self.frame)
+            self.scope.set('USB0::0xF4ED::0xEE3A::SDS1EDEX5R5381::INSTR')
+            self.scope_selector = tk.OptionMenu(self.frame, self.scope, 
+                                                   *self.rm.list_resources())
+            self.scope_selector.grid(row=4, column=2)
+        except:
+            pass
         self.record_signals_button = tk.Button(self.frame, text='Record Signals', 
                                                command=self.record_signals)
         self.record_signals_button.grid(row=4, column=3)
+        
         
         
         
@@ -278,108 +289,146 @@ class MainWindow:
     
 
     def record_signals(self):
-        # Get recording time
-        t = self.recording_time.get('1.0', 'end')
-        current_range = self.current_range.get('1.0', 'end')
-        current_range = float(current_range)
-        
-        
-        
         try:
-            t = float(t)
-            t > 0
+            # Get recording time
+            t = self.recording_time.get('1.0', 'end')
+            current_range = self.current_range.get('1.0', 'end')
+            current_range = float(current_range)
+            
+            
+            
+            try:
+                t = float(t)
+                t > 0
+            except:
+                print('Invalid time. Must be a real number > 0.')
+                return
+            
+            # Initialize graph
+            self.ax.clear()
+            self.ax.set_xscale('log')
+            self.ax.set_xlabel('Frequency/ Hz')
+            self.ax.set_ylabel('Z/ $\Omega$')
+            line1, = self.ax.plot([],[], 'o-')
+            self.fig.tight_layout()
+            self.canvas.draw_idle()
+            
+            # Connect to scope
+            inst = self.rm.open_resource(self.scope.get())
+                 
+            
+            # Set and record some scope parameters
+            inst.write('TRMD AUTO')
+            inst.write('MSIZ 70K')
+            inst.write('TDIV 100MS')
+            inst.write('TRMD STOP')
+            
+            vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
+            voffset1    = float(inst.query('C1:OFST?')[8:-2])
+            vdiv2       = float(inst.query('C2:VDIV?')[8:-2])
+            voffset2    = float(inst.query('C2:OFST?')[8:-2])
+            sara        = float(inst.query('SARA?')[5:-5])
+            tdiv        = float(inst.query('TDIV?')[5:-2])
+            frame_time  = 14*tdiv
+            
+            
+            # Get applied frequencies
+            file  = os.path.join(rigol_waves, self.waveform.get())    
+            df    = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
+            
+            freqs = 100000*np.fft.rfftfreq(len(df))
+            V     = np.fft.rfft(df['V'])
+            ftdf  = pd.DataFrame({
+                    'freqs': freqs,
+                    'V': V})
+            
+            ftdf  = ftdf[np.abs(ftdf['V']) > 100]
+            applied_freqs = ftdf['freqs'].to_numpy()
+                
+                
+            # Record starting time
+            start_time = time.time()
+            self.ft = {}
+            frame = 0
+            
+            
+            # Record frames
+            print('')
+            print('Recording for ~%d s' %t)
+            while time.time() - start_time < t:
+                d = siglent_control.record_single(inst, start_time, frame_time,
+                                              vdiv1, voffset1, vdiv2, voffset2,
+                                              sara, sample_time=1)
+                print(f'Frame %s: {d.time:.2f} s'%frame)
+                
+                V = d.CH1data
+                I = -d.CH2data * current_range
+                
+                Z = V/I
+                
+                df = pd.DataFrame({
+                    'freqs': d.freqs,
+                    'Z': Z})
+                
+                df = df[df['freqs'].isin(applied_freqs)]
+                d.freqs = df['freqs'].to_numpy()
+                d.Z = df['Z'].to_numpy()
+                
+                ydata = np.abs(d.Z)
+                
+                line1.set_xdata(d.freqs)          
+                line1.set_ydata(ydata)
+                
+                self.ax.set_xlim(0.7*min(d.freqs), 1.3*max(d.freqs))
+                self.ax.set_ylim(min(ydata)-1.05*min(ydata), 1.05*max(ydata))
+                self.fig.canvas.draw()
+                self.fig.canvas.flush_events()
+                
+                d.waveform = self.waveform.get()
+                self.ft[frame] = d
+                frame += 1
+            
+            print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
+        
         except:
-            print('Invalid time. Must be a real number > 0.')
-            return
-        
-        # Initialize graph
-        self.ax.clear()
-        self.ax.set_xscale('log')
-        self.ax.set_xlabel('Frequency/ Hz')
-        self.ax.set_ylabel('Z/ $\Omega$')
-        line1, = self.ax.plot([],[], 'o-')
-        self.fig.tight_layout()
-        self.canvas.draw_idle()
-        
-        # Connect to scope
-        inst = self.rm.open_resource(self.scope.get())
-             
-        
-        # Set and record some scope parameters
-        inst.write('TRMD AUTO')
-        inst.write('MSIZ 70K')
-        inst.write('TDIV 100MS')
-        inst.write('TRMD STOP')
-        
-        vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
-        voffset1    = float(inst.query('C1:OFST?')[8:-2])
-        vdiv2       = float(inst.query('C2:VDIV?')[8:-2])
-        voffset2    = float(inst.query('C2:OFST?')[8:-2])
-        sara        = float(inst.query('SARA?')[5:-5])
-        tdiv        = float(inst.query('TDIV?')[5:-2])
-        frame_time  = 14*tdiv
-        
-        
-        # Get applied frequencies
-        file  = os.path.join(rigol_waves, self.waveform.get())    
-        df    = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
-        
-        freqs = 100000*np.fft.rfftfreq(len(df))
-        V     = np.fft.rfft(df['V'])
-        ftdf  = pd.DataFrame({
-                'freqs': freqs,
-                'V': V})
-        
-        ftdf  = ftdf[np.abs(ftdf['V']) > 100]
-        applied_freqs = ftdf['freqs'].to_numpy()
+            if self.test_mode:
+                # Show fake data if no instrument connected
+                
+                d1 = siglent_control.FourierTransformData(
+                    time = 1, 
+                    freqs = np.logspace(1,3, num=20), 
+                    CH1data = [], 
+                    CH2data = [],
+                    Z = np.linspace(1,1000, num = 20) + 1j*np.linspace(1,1000, num=20),
+                    phase = np.linspace(1,1000, num=20),
+                    waveform = self.waveform.get()
+                    )
+                
+                d2 = siglent_control.FourierTransformData(
+                    time = 2, 
+                    freqs = np.logspace(1,3, num=20), 
+                    CH1data = [], 
+                    CH2data = [],
+                    Z = np.linspace(1,2000, num = 20) + 1j*np.linspace(1,2000, num=20),
+                    phase = np.linspace(1,2000, num=20),
+                    waveform = self.waveform.get()
+                    )
+                
+                ydata = np.abs(d1.Z)
+                    
+                line1.set_xdata(d1.freqs)          
+                line1.set_ydata(np.abs(d1.Z))
+                
+                self.ax.set_xlim(0.7*min(d1.freqs), 1.3*max(d1.freqs))
+                self.ax.set_ylim(min(ydata)-1.05*min(ydata), 1.05*max(ydata))
+                self.fig.canvas.draw()
+                self.fig.canvas.flush_events()
+                
+                self.ft = {
+                    1: d1,
+                    2: d2
+                    }
             
-            
-        # Record starting time
-        start_time = time.time()
-        self.ft = {}
-        frame = 0
-        
-        
-        # Record frames
-        print('')
-        print('Recording for ~%d s' %t)
-        while time.time() - start_time < t:
-            d = siglent_control.record_single(inst, start_time, frame_time,
-                                          vdiv1, voffset1, vdiv2, voffset2,
-                                          sara, sample_time=1)
-            print(f'Frame %s: {d.time:.2f} s'%frame)
-            
-            V = d.CH1data
-            I = -d.CH2data * current_range
-            
-            Z = V/I
-            
-            df = pd.DataFrame({
-                'freqs': d.freqs,
-                'Z': Z})
-            
-            df = df[df['freqs'].isin(applied_freqs)]
-            d.freqs = df['freqs'].to_numpy()
-            d.Z = df['Z'].to_numpy()
-            
-            ydata = np.abs(d.Z)
-            
-            line1.set_xdata(d.freqs)          
-            line1.set_ydata(ydata)
-            
-            self.ax.set_xlim(0.7*min(d.freqs), 1.3*max(d.freqs))
-            self.ax.set_ylim(min(ydata)-1.05*min(ydata), 1.05*max(ydata))
-            self.fig.canvas.draw()
-            self.fig.canvas.flush_events()
-            
-            d.waveform = self.waveform.get()
-            self.ft[frame] = d
-            frame += 1
-        
-        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
-        
-
-        
         
 
 

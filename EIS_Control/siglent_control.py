@@ -10,15 +10,16 @@ plt.style.use('Z:\Projects\Brian\scientific.mplstyle')
 
 class FourierTransformData:
     
-    def __init__(self, time, freqs, CH1data, CH2data):
+    def __init__(self, time, freqs, CH1data, CH2data, Z = None,
+                 phase = None, waveform = None):
         self.time = time
         self.freqs = freqs
         self.CH1data = CH1data
         self.CH2data = CH2data
         
-        self.Z = None
-        self.phase = None
-        self.waveform = None
+        self.Z = Z
+        self.phase = phase
+        self.waveform = waveform
 
 
 
