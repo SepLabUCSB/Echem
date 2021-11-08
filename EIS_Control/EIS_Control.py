@@ -15,7 +15,7 @@ this_dir = rigol_control.__file__[:-16]
 
 
 # Find dir with waveforms
-rigol_waves = os.path.join(this_dir, 'rigol_waves')
+rigol_waves = os.path.join(this_dir, 'waveforms')
 
 
 # Get matplotlib style sheet and color cycle
