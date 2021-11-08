@@ -10,23 +10,23 @@ filedir = r'C:\Users\BRoehrich\Desktop\HEKA python\Analysis folder'
 
 params = {
     'out_dir': r'C:\Users\BRoehrich\Desktop\HEKA python\Analysis folder',
-    'csv_dir': r'C:\Users\BRoehrich\Desktop\git\echem\HEKA\csv',
+    'csv_dir': r'C:\Users\BRoehrich\Desktop\git\echem\EIS_Control\csv',
     
-    'number_of_freqs': 31,
-    'highest_freq' : '1k',
+    'number_of_freqs': 44,
+    'highest_freq' : '10k',
     'lowest_freq' : '1',
     'filter_setting': '30k',
     'correct_filter': True,
     'filter_correct_mode': False,
     
-    'sample_time' : 10,
-    'AUTOLAB': 1,
+    'sample_time' : 1,
+    'AUTOLAB': 0,
     'autolab_current_range': 1e-6,    
     'plot_Nyquist' : 1,
     'plot_Bode' : 1,
     
     'save_Excel' : 0,
-    'save_ASCII' : 0,
+    'save_ASCII' : 1,
         }
 
 
@@ -77,19 +77,19 @@ def make_new_waveform_Rigol(filedir, sample_freq, total_time, amax):
             
 #%%
 
-# if __name__ == '__main__':
-#     l = []
-#     n = 1
-#     for file in os.listdir(filedir):
-#         if file.endswith('.asc'):
-#             print('File %s: ' % n, file)
+if __name__ == '__main__':
+    l = []
+    n = 1
+    for file in os.listdir(filedir):
+        if file.endswith('.asc'):
+            print('File %s: ' % n, file)
             
-#             f = os.path.join(filedir,file)
+            f = os.path.join(filedir,file)
             
-#             FT = FT_EIS(f, params)
+            FT = FT_EIS(f, params)
             
-#             l.append(FT)
+            l.append(FT)
             
-#             n += 1             
+            n += 1             
                 
 
