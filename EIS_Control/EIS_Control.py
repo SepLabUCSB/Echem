@@ -28,7 +28,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 class MainWindow:
     
-    global csv_dir, rigol_waves
+    global this_dir, csv_dir, rigol_waves
     
     def __init__(self, root):
         self.root = root
@@ -113,6 +113,10 @@ class MainWindow:
         self.record_signals_button.grid(row=4, column=3)
         
         
+        self.save_button = tk.Button(self.frame, text='Save last measurement', 
+                                                   command=self.save_last)
+        self.save_button.grid(row=5, column=2, columnspan=2)
+        
         
         
         ########################################
@@ -138,7 +142,7 @@ class MainWindow:
         
         
         
-        # Autolab current range
+        # Potentiostat current range
         text = tk.Label(self.frame2, text='Current range:')
         text.grid(row=2, column = 0)
         self.current_range = tk.Text(self.frame2, height=1, width=7)
@@ -284,9 +288,6 @@ class MainWindow:
 
         
 
-        
-        
-    
 
     def record_signals(self):
         try:
@@ -430,7 +431,47 @@ class MainWindow:
                     }
             
         
+    def save_last(self):
+        
+        def createFolder(directory):
+            try:
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+            except OSError:
+                print ('Error: Creating directory. ' +  directory)
+        
+        
+        if self.ft:
+            
+            name = tk.simpledialog.askstring('Save name', 'Input save name:')
+            
+            folder_path = os.path.join(this_dir, name)
+            
+            createFolder(folder_path)
+            
+            for i, _ in self.ft.items():
+                re = np.real(self.ft[i].Z)
+                im = np.imag(self.ft[i].Z)
+                freqs = self.ft[i].freqs
+                
+                d = pd.DataFrame(
+                    {'f': freqs,
+                    're': re,
+                    'im': im}
+                    )
+                
+                fname = folder_path + '\\' + f'{i:04}' +'.txt'
+            
+                d.to_csv(fname, columns = ['f', 're', 'im'],
+                             header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
+                             sep = '\t', index = False, encoding='ascii')
+                
 
+        else:
+            print('No previous measurement to export')
+
+            
+        
 
 root = tk.Tk()
 gui = MainWindow(root)
