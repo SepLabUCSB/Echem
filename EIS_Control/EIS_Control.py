@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from cycler import cycler
 import os
 import sys
 import time
@@ -15,8 +14,7 @@ import create_waveform
 this_dir = rigol_control.__file__[:-16]
 
 
-# Find dirs with waveforms
-csv_dir = os.path.join(this_dir, 'csv')
+# Find dir with waveforms
 rigol_waves = os.path.join(this_dir, 'rigol_waves')
 
 
@@ -28,7 +26,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 class MainWindow:
     
-    global this_dir, csv_dir, rigol_waves
+    global this_dir, rigol_waves
     
     def __init__(self, root):
         self.root = root
@@ -113,9 +111,16 @@ class MainWindow:
         self.record_signals_button.grid(row=4, column=3)
         
         
+        
         self.save_button = tk.Button(self.frame, text='Save last measurement', 
                                                    command=self.save_last)
-        self.save_button.grid(row=5, column=2, columnspan=2)
+        self.save_button.grid(row=5, column=3, columnspan=2)
+        
+        
+        
+        self.record_save_button = tk.Button(self.frame, text='Record and save', 
+                                                   command=self.record_and_save)
+        self.record_save_button.grid(row=5, column=2, columnspan=2)
         
         
         
@@ -158,31 +163,35 @@ class MainWindow:
         self.make_waveform_button.grid(row=3, column=0, columnspan=2)
         
         
+        # Save options
         
-        # File directory
-        path = os.path.abspath(os.path.dirname(sys.argv[0]))
-        def_path = os.path.join(path, '\\rigol_waves\\')
-        text = tk.Label(self.frame2, text='CSV file directory:')
-        text.grid(row=4, column = 0)
-        self.csv_dir = tk.Text(self.frame2, height=1, width=7)
-        self.csv_dir.insert('1.0', def_path)
-        self.csv_dir.grid(row=5, column=0, columnspan=2)
+        text = tk.Label(self.frame2, text='Save as...')
+        text.grid(row=4, column = 0)        
+        
+        self.asciiVar = tk.IntVar(value=1)
+        self.save_ascii_option = tk.Checkbutton(self.frame2, text='ASCII', 
+                                                variable=self.asciiVar)
+        self.save_ascii_option.grid(row=5, column=0)
+        
+        self.csvVar = tk.IntVar(value=0)
+        self.save_csv_option = tk.Checkbutton(self.frame2, text='CSV', 
+                                              variable=self.csvVar)
+        self.save_csv_option.grid(row=5, column=1)
         
         
         # Recording/ processing parameters
         '''        
-        Show previous recorded signal button
-        
-        
+
         To add:
-            
-        Create new waveform from result
-         
-        Save button
         
         Scope determines vertical scaling to use dynamically
         
+        Console output into Tkinter window
+        
         '''
+        
+        
+        
         
     def get_units(self, n):    
         if n >= 1e-6 and n < 1e-3:
@@ -442,34 +451,50 @@ class MainWindow:
         
         
         if self.ft:
-            
-            name = tk.simpledialog.askstring('Save name', 'Input save name:')
-            
-            folder_path = os.path.join(this_dir, name)
-            
-            createFolder(folder_path)
-            
-            for i, _ in self.ft.items():
-                re = np.real(self.ft[i].Z)
-                im = np.imag(self.ft[i].Z)
-                freqs = self.ft[i].freqs
+            try:
+                name = tk.simpledialog.askstring('Save name', 'Input save name:')
                 
-                d = pd.DataFrame(
-                    {'f': freqs,
-                    're': re,
-                    'im': im}
-                    )
-                
-                fname = folder_path + '\\' + f'{i:04}' +'.txt'
+                if self.asciiVar.get():            
+                    
+                    folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), name)
+                    
+                    createFolder(folder_path)
+                    
+                    for i, _ in self.ft.items():
+                        re = np.real(self.ft[i].Z)
+                        im = np.imag(self.ft[i].Z)
+                        freqs = self.ft[i].freqs
+                        
+                        d = pd.DataFrame(
+                            {'f': freqs,
+                            're': re,
+                            'im': im}
+                            )
+                        
+                        fname = folder_path + '\\' + f'{i:04}' +'.txt'
+                    
+                        d.to_csv(fname, columns = ['f', 're', 'im'],
+                                     header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
+                                     sep = '\t', index = False, encoding='ascii')
+                    
+                    print('Saved as ASCII:', folder_path)
+                 
+                    
+                if self.csvVar.get():
+                    print('csv saving not yet supported...')
             
-                d.to_csv(fname, columns = ['f', 're', 'im'],
-                             header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
-                             sep = '\t', index = False, encoding='ascii')
+            except:
+                pass
                 
 
         else:
             print('No previous measurement to export')
 
+    
+
+    def record_and_save(self):
+        self.record_signals()
+        self.save_last()
             
         
 
