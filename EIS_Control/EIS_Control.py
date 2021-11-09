@@ -603,6 +603,8 @@ class MainWindow:
                                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
                                      sep = '\t', index = False, encoding='ascii')
                     
+                    self.fig.savefig(folder_path+'\\0000_fig', dpi=300)
+                    
                     print('Saved as ASCII:', folder_path)
                  
                     
