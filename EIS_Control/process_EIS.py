@@ -415,7 +415,7 @@ class FT_EIS:
         
         folder_name = date + "_" + file[:-4]
         folder = os.path.join(out_dir, folder_name)
-        print(file)
+        print(folder)
         self.createFolder(folder)
         
         
