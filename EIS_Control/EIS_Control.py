@@ -463,71 +463,97 @@ class MainWindow:
         
         
         except:
-            if self.test_mode:
-                # Show fake data if no instrument connected
-                
-                d1 = siglent_control.FourierTransformData(
-                    time = 1, 
-                    freqs = np.logspace(1,3, num=20), 
-                    CH1data = [], 
-                    CH2data = [],
-                    Z = np.linspace(1,1000, num = 20) + 1j*np.linspace(1,1000, num=20),
-                    phase = np.linspace(1,1000, num=20),
-                    waveform = self.waveform.get()
-                    )
-                
-                d2 = siglent_control.FourierTransformData(
-                    time = 2, 
-                    freqs = np.logspace(1,3, num=20), 
-                    CH1data = [], 
-                    CH2data = [],
-                    Z = np.linspace(1,2000, num = 20) + 1j*np.linspace(1,2000, num=20),
-                    phase = np.linspace(1,2000, num=20),
-                    waveform = self.waveform.get()
-                    )
-                
-                Z = np.abs(d1.Z)
-                phase = np.angle(Z)
-                  
-                if plot_Z:
-                    if not plot_phase:
-                        line1.set_xdata(d1.freqs)          
-                        line1.set_ydata(Z)
-                        self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                        self.ax.set_ylabel('|Z|/ M$\Omega$')
-                        self.ax2.set_yticks([])
-                
-                if plot_phase:
-                    if not plot_Z:
-                        line2.set_xdata(d1.freqs)
-                        line2.set_ydata(phase)
-                        # self.ax.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
-                        self.ax.set_ylabel('Phase/ $\degree$')
-                        self.ax2.set_yticks([])
-                    
-                if plot_Z and plot_phase:
-                    line1.set_xdata(d1.freqs)
-                    line2.set_xdata(d1.freqs)
-                    line1.set_ydata(Z)
-                    line2.set_ydata(phase)
-                    self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                    # self.ax2.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
-                    self.ax.set_ylabel('|Z|/ M$\Omega$')
-                    self.ax2.set_ylabel('Phase/ $\degree$')
-                    
-                    
-                
-                self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
-                # self.ax.set_aspect(1/self.ax.get_data_ratio(), adjustable = 'datalim')
-                self.fig.tight_layout()
-                self.fig.canvas.draw()
-                self.fig.canvas.flush_events()
-                
-                self.ft = {
-                    1: d1,
-                    2: d2
-                    }
+            self.test_mode_record()
             
+            
+            
+            
+    def test_mode_record(self):
+        
+        plot_Z     = self.plot_Z.get()
+        plot_phase = self.plot_phase.get()
+        
+        self.ax.set_xscale('linear')
+        self.ax.clear()
+        self.ax.set_xscale('linear')
+        self.ax2.clear()
+        
+        line1, = self.ax.plot([],[], '-')
+        line2, = self.ax2.plot([],[], 'x')
+               
+        
+        self.ax.set_xscale('log')
+        self.ax.set_xlabel('Frequency/ Hz')
+        self.fig.tight_layout()
+        self.canvas.draw_idle()
+        
+        if self.test_mode:
+            # Show fake data if no instrument connected
+            
+            # Make up data
+            d1 = siglent_control.FourierTransformData(
+                time = 1.2, 
+                freqs = np.logspace(1,3, num=20), 
+                CH1data = [], 
+                CH2data = [],
+                Z = np.linspace(1,1000, num = 20) + 1j*np.linspace(1,1000, num=20),
+                phase = np.linspace(1,1000, num=20),
+                waveform = self.waveform.get()
+                )
+            
+            d2 = siglent_control.FourierTransformData(
+                time = 2.7, 
+                freqs = np.logspace(1,3, num=20), 
+                CH1data = [], 
+                CH2data = [],
+                Z = np.linspace(1,2000, num = 20) + 1j*np.linspace(1,2000, num=20),
+                phase = np.linspace(1,2000, num=20),
+                waveform = self.waveform.get()
+                )
+            
+            # Data to plot
+            Z = np.abs(d1.Z)
+            phase = np.angle(Z)
+              
+            if plot_Z:
+                if not plot_phase:
+                    line1.set_xdata(d1.freqs)          
+                    line1.set_ydata(Z)
+                    self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
+                    self.ax.set_ylabel('|Z|/ M$\Omega$')
+                    self.ax2.set_yticks([])
+            
+            if plot_phase:
+                if not plot_Z:
+                    line2.set_xdata(d1.freqs)
+                    line2.set_ydata(phase)
+                    # self.ax.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                    self.ax.set_ylabel('Phase/ $\degree$')
+                    self.ax2.set_yticks([])
+                
+            if plot_Z and plot_phase:
+                line1.set_xdata(d1.freqs)
+                line2.set_xdata(d1.freqs)
+                line1.set_ydata(Z)
+                line2.set_ydata(phase)
+                self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
+                # self.ax2.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                self.ax.set_ylabel('|Z|/ M$\Omega$')
+                self.ax2.set_ylabel('Phase/ $\degree$')
+                
+                
+            
+            self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
+            self.fig.tight_layout()
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
+            
+            # Data to save
+            self.ft = {
+                1: d1,
+                2: d2
+                }
+        
         
         
         
@@ -584,11 +610,14 @@ class MainWindow:
                     print('csv saving not yet supported...')
             
             except:
+                # User hits cancel
+                # Still option to save previous run
                 pass
                 
 
         else:
             print('No previous measurement to export')
+
 
     
 
@@ -596,6 +625,12 @@ class MainWindow:
         self.record_signals()
         self.save_last()
             
+        
+        
+        
+    ########################################
+    ###     END OF MAINWINDOW CLASS      ###
+    ########################################
         
 
 root = tk.Tk()
