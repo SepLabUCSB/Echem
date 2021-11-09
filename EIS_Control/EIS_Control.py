@@ -46,9 +46,10 @@ class MainWindow:
         self.frame2.grid(row=0, column = 1)
         
        
-        self.fig = plt.Figure(figsize=(4,4), dpi=100)
-        self.ax = self.fig.add_subplot(111)
-        # self.ax.plot([],[])
+        self.fig = plt.Figure(figsize=(5,4), dpi=100)
+        self.ax  = self.fig.add_subplot()
+        self.ax2 = self.ax.twinx()
+        self.ax2.set_yticks([])
         
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().grid(row=1, column=0)
@@ -106,21 +107,37 @@ class MainWindow:
             self.scope_selector.grid(row=4, column=2)
         except:
             pass
+        
+        
+        # Record, save buttons
         self.record_signals_button = tk.Button(self.frame, text='Record Signals', 
                                                command=self.record_signals)
         self.record_signals_button.grid(row=4, column=3)
-        
         
         
         self.save_button = tk.Button(self.frame, text='Save last measurement', 
                                                    command=self.save_last)
         self.save_button.grid(row=5, column=3, columnspan=2)
         
-        
-        
+
         self.record_save_button = tk.Button(self.frame, text='Record and save', 
                                                    command=self.record_and_save)
         self.record_save_button.grid(row=5, column=2, columnspan=2)
+        
+        
+        
+        # Plot Z, phase toggles
+        self.plot_Z = tk.IntVar(value=1)
+        self.plot_Z_option = tk.Checkbutton(self.frame, text='|Z|', 
+                                                variable=self.plot_Z)
+        self.plot_Z_option.grid(row=6, column=1)
+        
+        
+        self.plot_phase = tk.IntVar(value=1)
+        self.plot_phase_option = tk.Checkbutton(self.frame, text='Phase', 
+                                                variable=self.plot_phase)
+        self.plot_phase_option.grid(row=6, column=2)
+        
         
         
         
@@ -187,6 +204,10 @@ class MainWindow:
         Scope determines vertical scaling to use dynamically
         
         Console output into Tkinter window
+        
+        Plot phase
+        
+        Plot Nyquist
         
         '''
         
@@ -299,13 +320,31 @@ class MainWindow:
 
 
     def record_signals(self):
+        
+        plot_Z     = self.plot_Z.get()
+        plot_phase = self.plot_phase.get()
+        
+        self.ax.set_xscale('linear')
+        self.ax.clear()
+        self.ax.set_xscale('linear')
+        self.ax2.clear()
+        
+        line1, = self.ax.plot([],[], '-')
+        line2, = self.ax2.plot([],[], 'x')
+               
+        
+        self.ax.set_xscale('log')
+        self.ax.set_xlabel('Frequency/ Hz')
+        self.fig.tight_layout()
+        self.canvas.draw_idle()
+        
+        
         try:
             # Get recording time
             t = self.recording_time.get('1.0', 'end')
             current_range = self.current_range.get('1.0', 'end')
             current_range = float(current_range)
-            
-            
+                 
             
             try:
                 t = float(t)
@@ -314,14 +353,6 @@ class MainWindow:
                 print('Invalid time. Must be a real number > 0.')
                 return
             
-            # Initialize graph
-            self.ax.clear()
-            self.ax.set_xscale('log')
-            self.ax.set_xlabel('Frequency/ Hz')
-            self.ax.set_ylabel('Z/ $\Omega$')
-            line1, = self.ax.plot([],[], 'o-')
-            self.fig.tight_layout()
-            self.canvas.draw_idle()
             
             # Connect to scope
             inst = self.rm.open_resource(self.scope.get())
@@ -384,21 +415,52 @@ class MainWindow:
                 d.freqs = df['freqs'].to_numpy()
                 d.Z = df['Z'].to_numpy()
                 
-                ydata = np.abs(d.Z)
+                # Plot this result to figure canvas
+                Z = np.abs(d.Z)
+                phase = np.angle(Z)
+                 
+                # Determine which plot to make
+                if plot_Z:
+                    if not plot_phase:
+                        line1.set_xdata(d.freqs)          
+                        line1.set_ydata(Z)
+                        self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
+                        self.ax.set_ylabel('|Z|/ M$\Omega$')
+                        self.ax2.set_yticks([])
                 
-                line1.set_xdata(d.freqs)          
-                line1.set_ydata(ydata)
-                
-                self.ax.set_xlim(0.7*min(d.freqs), 1.3*max(d.freqs))
-                self.ax.set_ylim(min(ydata)-1.05*min(ydata), 1.05*max(ydata))
+                if plot_phase:
+                    if not plot_Z:
+                        line2.set_xdata(d.freqs)
+                        line2.set_ydata(phase)
+                        # self.ax.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                        self.ax.set_ylabel('Phase/ $\degree$')
+                        self.ax2.set_yticks([])
+                    
+                if plot_Z and plot_phase:
+                    line1.set_xdata(d.freqs)
+                    line2.set_xdata(d.freqs)
+                    line1.set_ydata(Z)
+                    line2.set_ydata(phase)
+                    self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
+                    # self.ax2.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                    self.ax.set_ylabel('|Z|/ M$\Omega$')
+                    self.ax2.set_ylabel('Phase/ $\degree$')
+                    
+                    
+                # Draw the plot
+                self.ax.set_xlim(0.7*min(d.freqs), 1.5*max(d.freqs))
+                # self.ax.set_aspect(1/self.ax.get_data_ratio(), adjustable = 'datalim')
+                self.fig.tight_layout()
                 self.fig.canvas.draw()
                 self.fig.canvas.flush_events()
                 
+                # Save the FT data
                 d.waveform = self.waveform.get()
                 self.ft[frame] = d
                 frame += 1
             
             print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
+        
         
         except:
             if self.test_mode:
@@ -424,13 +486,40 @@ class MainWindow:
                     waveform = self.waveform.get()
                     )
                 
-                ydata = np.abs(d1.Z)
-                    
-                line1.set_xdata(d1.freqs)          
-                line1.set_ydata(np.abs(d1.Z))
+                Z = np.abs(d1.Z)
+                phase = np.angle(Z)
+                  
+                if plot_Z:
+                    if not plot_phase:
+                        line1.set_xdata(d1.freqs)          
+                        line1.set_ydata(Z)
+                        self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
+                        self.ax.set_ylabel('|Z|/ M$\Omega$')
+                        self.ax2.set_yticks([])
                 
-                self.ax.set_xlim(0.7*min(d1.freqs), 1.3*max(d1.freqs))
-                self.ax.set_ylim(min(ydata)-1.05*min(ydata), 1.05*max(ydata))
+                if plot_phase:
+                    if not plot_Z:
+                        line2.set_xdata(d1.freqs)
+                        line2.set_ydata(phase)
+                        # self.ax.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                        self.ax.set_ylabel('Phase/ $\degree$')
+                        self.ax2.set_yticks([])
+                    
+                if plot_Z and plot_phase:
+                    line1.set_xdata(d1.freqs)
+                    line2.set_xdata(d1.freqs)
+                    line1.set_ydata(Z)
+                    line2.set_ydata(phase)
+                    self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
+                    # self.ax2.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                    self.ax.set_ylabel('|Z|/ M$\Omega$')
+                    self.ax2.set_ylabel('Phase/ $\degree$')
+                    
+                    
+                
+                self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
+                # self.ax.set_aspect(1/self.ax.get_data_ratio(), adjustable = 'datalim')
+                self.fig.tight_layout()
                 self.fig.canvas.draw()
                 self.fig.canvas.flush_events()
                 
@@ -439,6 +528,8 @@ class MainWindow:
                     2: d2
                     }
             
+        
+        
         
     def save_last(self):
         
@@ -460,6 +551,15 @@ class MainWindow:
                     
                     createFolder(folder_path)
                     
+                    time_file = os.path.join(folder_path, '0000_time_list.txt')
+                    
+                    with open(time_file, 'w') as f:
+                        for i, _ in self.ft.items():
+                            time = str(self.ft[i].time)
+                            f.write(time + '\n')
+                        
+                    f.close()
+                        
                     for i, _ in self.ft.items():
                         re = np.real(self.ft[i].Z)
                         im = np.imag(self.ft[i].Z)
@@ -471,7 +571,7 @@ class MainWindow:
                             'im': im}
                             )
                         
-                        fname = folder_path + '\\' + f'{i:04}' +'.txt'
+                        fname = folder_path + '\\' + f'{i:04}' +'s.txt'
                     
                         d.to_csv(fname, columns = ['f', 're', 'im'],
                                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
