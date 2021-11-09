@@ -215,6 +215,8 @@ class FT_EIS:
             file = self.csv_dir + r'\f_%s_%s_%sfreqs.csv' %(self.highest_freq, 
                                                             self.lowest_freq,
                                                             self.number_of_freqs)
+                
+
             f = pd.read_csv(file)
         
         except FileNotFoundError:
@@ -289,14 +291,19 @@ class FT_EIS:
     def make_Nyquist(self, add_comment=True):
         fig, ax = plt.subplots()
         prefix, factor = self.get_units(self.ft)
+    
+        
         if len(self.ft) == 1:
             for i in self.ft:
                 ax.plot(self.ft[i]['re']/factor, -self.ft[i]['im']/factor, 'o-')
         else: 
+            colors = plt.cm.plasma(np.linspace(0.2,0.8, len(self.ft)))
+            
             for i in self.ft:
                 # First cycle is often noisy, don't plot it if possible
                 if i > 1:
-                    ax.plot(self.ft[i]['re']/factor, -self.ft[i]['im']/factor, 'o-')
+                    ax.plot(self.ft[i]['re']/factor, -self.ft[i]['im']/factor, 
+                            'o-', color=colors[i-1])
         
         unit = prefix + '$\Omega$'
         ax.set_xlabel("Z'/ " + unit)
@@ -331,11 +338,14 @@ class FT_EIS:
                 ax1.plot(self.ft[i]['f'], np.absolute(self.ft[i]['Z'])/factor, '.-')
                 ax2.plot(self.ft[i]['f'], self.ft[i]['phase'], 'x')
         else:
+            colors = plt.cm.plasma(np.linspace(0.2,0.8, len(self.ft)))
             for i in self.ft:
                 # First cycle is often noisy, don't plot it if possible
                 if i > 1:
-                    ax1.plot(self.ft[i]['f'], np.absolute(self.ft[i]['Z'])/factor, '-')
-                    ax2.plot(self.ft[i]['f'], self.ft[i]['phase'], 'x')
+                    ax1.plot(self.ft[i]['f'], np.absolute(self.ft[i]['Z'])/factor, 
+                             '-', color=colors[i-1])
+                    ax2.plot(self.ft[i]['f'], self.ft[i]['phase'], 'x',
+                             color=colors[i-1])
         unit = prefix + '$\Omega$'
         ax1.set_xlabel("Frequency/ Hz")
         ax1.set_ylabel("|Z|/ " + unit)
@@ -356,7 +366,7 @@ class FT_EIS:
     #####                                                #####
     ##########################################################
      
-    def createFolder(directory):
+    def createFolder(self, directory):
         try:
             if not os.path.exists(directory):
                 os.makedirs(directory)
@@ -397,7 +407,7 @@ class FT_EIS:
     def WriteToASCII(self):  
         #saves DataFrames(s) as ASCII for MEISP
         
-        file     = self.file
+        file     = self.file.split('\\')[-1]
         ft       = self.ft
         out_dir  = self.out_dir
         date     = self.date
@@ -405,7 +415,7 @@ class FT_EIS:
         
         folder_name = date + "_" + file[:-4]
         folder = os.path.join(out_dir, folder_name)
-        
+        print(file)
         self.createFolder(folder)
         
         
