@@ -47,7 +47,7 @@ class MainWindow:
         
        
         self.fig = plt.Figure(figsize=(5,4), dpi=100)
-        self.ax  = self.fig.add_subplot()
+        self.ax  = self.fig.add_subplot(111)
         self.ax2 = self.ax.twinx()
         self.ax2.set_yticks([])
         
@@ -287,7 +287,10 @@ class MainWindow:
             df = pd.read_csv(file, skiprows=9, names=('x', 'V'))
             s = df['V'].to_numpy()
         
+        self.ax.set_xscale('linear')
         self.ax.clear()
+        self.ax2.clear()
+        self.ax2.set_yticks([])
         self.ax.plot(100000*np.fft.rfftfreq(len(s)), 
                      np.abs(np.fft.rfft(s)))
         self.ax.set_xlabel('Frequency/ Hz')
@@ -314,6 +317,7 @@ class MainWindow:
             inst.write('*RST')
             rigol_control.apply_waveform(inst, 1, s, Vpp)
         except:
+            print('Could not connect')
             pass
 
         
@@ -406,33 +410,39 @@ class MainWindow:
                 I = -d.CH2data * current_range
                 
                 Z = V/I
+                phase = np.angle(V/I, deg=True)
                 
-                df = pd.DataFrame({
-                    'freqs': d.freqs,
-                    'Z': Z})
+                df = pd.DataFrame(
+                        {
+                        'freqs': d.freqs,
+                        'Z': Z,
+                        'phase': phase
+                        }
+                )
                 
                 df = df[df['freqs'].isin(applied_freqs)]
                 d.freqs = df['freqs'].to_numpy()
                 d.Z = df['Z'].to_numpy()
+                d.phase = np.angle(d.Z, deg=True)
                 
                 # Plot this result to figure canvas
                 Z = np.abs(d.Z)
-                phase = np.angle(Z)
-                 
+                phase = d.phase
+                
                 # Determine which plot to make
                 if plot_Z:
                     if not plot_phase:
                         line1.set_xdata(d.freqs)          
                         line1.set_ydata(Z)
                         self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                        self.ax.set_ylabel('|Z|/ M$\Omega$')
+                        self.ax.set_ylabel('|Z|/ $\Omega$')
                         self.ax2.set_yticks([])
                 
                 if plot_phase:
                     if not plot_Z:
                         line2.set_xdata(d.freqs)
                         line2.set_ydata(phase)
-                        # self.ax.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                        self.ax.set_ylim(min(phase)+1.05*min(phase), 1.05*max(phase))
                         self.ax.set_ylabel('Phase/ $\degree$')
                         self.ax2.set_yticks([])
                     
@@ -442,8 +452,8 @@ class MainWindow:
                     line1.set_ydata(Z)
                     line2.set_ydata(phase)
                     self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                    # self.ax2.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
-                    self.ax.set_ylabel('|Z|/ M$\Omega$')
+                    self.ax2.set_ylim(min(phase)+1.05*min(phase), 1.05*max(phase))
+                    self.ax.set_ylabel('|Z|/ $\Omega$')
                     self.ax2.set_ylabel('Phase/ $\degree$')
                     
                     
@@ -513,14 +523,14 @@ class MainWindow:
             
             # Data to plot
             Z = np.abs(d1.Z)
-            phase = np.angle(Z)
+            phase = np.angle(Z, deg=True)
               
             if plot_Z:
                 if not plot_phase:
                     line1.set_xdata(d1.freqs)          
                     line1.set_ydata(Z)
                     self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                    self.ax.set_ylabel('|Z|/ M$\Omega$')
+                    self.ax.set_ylabel('|Z|/ $\Omega$')
                     self.ax2.set_yticks([])
             
             if plot_phase:
@@ -538,7 +548,7 @@ class MainWindow:
                 line2.set_ydata(phase)
                 self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
                 # self.ax2.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
-                self.ax.set_ylabel('|Z|/ M$\Omega$')
+                self.ax.set_ylabel('|Z|/ $\Omega$')
                 self.ax2.set_ylabel('Phase/ $\degree$')
                 
                 
@@ -603,11 +613,12 @@ class MainWindow:
                                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
                                      sep = '\t', index = False, encoding='ascii')
                     
-                    print('Saved as ASCII:', folder_path)
+
+                    print('\nSaved as ASCII:', folder_path, '\n')
                  
                     
                 if self.csvVar.get():
-                    print('csv saving not yet supported...')
+                    print('csv saving not yet supported...\n')
             
             except:
                 # User hits cancel
@@ -616,7 +627,7 @@ class MainWindow:
                 
 
         else:
-            print('No previous measurement to export')
+            print('No previous measurement to export\n')
 
 
     

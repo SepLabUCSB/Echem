@@ -3,7 +3,6 @@ import numpy as np
 import pyvisa
 from time import sleep
 import pandas as pd
-plt.style.use('Z:\Projects\Brian\scientific.mplstyle')
 
 
 
@@ -100,12 +99,12 @@ def apply_waveform(inst, channel, s, Vpp):
         sys.exit()
     
     
-    try:
-        print(inst.query('*IDN?'))
-    except:
-        print('Could not connect')
-        import sys
-        sys.exit()
+#    try:
+#        print(inst.query('*IDN?'))
+#    except:
+#        print('Could not connect')
+#        import sys
+#        sys.exit()
     
     inst.write(':SOURCE%s:APPL:SEQ'%(channel))
     wait(inst)
