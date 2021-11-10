@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from time import sleep
 import time
 import pandas as pd
-plt.style.use('Z:\Projects\Brian\scientific.mplstyle')
 
 
 class FourierTransformData:
