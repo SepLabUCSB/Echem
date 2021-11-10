@@ -6,6 +6,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import sys
 import time
+from datetime import date
 import pyvisa
 import rigol_control
 import siglent_control
@@ -26,6 +27,14 @@ rigol_waves = os.path.join(this_dir, 'waveforms')
 plt.style.use(os.path.join(this_dir[:-13], 'scientific.mplstyle'))
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
+
+'''
+To add:
+    
+Save previous file name
+
+Vdc offset
+'''
 
 class PrintLogger(): # create file like object
     def __init__(self, textbox): # pass reference to text widget
@@ -277,7 +286,7 @@ class MainWindow:
         for i in self.ft:
             Z = np.mean(np.array([Z, self.ft[i].Z]), axis=0)
             
-        amps = np.absolute(Z)
+        amps = np.sqrt(np.absolute(Z))
         
         # Create new waveform
         S, fname = create_waveform.Rigol_waveform(freqs, phases, 
@@ -467,7 +476,7 @@ class MainWindow:
                     if not plot_Z:
                         line2.set_xdata(d.freqs)
                         line2.set_ydata(phase)
-                        self.ax.set_ylim(min(phase)+1.05*min(phase), 1.05*max(phase))
+                        self.ax.set_ylim(min(phase)-10, max(phase)+10)
                         self.ax.set_ylabel('Phase/ $\degree$')
                         self.ax2.set_yticks([])
                     
@@ -477,7 +486,7 @@ class MainWindow:
                     line1.set_ydata(Z)
                     line2.set_ydata(phase)
                     self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                    self.ax2.set_ylim(min(phase)+1.05*min(phase), 1.05*max(phase))
+                    self.ax2.set_ylim(min(phase)-10, max(phase)+10)
                     self.ax.set_ylabel('|Z|/ $\Omega$')
                     self.ax2.set_ylabel('Phase/ $\degree$')
                     
@@ -606,10 +615,12 @@ class MainWindow:
         if self.ft:
             try:
                 name = tk.simpledialog.askstring('Save name', 'Input save name:')
+                today = str(date.today())
                 
                 if self.asciiVar.get():            
                     
-                    folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), name)
+                    folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                               today, name)
                     
                     createFolder(folder_path)
                     
@@ -639,7 +650,15 @@ class MainWindow:
                                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
                                      sep = '\t', index = False, encoding='ascii')
                     
-
+                    meta_file = os.path.join(folder_path, '0000_Metadata.txt')
+                    
+                    with open(meta_file, 'w') as f:
+                        f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                        f.write('Waveform: '+ str(self.waveform.get()))
+                        
+                    f.close()
+                    
+                        
                     self.fig.savefig(folder_path+'\\0000_fig', dpi=300)
                     
                     print('Saved as ASCII:', folder_path, '\n')
