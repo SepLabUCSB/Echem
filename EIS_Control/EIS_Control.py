@@ -26,16 +26,18 @@ rigol_waves = os.path.join(this_dir, 'waveforms')
 plt.style.use(os.path.join(this_dir[:-13], 'scientific.mplstyle'))
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
+
 class PrintLogger(): # create file like object
     def __init__(self, textbox): # pass reference to text widget
         self.textbox = textbox # keep ref
 
     def write(self, text):
         self.textbox.insert(tk.END, text) # write text to textbox
-        self.textbox.see('end')
+        self.textbox.see('end') # scroll to end
 
     def flush(self): # needed for file like object
         pass
+
 
 
 class MainWindow:
@@ -59,11 +61,11 @@ class MainWindow:
         self.frame.grid(row=0, column = 0)
         
         # frame2: upper right
-        self.frame2 = tk.Frame(self.root, width=50)
+        self.frame2 = tk.Frame(self.root)
         self.frame2.grid(row=0, column = 1)
         
         # frame3: lower right (console output)
-        self.frame3 = tk.Frame(self.root, width=50)
+        self.frame3 = tk.Frame(self.root)
         self.frame3.grid(row=1, column=1)
         
         # console printout to frame3
