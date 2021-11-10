@@ -359,8 +359,8 @@ class MainWindow:
         self.ax.set_xscale('linear')
         self.ax2.clear()
         
-        line1, = self.ax.plot([],[], '-')
-        line2, = self.ax2.plot([],[], 'x')
+        line1, = self.ax.plot([],[], '-', color=colors[0])
+        line2, = self.ax2.plot([],[], 'o', color=colors[1])
                
         
         self.ax.set_xscale('log')
@@ -495,7 +495,7 @@ class MainWindow:
                 self.ft[frame] = d
                 frame += 1
             
-            print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
+            print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
         
         
         except:
@@ -505,13 +505,7 @@ class MainWindow:
             
             
     def test_mode_record(self):
-        print('recording')
-        print('1')
-        print('2')
-        print('3')
-        print('4')
-        print('5')
-        print('6')
+
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
         
@@ -520,8 +514,8 @@ class MainWindow:
         self.ax.set_xscale('linear')
         self.ax2.clear()
         
-        line1, = self.ax.plot([],[], '-')
-        line2, = self.ax2.plot([],[], 'x')
+        line1, = self.ax.plot([],[], '-', color=colors[0])
+        line2, = self.ax2.plot([],[], 'o', color=colors[1])
                
         
         self.ax.set_xscale('log')
