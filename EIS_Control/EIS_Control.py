@@ -67,9 +67,10 @@ class MainWindow:
         # frame3: lower right (console output)
         self.frame3 = tk.Frame(self.root)
         self.frame3.grid(row=1, column=1)
+        self.frame3.pack_propagate(0)
         
         # console printout to frame3
-        self.console = tk.Text(self.frame3)
+        self.console = tk.Text(self.frame3, width=50, height=25)
         self.console.grid(row=0, column=0)
         pl = PrintLogger(self.console)
         sys.stdout = pl
