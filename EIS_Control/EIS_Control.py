@@ -6,6 +6,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import sys
 import time
+from datetime import date
 import pyvisa
 import rigol_control
 import siglent_control
@@ -606,10 +607,12 @@ class MainWindow:
         if self.ft:
             try:
                 name = tk.simpledialog.askstring('Save name', 'Input save name:')
+                today = str(date.today())
                 
                 if self.asciiVar.get():            
                     
-                    folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), name)
+                    folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                               today, name)
                     
                     createFolder(folder_path)
                     
@@ -639,7 +642,15 @@ class MainWindow:
                                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
                                      sep = '\t', index = False, encoding='ascii')
                     
-
+                    meta_file = os.path.join(folder_path, '0000_Metadata.txt')
+                    
+                    with open(meta_file, 'w') as f:
+                        f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                        f.write('Waveform: '+ str(self.waveform.get()))
+                        
+                    f.close()
+                    
+                        
                     self.fig.savefig(folder_path+'\\0000_fig', dpi=300)
                     
                     print('Saved as ASCII:', folder_path, '\n')
