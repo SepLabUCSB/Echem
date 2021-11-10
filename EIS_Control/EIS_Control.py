@@ -28,6 +28,14 @@ plt.style.use(os.path.join(this_dir[:-13], 'scientific.mplstyle'))
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
+'''
+To add:
+    
+Save previous file name
+
+Vdc offset
+'''
+
 class PrintLogger(): # create file like object
     def __init__(self, textbox): # pass reference to text widget
         self.textbox = textbox # keep ref
@@ -278,7 +286,7 @@ class MainWindow:
         for i in self.ft:
             Z = np.mean(np.array([Z, self.ft[i].Z]), axis=0)
             
-        amps = np.absolute(Z)
+        amps = np.sqrt(np.absolute(Z))
         
         # Create new waveform
         S, fname = create_waveform.Rigol_waveform(freqs, phases, 
@@ -468,7 +476,7 @@ class MainWindow:
                     if not plot_Z:
                         line2.set_xdata(d.freqs)
                         line2.set_ydata(phase)
-                        self.ax.set_ylim(min(phase)+1.05*min(phase), 1.05*max(phase))
+                        self.ax.set_ylim(min(phase)-10, max(phase)+10)
                         self.ax.set_ylabel('Phase/ $\degree$')
                         self.ax2.set_yticks([])
                     
@@ -478,7 +486,7 @@ class MainWindow:
                     line1.set_ydata(Z)
                     line2.set_ydata(phase)
                     self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                    self.ax2.set_ylim(min(phase)+1.05*min(phase), 1.05*max(phase))
+                    self.ax2.set_ylim(min(phase)-10, max(phase)+10)
                     self.ax.set_ylabel('|Z|/ $\Omega$')
                     self.ax2.set_ylabel('Phase/ $\degree$')
                     
