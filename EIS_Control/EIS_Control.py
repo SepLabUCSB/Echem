@@ -10,6 +10,10 @@ import pyvisa
 import rigol_control
 import siglent_control
 import create_waveform
+default_stdout = sys.stdout
+default_stdin  = sys.stdin
+default_stderr = sys.stderr
+
 
 this_dir = rigol_control.__file__[:-16]
 
@@ -22,6 +26,16 @@ rigol_waves = os.path.join(this_dir, 'waveforms')
 plt.style.use(os.path.join(this_dir[:-13], 'scientific.mplstyle'))
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
+class PrintLogger(): # create file like object
+    def __init__(self, textbox): # pass reference to text widget
+        self.textbox = textbox # keep ref
+
+    def write(self, text):
+        self.textbox.insert(tk.END, text) # write text to textbox
+        self.textbox.see('end')
+
+    def flush(self): # needed for file like object
+        pass
 
 
 class MainWindow:
@@ -39,18 +53,31 @@ class MainWindow:
             
         
         # Initialize frames and canvas
+        
+        # frame: upper left
         self.frame = tk.Frame(self.root)
         self.frame.grid(row=0, column = 0)
         
-        self.frame2 = tk.Frame(self.root)
+        # frame2: upper right
+        self.frame2 = tk.Frame(self.root, width=50)
         self.frame2.grid(row=0, column = 1)
         
+        # frame3: lower right (console output)
+        self.frame3 = tk.Frame(self.root, width=50)
+        self.frame3.grid(row=1, column=1)
+        
+        # console printout to frame3
+        self.console = tk.Text(self.frame3)
+        self.console.grid(row=0, column=0)
+        pl = PrintLogger(self.console)
+        sys.stdout = pl
        
+        # fig: lower left
         self.fig = plt.Figure(figsize=(5,4), dpi=100)
         self.ax  = self.fig.add_subplot()
         self.ax2 = self.ax.twinx()
         self.ax2.set_yticks([])
-        
+                
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().grid(row=1, column=0)
         
@@ -95,7 +122,6 @@ class MainWindow:
         
         
         
-        
         # VISA selection menus: Scope
         try:
             text = tk.Label(self.frame, text='Scope:')
@@ -107,6 +133,7 @@ class MainWindow:
             self.scope_selector.grid(row=4, column=2)
         except:
             pass
+        
         
         
         # Record, save buttons
@@ -200,12 +227,8 @@ class MainWindow:
         '''        
 
         To add:
-        
-        Scope determines vertical scaling to use dynamically
-        
-        Console output into Tkinter window
-        
-        Plot phase
+                
+        Console output into Tkinter window        
         
         Plot Nyquist
         
@@ -469,7 +492,13 @@ class MainWindow:
             
             
     def test_mode_record(self):
-        
+        print('recording')
+        print('1')
+        print('2')
+        print('3')
+        print('4')
+        print('5')
+        print('6')
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
         
@@ -605,7 +634,7 @@ class MainWindow:
                     
                     self.fig.savefig(folder_path+'\\0000_fig', dpi=300)
                     
-                    print('Saved as ASCII:', folder_path)
+                    print('Saved as ASCII:', folder_path, '\n')
                  
                     
                 if self.csvVar.get():
@@ -638,3 +667,7 @@ class MainWindow:
 root = tk.Tk()
 gui = MainWindow(root)
 root.mainloop()
+sys.stdout = default_stdout
+sys.stdin = default_stdin
+sys.stderr = default_stderr
+

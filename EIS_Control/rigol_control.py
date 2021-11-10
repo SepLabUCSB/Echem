@@ -121,7 +121,7 @@ def apply_waveform(inst, channel, s, Vpp):
     wait(inst)
     inst.write(':OUTPUT%s ON;'%(channel))
     wait(inst)
-    print('Waveform loaded!')
+    print('Waveform loaded!\n')
     inst.clear()
 
 
