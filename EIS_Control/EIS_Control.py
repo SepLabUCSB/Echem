@@ -644,14 +644,12 @@ class MainWindow:
                                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
                                      sep = '\t', index = False, encoding='ascii')
                     
-<<<<<<< HEAD
+
                     self.fig.savefig(folder_path+'\\0000_fig', dpi=300)
                     
                     print('Saved as ASCII:', folder_path, '\n')
-=======
 
                     print('\nSaved as ASCII:', folder_path, '\n')
->>>>>>> 349b118bf73f16754ec877c0ec96971974a1382a
                  
                     
                 if self.csvVar.get():
