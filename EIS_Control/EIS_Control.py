@@ -484,9 +484,9 @@ class MainWindow:
                     
                     
                 # Draw the plot
-                self.ax.set_xlim(0.7*min(d.freqs), 1.5*max(d.freqs))
-                # self.ax.set_aspect(1/self.ax.get_data_ratio(), adjustable = 'datalim')
                 self.fig.tight_layout()
+                self.ax.set_xticks([1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])
+                self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
                 self.fig.canvas.draw()
                 self.fig.canvas.flush_events()
                 
@@ -584,9 +584,10 @@ class MainWindow:
                 self.ax2.set_ylabel('Phase/ $\degree$')
                 
                 
-            
-            self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
             self.fig.tight_layout()
+            self.ax.set_xticks([1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])
+            self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
+            
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
             
