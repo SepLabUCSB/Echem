@@ -230,8 +230,6 @@ class MainWindow:
         '''        
 
         To add:
-                
-        Console output into Tkinter window        
         
         Plot Nyquist
         
@@ -299,6 +297,7 @@ class MainWindow:
         self.waveform_selector = tk.OptionMenu(self.frame, self.waveform, 
                                                *self.file_list, command=self.show_waveform)
         self.waveform_selector.grid(row=2, column=2)
+        print('\n')
     
     
     
@@ -587,8 +586,8 @@ class MainWindow:
             
             # Data to save
             self.ft = {
-                1: d1,
-                2: d2
+                0: d1,
+                1: d2
                 }
         
         
@@ -644,8 +643,6 @@ class MainWindow:
                     self.fig.savefig(folder_path+'\\0000_fig', dpi=300)
                     
                     print('Saved as ASCII:', folder_path, '\n')
-
-                    print('\nSaved as ASCII:', folder_path, '\n')
                  
                     
                 if self.csvVar.get():
