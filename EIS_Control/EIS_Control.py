@@ -67,9 +67,10 @@ class MainWindow:
         # frame3: lower right (console output)
         self.frame3 = tk.Frame(self.root)
         self.frame3.grid(row=1, column=1)
+        self.frame3.pack_propagate(0)
         
         # console printout to frame3
-        self.console = tk.Text(self.frame3)
+        self.console = tk.Text(self.frame3, width=50, height=25)
         self.console.grid(row=0, column=0)
         pl = PrintLogger(self.console)
         sys.stdout = pl
@@ -358,8 +359,8 @@ class MainWindow:
         self.ax.set_xscale('linear')
         self.ax2.clear()
         
-        line1, = self.ax.plot([],[], '-')
-        line2, = self.ax2.plot([],[], 'x')
+        line1, = self.ax.plot([],[], '-', color=colors[0])
+        line2, = self.ax2.plot([],[], 'o', color=colors[1])
                
         
         self.ax.set_xscale('log')
@@ -483,9 +484,9 @@ class MainWindow:
                     
                     
                 # Draw the plot
-                self.ax.set_xlim(0.7*min(d.freqs), 1.5*max(d.freqs))
-                # self.ax.set_aspect(1/self.ax.get_data_ratio(), adjustable = 'datalim')
                 self.fig.tight_layout()
+                self.ax.set_xticks([1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])
+                self.ax.set_xlim(0.7*min(d.freqs), 1.5*max(d.freqs))
                 self.fig.canvas.draw()
                 self.fig.canvas.flush_events()
                 
@@ -494,7 +495,7 @@ class MainWindow:
                 self.ft[frame] = d
                 frame += 1
             
-            print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
+            print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
         
         
         except:
@@ -504,13 +505,7 @@ class MainWindow:
             
             
     def test_mode_record(self):
-        print('recording')
-        print('1')
-        print('2')
-        print('3')
-        print('4')
-        print('5')
-        print('6')
+
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
         
@@ -519,8 +514,8 @@ class MainWindow:
         self.ax.set_xscale('linear')
         self.ax2.clear()
         
-        line1, = self.ax.plot([],[], '-')
-        line2, = self.ax2.plot([],[], 'x')
+        line1, = self.ax.plot([],[], '-', color=colors[0])
+        line2, = self.ax2.plot([],[], 'o', color=colors[1])
                
         
         self.ax.set_xscale('log')
@@ -583,9 +578,10 @@ class MainWindow:
                 self.ax2.set_ylabel('Phase/ $\degree$')
                 
                 
-            
-            self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
             self.fig.tight_layout()
+            self.ax.set_xticks([1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])
+            self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
+            
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
             
