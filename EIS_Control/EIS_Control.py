@@ -234,16 +234,7 @@ class MainWindow:
                                               variable=self.csvVar)
         self.save_csv_option.grid(row=5, column=1)
         
-        
-        # Recording/ processing parameters
-        '''        
-
-        To add:
-        
-        Plot Nyquist
-        
-        '''
-        
+                
         
         
         
@@ -659,7 +650,7 @@ class MainWindow:
                     f.close()
                     
                         
-                    self.fig.savefig(folder_path+'\\0000_fig', dpi=300)
+                    self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
                     
                     print('Saved as ASCII:', folder_path, '\n')
                  
