@@ -1,7 +1,7 @@
 import numpy as np
-import ga
-import circuits
-import LEVM
+import EIS_fit.ga as ga
+import EIS_fit.circuits as circuits
+import EIS_fit.LEVM as LEVM
 import matplotlib.pyplot as plt
 import pandas as pd
 import os

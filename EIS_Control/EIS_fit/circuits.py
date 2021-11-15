@@ -301,12 +301,12 @@ def calc_chi_squared(w, Z, params, circuit):
     re_fit = np.real(Z_fit)
     im_fit = np.imag(Z_fit) 
     
-    error = np.array([(re-re_fit)**2, (im-im_fit)**2])
+    error = np.array([(re-re_fit)**2, np.abs((im-im_fit)**2)])
     
-    chi_squared = np.sum(error/np.array([re, im]))
+    chi_squared = np.sum(error/np.array([np.abs(Z)]))
     
     chi_squared = chi_squared/len(w)
-    
+        
     return chi_squared
         
 

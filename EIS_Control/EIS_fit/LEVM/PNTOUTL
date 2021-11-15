@@ -1,0 +1,65 @@
+ LEVM : COMPLEX NONLINEAR LEAST SQUARES IMMITTANCE DATA FITTING PROGRAM
+
+               VERSION 8.06 - 2/05
+
+
+                                                                                
+
+ DATA ENTERED IN ZZ FORMAT TO BE USED IN ZR FIT;      CIRCUIT MODEL : C
+
+            *********  FIT OF COMPLEX DATA  *********
+- # OF DATA POINTS = 16     WEIGHT: IRCH =  3     # OF FREE PARAMETERS = 8
+- PRINTS EVERY  0 ITERATIONS     MAX # ITERATIONS= 99     MAIN WT USES: DATA
+
+      MODULUS WEIGHTING: RESULTS RAISED TO THE POWER 0.00000D+00
+
+ INITIAL PARAMETER GUESSES AND FIXED (0) OR FREE (1 OR 2) STATUS
+     P( 1) =    1.918894D+02    1        P(17) =    1.101504D-06    0
+     P( 2) =    0.000000D+00    0        P(18) =    0.000000D+00    1
+     P( 3) =    0.000000D+00    0        P(19) =    9.342324D-01    0
+     P( 4) =    0.000000D+00    0        P(20) =    2.000000D+00    1
+     P( 5) =    0.000000D+00    0        P(21) =    0.000000D+00    0
+     P( 6) =    0.000000D+00    0        P(22) =    0.000000D+00    1
+     P( 7) =    0.000000D+00    0        P(23) =    0.000000D+00    0
+     P( 8) =    0.000000D+00    0        P(24) =    4.681323D+04    0
+     P( 9) =    0.000000D+00    0        P(25) =    0.000000D+00    0
+     P(10) =    0.000000D+00    0        P(26) =    0.000000D+00    1
+     P(11) =    0.000000D+00    0        P(27) =    0.000000D+00    0
+     P(12) =    7.053670D-07    1        P(28) =    0.000000D+00    0
+     P(13) =    0.000000D+00    0        P(29) =    0.000000D+00    0
+     P(14) =    9.406579D-01    1        P(30) =    0.000000D+00    0
+     P(15) =    2.000000D+00    0        P(31) =    0.000000D+00    0
+     P(16) =    0.000000D+00    1        P(32) =    0.000000D+00    0
+
+               THE FOLLOWING PARAMETERS ARE ALWAYS FIXED
+     P(33) =    0.000000D+00             P(37) =    0.000000D+00
+     P(34) =    0.000000D+00             P(38) =    0.000000D+00
+     P(35) =    0.000000D+00             P(39) =    0.000000D+00
+     P(36) =    0.000000D+00             P(40) =    0.000000D+00
+
+-DATA TRANSFORMED: ZZ --> ZR      CELL CAPACITANCE: .1000D+01
+
+
+     TERMINATION: XTOL IS TOO SMALL. NO FURTHER IMPROVEMENT IN THE FREE
+     PARAMETERS IS POSSIBLE.
+
+                FINAL L2 NORM OF THE RESIDUALS     .1068009D+06
+                NUMBER OF FUNCTION EVALUATIONS          19
+                NUMBER OF JACOBIAN EVALUATIONS           1
+
+          WEIGHTED SUM OF SQUARES, S:      1.1406423037388D+10
+          SIGMAF SQUARED ESTIMATE, XS:     4.7526762655785D+08
+          SIGMAF ESTIMATE:                 2.1800633627440D+04
+          FIT QUALITY FACTOR:                   7.570D+02
+          NO. DEGREES OF FREEDOM:                   24
+
+
+   ORIGINAL PARAMETER NUMBERS
+   PARAMETER ESTIMATES
+   ESTIMATED STD DEV OF PARAMETERS
+   ESTIMATED RELATIVE STD DEV OF PARAMETERS
+
+
+        1          12          14          16          18          20
+    1.9189D+02  7.0537D-07  9.4066D-01  0.0000D+00  0.0000D+00  2.0000D+00
+    1.2332D+05  2.1188D+12  1.3341
