@@ -701,13 +701,14 @@ class MainWindow:
         # Record impedance spectrum of a resistor to calibrate
         # Save with resistance and waveform labelled
         
-        # Record spectra
-        self.record_signals()
-        
         # Prompt for resistance value
         R = tk.simpledialog.askstring('Calibration', 'Resistance:')
         
         
+        # Record spectra
+        self.record_signals()
+        
+
         # Determine reference file path/ name
         ref_dir = os.path.join(this_dir, 'reference waveforms\\')
         
@@ -745,6 +746,9 @@ class MainWindow:
         
         # Save to csv
         df.to_csv(out_file, index=False)
+        
+        print('Saved correction file to:')
+        print(out_file, '\n')
         
         
         
