@@ -200,40 +200,40 @@ def plot_fit_params(d, name):
     
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     
-    # # Rs
-    # fig, ax = plt.subplots()
-    # ax.plot(concs[:-6], R1s[:-6], color = colors[0])
-    # ax.set_xlabel('[Vancomycin]/ M')
-    # ax.set_ylabel('$R_{s}$ / $\Omega$')
-    # ax.set_xscale('log')
-    # ax.set_title(name)
+    # Rs
+    fig, ax = plt.subplots()
+    ax.plot(concs[:-6], R1s[:-6], color = colors[0])
+    ax.set_xlabel('[Vancomycin]/ M')
+    ax.set_ylabel('$R_{s}$ / $\Omega$')
+    ax.set_xscale('log')
+    ax.set_title(name)
     
     
-    # # Rct
-    # fig, ax = plt.subplots()
-    # ax.plot(concs[:-6], R2s[:-6]/1000, color = colors[1])
-    # ax.set_xlabel('[Vancomycin]/ M')
-    # ax.set_ylabel('$R_{ct}$ / $k\Omega$')
-    # ax.set_xscale('log')
-    # ax.set_title(name)
+    # Rct
+    fig, ax = plt.subplots()
+    ax.plot(concs[:-6], R2s[:-6]/1000, color = colors[1])
+    ax.set_xlabel('[Vancomycin]/ M')
+    ax.set_ylabel('$R_{ct}$ / $k\Omega$')
+    ax.set_xscale('log')
+    ax.set_title(name)
     
     
-    # # Cdl
-    # fig, ax = plt.subplots()
-    # ax.plot(concs[:-6], Cdls[:-6]/1e-9, color = colors[2])
-    # ax.set_xlabel('[Vancomycin]/ M')
-    # ax.set_ylabel('$C_{dl}$ / nF')
-    # ax.set_xscale('log')
-    # ax.set_title(name)
+    # Cdl
+    fig, ax = plt.subplots()
+    ax.plot(concs[:-6], Cdls[:-6]/1e-9, color = colors[2])
+    ax.set_xlabel('[Vancomycin]/ M')
+    ax.set_ylabel('$C_{dl}$ / nF')
+    ax.set_xscale('log')
+    ax.set_title(name)
     
     
-    # # Ca
-    # fig, ax = plt.subplots()
-    # ax.plot(concs[:-6], Cas[:-6]/1e-6, color = colors[3])
-    # ax.set_xlabel('[Vancomycin]/ M')
-    # ax.set_ylabel('$C_{ad}$ / $\mu$F')
-    # ax.set_xscale('log')
-    # ax.set_title(name)
+    # Ca
+    fig, ax = plt.subplots()
+    ax.plot(concs[:-6], Cas[:-6]/1e-6, color = colors[3])
+    ax.set_xlabel('[Vancomycin]/ M')
+    ax.set_ylabel('$C_{ad}$ / $\mu$F')
+    ax.set_xscale('log')
+    ax.set_title(name)
     
 
     # All 4 parameters normalized

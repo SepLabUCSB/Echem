@@ -31,12 +31,15 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
     
-Save previous file name
 
 Vdc offset
+
+Record reference spectrum
+
 '''
 
-class PrintLogger(): # create file like object
+class PrintLogger(): 
+    # Class to print console output into Tkinter window
     def __init__(self, textbox): # pass reference to text widget
         self.textbox = textbox # keep ref
 
@@ -92,6 +95,9 @@ class MainWindow:
                 
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().grid(row=1, column=0)
+        
+        # Other vars to initialize
+        self.last_file_name = ''
         
         
         
@@ -605,7 +611,11 @@ class MainWindow:
         
         if self.ft:
             try:
-                name = tk.simpledialog.askstring('Save name', 'Input save name:')
+                name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                                                 initialvalue = self.last_file_name)
+                
+                self.last_file_name = name
+                
                 today = str(date.today())
                 
                 if self.asciiVar.get():            
