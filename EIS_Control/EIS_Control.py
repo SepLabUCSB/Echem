@@ -95,6 +95,7 @@ class MainWindow:
         
         # Other vars to initialize
         self.last_file_name = ''
+        self.test_mode = False
         
         
         
@@ -392,8 +393,10 @@ class MainWindow:
             inst = self.rm.open_resource(self.scope.get())
                  
             # Set scope parameters
-            inst.write('C1:VDIV 5mV')
+            inst.write('C1:VDIV 2mV')
             inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
+            
+            inst.write('TRMD AUTO')
             
         
         except:
@@ -425,6 +428,7 @@ class MainWindow:
         
         # Get waveform correction factors
         if self.ref_corr_var.get():
+            
             R = self.ref_corr_val.get('1.0', 'end')
             R = R[:-1]
             
@@ -524,12 +528,6 @@ class MainWindow:
                 phase = np.angle(V/I, deg=True)
                 
                 
-                # Apply calibration correction
-                if self.ref_corr_var.get():
-                    Z = Z / Z_corr
-                    phase = phase - phase_corr
-                
-                
                 df = pd.DataFrame(
                         {
                         'freqs': d.freqs,
@@ -539,9 +537,16 @@ class MainWindow:
                 )
                 
                 df = df[df['freqs'].isin(applied_freqs)]
+                
+                # Apply calibration correction
+                if self.ref_corr_var.get():
+                    df['Z'] = df['Z'] / Z_corr
+                    df['phase'] = df['phase'] - phase_corr
+                
+                
                 d.freqs = df['freqs'].to_numpy()
                 d.Z = df['Z'].to_numpy()
-                d.phase = np.angle(d.Z, deg=True)
+                d.phase = df['phase'].to_numpy()
                 
                 # Plot this result to figure canvas
                 Z = np.abs(d.Z)
@@ -687,6 +692,8 @@ class MainWindow:
                 0: d1,
                 1: d2
                 }
+        
+
         
         
         
