@@ -31,7 +31,6 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
     
-
 Vdc offset
 
 Record reference spectrum
@@ -217,28 +216,36 @@ class MainWindow:
         self.current_range.grid(row=2, column=1)
         
         
+        # DC Voltage offset
+        text = tk.Label(self.frame2, text='DC Voltage:')
+        text.grid(row=3, column = 0)
+        self.DC_offset = tk.Text(self.frame2, height=1, width=7)
+        self.DC_offset.insert('1.0', '0.0')
+        self.DC_offset.grid(row=3, column=1)
+        
+        
         
         # Create waveform from result
         self.make_waveform_button = tk.Button(self.frame2, 
                                               text='Create waveform from last measurement', 
                                               command=self.make_waveform)
-        self.make_waveform_button.grid(row=3, column=0, columnspan=2)
+        self.make_waveform_button.grid(row=4, column=0, columnspan=2)
         
         
         # Save options
         
         text = tk.Label(self.frame2, text='Save as...')
-        text.grid(row=4, column = 0)        
+        text.grid(row=6, column = 0)        
         
         self.asciiVar = tk.IntVar(value=1)
         self.save_ascii_option = tk.Checkbutton(self.frame2, text='ASCII', 
                                                 variable=self.asciiVar)
-        self.save_ascii_option.grid(row=5, column=0)
+        self.save_ascii_option.grid(row=6, column=1)
         
         self.csvVar = tk.IntVar(value=0)
         self.save_csv_option = tk.Checkbutton(self.frame2, text='CSV', 
                                               variable=self.csvVar)
-        self.save_csv_option.grid(row=5, column=1)
+        self.save_csv_option.grid(row=6, column=2)
         
                 
         
@@ -398,6 +405,7 @@ class MainWindow:
             inst.write('MSIZ 70K')
             inst.write('TDIV 100MS')
             inst.write('TRMD STOP')
+            inst.write('C1:OFST %sV' %self.DC_offset)
             
             vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
             voffset1    = float(inst.query('C1:OFST?')[8:-2])
