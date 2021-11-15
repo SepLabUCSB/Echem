@@ -234,11 +234,25 @@ class MainWindow:
         
         
         
+        # Apply calibration correction
+        text = tk.Label(self.frame2, text='Apply reference correction:')
+        text.grid(row=4, column = 0)
+        self.ref_corr_val = tk.Text(self.frame2, height=1, width=7)
+        self.ref_corr_val.insert('1.0', '10k')
+        self.ref_corr_val.grid(row=4, column=1)
+        
+        self.ref_corr_var = tk.IntVar(value=1)
+        self.ref_corr_option = tk.Checkbutton(self.frame2, 
+                                              variable=self.ref_corr_var)
+        self.ref_corr_option.grid(row=4, column=2)
+        
+        
+        
         # Create waveform from result
         self.make_waveform_button = tk.Button(self.frame2, 
                                               text='Create waveform from last measurement', 
                                               command=self.make_waveform)
-        self.make_waveform_button.grid(row=4, column=0, columnspan=2)
+        self.make_waveform_button.grid(row=5, column=0, columnspan=2)
         
         
         
@@ -411,6 +425,36 @@ class MainWindow:
         self.canvas.draw_idle()
         
         
+        
+        # Get waveform correction factors
+        if self.ref_corr_var.get():
+            R = self.ref_corr_val.get('1.0', 'end')
+            R = R[:-1]
+            
+            ref_dir = os.path.join(this_dir, 'reference waveforms\\')
+            
+            fname = 'REF_%s_%s'%(R, self.waveform.get())
+            
+            file = os.path.join(ref_dir, fname)
+            
+            try:
+                corr_df = pd.read_csv(file, skiprows=1, names=('freqs', 
+                                                               'Z_corr', 
+                                                               'phase_corr')
+                                      )
+                
+                Z_corr = corr_df['Z_corr'].to_numpy()
+                phase_corr = corr_df['phase_corr'].to_numpy()
+            
+            except:
+                print('Invalid reference file: ')
+                print(file)
+                print('')
+                
+            
+            
+            
+                
         try:
             # Get recording time
             t = self.recording_time.get('1.0', 'end')
@@ -424,6 +468,7 @@ class MainWindow:
             except:
                 print('Invalid time. Must be a real number > 0.')
                 return
+            
             
             
             # Connect to scope
@@ -480,6 +525,13 @@ class MainWindow:
                 
                 Z = V/I
                 phase = np.angle(V/I, deg=True)
+                
+                
+                # Apply calibration correction
+                if self.ref_corr_var.get():
+                    Z = Z / Z_corr
+                    phase = phase - phase_corr
+                
                 
                 df = pd.DataFrame(
                         {
@@ -566,6 +618,7 @@ class MainWindow:
         self.fig.tight_layout()
         self.canvas.draw_idle()
         
+        
         if self.test_mode:
             # Show fake data if no instrument connected
             
@@ -596,6 +649,7 @@ class MainWindow:
             # Data to plot
             Z = np.abs(d1.Z)
             phase = np.angle(d1.Z, deg=True)
+            
               
             if plot_Z:
                 if not plot_phase:
@@ -665,10 +719,24 @@ class MainWindow:
         phase = np.mean([self.ft[i].phase for i in self.ft], axis=0)
         
         
+        if R.endswith('k'):
+            R = 1e3*float(R[:-1])
+        
+        elif R.endswith('M'):
+            R = 1e6*float(R[:-1])
+        
+        else:
+            R = float(R)
+        
+        
+        # Determine corrections
+        Z_corr      = Z / R
+        phase_corr  = phase
+                
         df = pd.DataFrame(
             {'freq': freqs,
-            'Z': Z,
-            'phase': phase}
+            'Z_corr': Z_corr,
+            'phase_corr': phase_corr}
             )
         
         # Save to csv
