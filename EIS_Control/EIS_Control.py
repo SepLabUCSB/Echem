@@ -30,13 +30,13 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 '''
 To add:
-    
-Save previous file name
 
-Vdc offset
+Record reference spectrum
+
 '''
 
-class PrintLogger(): # create file like object
+class PrintLogger(): 
+    # Class to print console output into Tkinter window
     def __init__(self, textbox): # pass reference to text widget
         self.textbox = textbox # keep ref
 
@@ -92,6 +92,9 @@ class MainWindow:
                 
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().grid(row=1, column=0)
+        
+        # Other vars to initialize
+        self.last_file_name = ''
         
         
         
@@ -154,14 +157,19 @@ class MainWindow:
         self.record_signals_button.grid(row=4, column=3)
         
         
+        self.record_reference_button = tk.Button(self.frame, text='Record Reference', 
+                                               command=self.record_reference)
+        self.record_reference_button.grid(row=5, column=1)
+        
+        
         self.save_button = tk.Button(self.frame, text='Save last measurement', 
                                                    command=self.save_last)
-        self.save_button.grid(row=5, column=3, columnspan=2)
+        self.save_button.grid(row=5, column=2, columnspan=1)
         
 
         self.record_save_button = tk.Button(self.frame, text='Record and save', 
                                                    command=self.record_and_save)
-        self.record_save_button.grid(row=5, column=2, columnspan=2)
+        self.record_save_button.grid(row=5, column=3, columnspan=2)
         
         
         
@@ -212,38 +220,59 @@ class MainWindow:
         
         
         
+        # DC Voltage offset
+        text = tk.Label(self.frame2, text='DC Voltage:')
+        text.grid(row=3, column = 0)
+        self.DC_offset = tk.Text(self.frame2, height=1, width=7)
+        self.DC_offset.insert('1.0', '0.0')
+        self.DC_offset.grid(row=3, column=1)
+        
+        self.DC_offset_button = tk.Button(self.frame2, 
+                                              text='Apply offset', 
+                                              command=self.apply_offset)
+        self.DC_offset_button.grid(row=3, column=2)
+        
+        
+        
+        # Apply calibration correction
+        text = tk.Label(self.frame2, text='Apply reference correction:')
+        text.grid(row=4, column = 0)
+        self.ref_corr_val = tk.Text(self.frame2, height=1, width=7)
+        self.ref_corr_val.insert('1.0', '10k')
+        self.ref_corr_val.grid(row=4, column=1)
+        
+        self.ref_corr_var = tk.IntVar(value=1)
+        self.ref_corr_option = tk.Checkbutton(self.frame2, 
+                                              variable=self.ref_corr_var)
+        self.ref_corr_option.grid(row=4, column=2)
+        
+        
+        
         # Create waveform from result
         self.make_waveform_button = tk.Button(self.frame2, 
                                               text='Create waveform from last measurement', 
                                               command=self.make_waveform)
-        self.make_waveform_button.grid(row=3, column=0, columnspan=2)
+        self.make_waveform_button.grid(row=5, column=0, columnspan=2)
+        
+        
         
         
         # Save options
         
         text = tk.Label(self.frame2, text='Save as...')
-        text.grid(row=4, column = 0)        
+        text.grid(row=6, column = 0)        
         
         self.asciiVar = tk.IntVar(value=1)
         self.save_ascii_option = tk.Checkbutton(self.frame2, text='ASCII', 
                                                 variable=self.asciiVar)
-        self.save_ascii_option.grid(row=5, column=0)
+        self.save_ascii_option.grid(row=6, column=1)
         
         self.csvVar = tk.IntVar(value=0)
         self.save_csv_option = tk.Checkbutton(self.frame2, text='CSV', 
                                               variable=self.csvVar)
-        self.save_csv_option.grid(row=5, column=1)
+        self.save_csv_option.grid(row=6, column=2)
         
-        
-        # Recording/ processing parameters
-        '''        
-
-        To add:
-        
-        Plot Nyquist
-        
-        '''
-        
+                
         
         
         
@@ -353,7 +382,26 @@ class MainWindow:
         except:
             print('Could not connect')
             pass
-
+    
+    
+    
+    def apply_offset(self):
+        
+        try:
+            # Connect to scope
+            inst = self.rm.open_resource(self.scope.get())
+                 
+            
+            # Set scope parameters
+            inst.write('TRMD AUTO')
+            inst.write('MSIZ 70K')
+            inst.write('TDIV 100MS')
+            inst.write('TRMD STOP')
+            inst.write('C1:OFST %sV' %self.DC_offset)
+        
+        except:
+            # No instrument connected
+            pass
         
 
 
@@ -377,6 +425,36 @@ class MainWindow:
         self.canvas.draw_idle()
         
         
+        
+        # Get waveform correction factors
+        if self.ref_corr_var.get():
+            R = self.ref_corr_val.get('1.0', 'end')
+            R = R[:-1]
+            
+            ref_dir = os.path.join(this_dir, 'reference waveforms\\')
+            
+            fname = 'REF_%s_%s'%(R, self.waveform.get())
+            
+            file = os.path.join(ref_dir, fname)
+            
+            try:
+                corr_df = pd.read_csv(file, skiprows=1, names=('freqs', 
+                                                               'Z_corr', 
+                                                               'phase_corr')
+                                      )
+                
+                Z_corr = corr_df['Z_corr'].to_numpy()
+                phase_corr = corr_df['phase_corr'].to_numpy()
+            
+            except:
+                print('Invalid reference file: ')
+                print(file)
+                print('')
+                
+            
+            
+            
+                
         try:
             # Get recording time
             t = self.recording_time.get('1.0', 'end')
@@ -392,6 +470,7 @@ class MainWindow:
                 return
             
             
+            
             # Connect to scope
             inst = self.rm.open_resource(self.scope.get())
                  
@@ -401,6 +480,7 @@ class MainWindow:
             inst.write('MSIZ 70K')
             inst.write('TDIV 100MS')
             inst.write('TRMD STOP')
+            inst.write('C1:OFST %sV' %self.DC_offset)
             
             vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
             voffset1    = float(inst.query('C1:OFST?')[8:-2])
@@ -445,6 +525,13 @@ class MainWindow:
                 
                 Z = V/I
                 phase = np.angle(V/I, deg=True)
+                
+                
+                # Apply calibration correction
+                if self.ref_corr_var.get():
+                    Z = Z / Z_corr
+                    phase = phase - phase_corr
+                
                 
                 df = pd.DataFrame(
                         {
@@ -531,17 +618,21 @@ class MainWindow:
         self.fig.tight_layout()
         self.canvas.draw_idle()
         
+        
         if self.test_mode:
             # Show fake data if no instrument connected
             
             # Make up data
+            Z1 = np.linspace(1,1000, num = 20) + 1j*np.linspace(1,1000, num=20)
+            Z2 = np.linspace(1,2000, num = 20) + 1j*np.linspace(1,1000, num=20)
+            
             d1 = siglent_control.FourierTransformData(
                 time = 1.2, 
                 freqs = np.logspace(1,3, num=20), 
                 CH1data = [], 
                 CH2data = [],
-                Z = np.linspace(1,1000, num = 20) + 1j*np.linspace(1,1000, num=20),
-                phase = np.linspace(1,1000, num=20),
+                Z = Z1,
+                phase = np.angle(Z1, deg=True),
                 waveform = self.waveform.get()
                 )
             
@@ -550,14 +641,15 @@ class MainWindow:
                 freqs = np.logspace(1,3, num=20), 
                 CH1data = [], 
                 CH2data = [],
-                Z = np.linspace(1,2000, num = 20) + 1j*np.linspace(1,2000, num=20),
-                phase = np.linspace(1,2000, num=20),
+                Z = Z2,
+                phase = np.angle(Z2, deg=True),
                 waveform = self.waveform.get()
                 )
             
             # Data to plot
             Z = np.abs(d1.Z)
-            phase = np.angle(Z, deg=True)
+            phase = np.angle(d1.Z, deg=True)
+            
               
             if plot_Z:
                 if not plot_phase:
@@ -571,7 +663,7 @@ class MainWindow:
                 if not plot_Z:
                     line2.set_xdata(d1.freqs)
                     line2.set_ydata(phase)
-                    # self.ax.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                    self.ax.set_ylim(min(phase)-10, max(phase)+10)
                     self.ax.set_ylabel('Phase/ $\degree$')
                     self.ax2.set_yticks([])
                 
@@ -581,7 +673,7 @@ class MainWindow:
                 line1.set_ydata(Z)
                 line2.set_ydata(phase)
                 self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                # self.ax2.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                self.ax2.set_ylim(min(phase)-10, max(phase)+10)
                 self.ax.set_ylabel('|Z|/ $\Omega$')
                 self.ax2.set_ylabel('Phase/ $\degree$')
                 
@@ -601,6 +693,58 @@ class MainWindow:
         
         
         
+    def record_reference(self):
+        # Record impedance spectrum of a resistor to calibrate
+        # Save with resistance and waveform labelled
+        
+        # Record spectra
+        self.record_signals()
+        
+        # Prompt for resistance value
+        R = tk.simpledialog.askstring('Calibration', 'Resistance:')
+        
+        
+        # Determine reference file path/ name
+        ref_dir = os.path.join(this_dir, 'reference waveforms\\')
+        
+        waveform = self.waveform.get()
+        
+        name = 'REF_%s_%s'%(R, waveform)
+        
+        out_file = os.path.join(ref_dir, name)
+        
+        # Average spectra
+        freqs = self.ft[1].freqs
+        Z = np.mean([np.abs(self.ft[i].Z) for i in self.ft], axis=0)
+        phase = np.mean([self.ft[i].phase for i in self.ft], axis=0)
+        
+        
+        if R.endswith('k'):
+            R = 1e3*float(R[:-1])
+        
+        elif R.endswith('M'):
+            R = 1e6*float(R[:-1])
+        
+        else:
+            R = float(R)
+        
+        
+        # Determine corrections
+        Z_corr      = Z / R
+        phase_corr  = phase
+                
+        df = pd.DataFrame(
+            {'freq': freqs,
+            'Z_corr': Z_corr,
+            'phase_corr': phase_corr}
+            )
+        
+        # Save to csv
+        df.to_csv(out_file, index=False)
+        
+        
+        
+        
         
     def save_last(self):
         
@@ -614,7 +758,11 @@ class MainWindow:
         
         if self.ft:
             try:
-                name = tk.simpledialog.askstring('Save name', 'Input save name:')
+                name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                                                 initialvalue = self.last_file_name)
+                
+                self.last_file_name = name
+                
                 today = str(date.today())
                 
                 if self.asciiVar.get():            
@@ -659,7 +807,7 @@ class MainWindow:
                     f.close()
                     
                         
-                    self.fig.savefig(folder_path+'\\0000_fig', dpi=300)
+                    self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
                     
                     print('Saved as ASCII:', folder_path, '\n')
                  
