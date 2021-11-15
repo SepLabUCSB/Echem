@@ -216,12 +216,18 @@ class MainWindow:
         self.current_range.grid(row=2, column=1)
         
         
+        
         # DC Voltage offset
         text = tk.Label(self.frame2, text='DC Voltage:')
         text.grid(row=3, column = 0)
         self.DC_offset = tk.Text(self.frame2, height=1, width=7)
         self.DC_offset.insert('1.0', '0.0')
         self.DC_offset.grid(row=3, column=1)
+        
+        self.DC_offset_button = tk.Button(self.frame2, 
+                                              text='Apply offset', 
+                                              command=self.apply_offset)
+        self.DC_offset_button.grid(row=3, column=2)
         
         
         
@@ -230,6 +236,8 @@ class MainWindow:
                                               text='Create waveform from last measurement', 
                                               command=self.make_waveform)
         self.make_waveform_button.grid(row=4, column=0, columnspan=2)
+        
+        
         
         
         # Save options
@@ -357,7 +365,26 @@ class MainWindow:
         except:
             print('Could not connect')
             pass
-
+    
+    
+    
+    def apply_offset(self):
+        
+        try:
+            # Connect to scope
+            inst = self.rm.open_resource(self.scope.get())
+                 
+            
+            # Set scope parameters
+            inst.write('TRMD AUTO')
+            inst.write('MSIZ 70K')
+            inst.write('TDIV 100MS')
+            inst.write('TRMD STOP')
+            inst.write('C1:OFST %sV' %self.DC_offset)
+        
+        except:
+            # No instrument connected
+            pass
         
 
 
