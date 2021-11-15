@@ -30,8 +30,6 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 '''
 To add:
-    
-Vdc offset
 
 Record reference spectrum
 
@@ -159,14 +157,19 @@ class MainWindow:
         self.record_signals_button.grid(row=4, column=3)
         
         
+        self.record_reference_button = tk.Button(self.frame, text='Record Reference', 
+                                               command=self.record_reference)
+        self.record_reference_button.grid(row=5, column=1)
+        
+        
         self.save_button = tk.Button(self.frame, text='Save last measurement', 
                                                    command=self.save_last)
-        self.save_button.grid(row=5, column=3, columnspan=2)
+        self.save_button.grid(row=5, column=2, columnspan=1)
         
 
         self.record_save_button = tk.Button(self.frame, text='Record and save', 
                                                    command=self.record_and_save)
-        self.record_save_button.grid(row=5, column=2, columnspan=2)
+        self.record_save_button.grid(row=5, column=3, columnspan=2)
         
         
         
@@ -567,13 +570,16 @@ class MainWindow:
             # Show fake data if no instrument connected
             
             # Make up data
+            Z1 = np.linspace(1,1000, num = 20) + 1j*np.linspace(1,1000, num=20)
+            Z2 = np.linspace(1,2000, num = 20) + 1j*np.linspace(1,1000, num=20)
+            
             d1 = siglent_control.FourierTransformData(
                 time = 1.2, 
                 freqs = np.logspace(1,3, num=20), 
                 CH1data = [], 
                 CH2data = [],
-                Z = np.linspace(1,1000, num = 20) + 1j*np.linspace(1,1000, num=20),
-                phase = np.linspace(1,1000, num=20),
+                Z = Z1,
+                phase = np.angle(Z1, deg=True),
                 waveform = self.waveform.get()
                 )
             
@@ -582,14 +588,14 @@ class MainWindow:
                 freqs = np.logspace(1,3, num=20), 
                 CH1data = [], 
                 CH2data = [],
-                Z = np.linspace(1,2000, num = 20) + 1j*np.linspace(1,2000, num=20),
-                phase = np.linspace(1,2000, num=20),
+                Z = Z2,
+                phase = np.angle(Z2, deg=True),
                 waveform = self.waveform.get()
                 )
             
             # Data to plot
             Z = np.abs(d1.Z)
-            phase = np.angle(Z, deg=True)
+            phase = np.angle(d1.Z, deg=True)
               
             if plot_Z:
                 if not plot_phase:
@@ -603,7 +609,7 @@ class MainWindow:
                 if not plot_Z:
                     line2.set_xdata(d1.freqs)
                     line2.set_ydata(phase)
-                    # self.ax.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                    self.ax.set_ylim(min(phase)-10, max(phase)+10)
                     self.ax.set_ylabel('Phase/ $\degree$')
                     self.ax2.set_yticks([])
                 
@@ -613,7 +619,7 @@ class MainWindow:
                 line1.set_ydata(Z)
                 line2.set_ydata(phase)
                 self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                # self.ax2.set_ylim(min(phase)-1.05*min(phase), 1.05*max(phase))
+                self.ax2.set_ylim(min(phase)-10, max(phase)+10)
                 self.ax.set_ylabel('|Z|/ $\Omega$')
                 self.ax2.set_ylabel('Phase/ $\degree$')
                 
@@ -630,6 +636,44 @@ class MainWindow:
                 0: d1,
                 1: d2
                 }
+        
+        
+        
+    def record_reference(self):
+        # Record impedance spectrum of a resistor to calibrate
+        # Save with resistance and waveform labelled
+        
+        # Record spectra
+        self.record_signals()
+        
+        # Prompt for resistance value
+        R = tk.simpledialog.askstring('Calibration', 'Resistance:')
+        
+        
+        # Determine reference file path/ name
+        ref_dir = os.path.join(this_dir, 'reference waveforms\\')
+        
+        waveform = self.waveform.get()
+        
+        name = 'REF_%s_%s'%(R, waveform)
+        
+        out_file = os.path.join(ref_dir, name)
+        
+        # Average spectra
+        freqs = self.ft[1].freqs
+        Z = np.mean([np.abs(self.ft[i].Z) for i in self.ft], axis=0)
+        phase = np.mean([self.ft[i].phase for i in self.ft], axis=0)
+        
+        
+        df = pd.DataFrame(
+            {'freq': freqs,
+            'Z': Z,
+            'phase': phase}
+            )
+        
+        # Save to csv
+        df.to_csv(out_file, index=False)
+        
         
         
         
