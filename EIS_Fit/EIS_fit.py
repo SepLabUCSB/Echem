@@ -1,7 +1,7 @@
 import numpy as np
-import ga
-import circuits
-import LEVM
+from EIS_Fit import ga, circuits, LEVM
+# import EIS_fit.circuits as circuits
+# import EIS_fit.LEVM as LEVM
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -18,7 +18,7 @@ doi.org/10.1002/celc.202100778
 
 path = r'C:/Users/BRoehrich/Desktop/EIS fit folder/2021-06-01_FcMeOH_50 mV_beads_009 (2)'
 
-circuit = 'Randles_uelec'
+# circuit = 'Randles_uelec'
 bounds = {
     'R1': [1e-1, 1e9],
     'R2': [1e-1, 1e9],
@@ -68,7 +68,7 @@ End: export csv of frequency, param 1, param 2, ...
 
 class DataFile:
     
-    def __init__(self, file, circuit, bounds, ax=None):
+    def __init__(self, file, circuit, bounds=bounds, ax=None, Z=None):
         
         df = pd.read_csv(file, skiprows=1, names=
                            ('freqs', 're', 'im'), sep='\t')
@@ -81,6 +81,16 @@ class DataFile:
         self.re = df['re'].to_numpy()
         self.im = df['im'].to_numpy()
         self.Z = self.re + 1j*self.im
+        
+        try:
+            # Use given Z array instead of extracing from file
+            if len(Z) != 0:
+                self.Z = Z
+                self.re = np.real(Z)
+                self.im = np.imag(Z)
+                
+        except:
+            pass
         
         self.params = dict()
         self.score = 1e9
@@ -100,7 +110,10 @@ class DataFile:
             self.freqs, self.Z, self.bounds, self.circuit, ax=ax,
             starting_guess = starting_guess, **kwargs)
         
-
+        self.chi_squared = circuits.calc_chi_squared(self.freqs, self.Z, 
+                                                     self.params, self.circuit)
+        
+        
         
         
     def LEVM_fit(self, **kwargs):
@@ -119,26 +132,41 @@ class DataFile:
                 
         self.score = circuits.leastsq_errorfunc(self.freqs, self.Z,
                                                 self.params, self.circuit)
+        
+        self.chi_squared = circuits.calc_chi_squared(self.freqs, self.Z, 
+                                                     self.params, self.circuit)
     
         
-    def plot_fit(self, ax=None):
+    def plot_fit(self, ax=None, Bode=False):
         
         circuit_list, circuit_funcs = circuits.list_circuits()
-        circuitfunc = circuit_funcs[circuit_list.index(circuit)]
+        circuitfunc = circuit_funcs[circuit_list.index(self.circuit)]
         
         fits = circuitfunc(self.freqs, self.params)
                 
         if ax is not None:
-            ax.plot(self.re/1e6, -self.im/1e6, 'o')
-            ax.plot(np.real(fits)/1e6, -np.imag(fits)/1e6, '-')
-            ax.set_xlabel("Z'/ M$\Omega$")
-            ax.set_ylabel("Z''/ M$\Omega$")
+            if Bode:
+                ax.plot(self.freqs, np.abs(self.Z), 'o', color=colors[0])
+                ax.plot(self.freqs, np.abs(fits), '-', color=colors[0])
+                ax2 = ax.twinx()
+                ax2.plot(self.freqs, np.angle(self.Z, deg=True), 'x', color=colors[1])
+                ax2.plot(self.freqs, np.angle(fits, deg=True), '-', color=colors[1])
+                ax.set_xscale('log')
+                ax.set_xlabel('Frequency/ Hz')
+                ax.set_ylabel('|Z|/ $\Omega$')
+                ax2.set_ylabel('Phase/ $\degree$')
+                
+            else:
+                ax.plot(self.re/1e6, -self.im/1e6, 'o')
+                ax.plot(np.real(fits)/1e6, -np.imag(fits)/1e6, '-')
+                ax.set_xlabel("Z'/ M$\Omega$")
+                ax.set_ylabel("Z''/ M$\Omega$")
         
 
 
 
 
-def fit_all_runs(path):
+def fit_all_runs(path, circuit):
     '''
     Fit all specta in a given folder. Assumes spectra are 
     
@@ -229,32 +257,32 @@ def fit_all_runs(path):
 
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
     
-    d, df = fit_all_runs(path)
-    
-    
-    
-#%%    Plot parameters vs time
-    param_list = [key for key, item in d[1].params.items()]
-    
-    for param in param_list:
-        l = []
-        fig, ax = plt.subplots()
-        for i in d:
-            l.append(d[i].params[param])
-        ax.plot(np.arange(0,45,0.1), l, '.')
-        ax.set_xlabel('Time/ s')
-        ax.set_ylabel(param)
-        ax.set_title(param)
+#     d, df = fit_all_runs(path)
     
     
-    scores = []
-    for i in d:
-        scores.append(d[i].score)
-    fig, ax = plt.subplots()
-    ax.plot(range(len(d)), scores)
-    ax.set_ylabel('Score')
+    
+# #%%    Plot parameters vs time
+#     param_list = [key for key, item in d[1].params.items()]
+    
+#     for param in param_list:
+#         l = []
+#         fig, ax = plt.subplots()
+#         for i in d:
+#             l.append(d[i].params[param])
+#         ax.plot(np.arange(0,45,0.1), l, '.')
+#         ax.set_xlabel('Time/ s')
+#         ax.set_ylabel(param)
+#         ax.set_title(param)
+    
+    
+#     scores = []
+#     for i in d:
+#         scores.append(d[i].score)
+#     fig, ax = plt.subplots()
+#     ax.plot(range(len(d)), scores)
+#     ax.set_ylabel('Score')
 
 
 

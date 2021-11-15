@@ -163,15 +163,18 @@ def params_to_LEVM_format(d, circuit):
     if circuit == 'Randles_adsorption':
         p = {}
         p[1] = d['R1']  # Rs
-        p[4] = d['R2']  # Rct
-        p[9] = 1        # Cad phase
-        p[3] = d['Q1']  # Cdl
-        p[7] = d['Q2']  # Cad
-        p[10] = 2       # Assign CPE for Cad
+        p[24] = d['R2']  # Rct
+        
+        p[12] = d['Q1']  # Cdl
+        p[14] = d['n1']  # Cdl phase
+        p[15] = 2        # Assign CPE for Cdl
+        p[17] = d['Q2']  # Cad
+        p[19] = d['n2']  # Cad phase
+        p[20] = 2       # Assign CPE for Cad
         function = 'C'
     
     else:
-        print('Circuit not recognized')
+        print('Circuit not recognized LEVM line 174')
         raise ValueError
     
 
@@ -270,6 +273,11 @@ def write_binary_line(file, p):
         
         if val == 2:
             # CPE assigned using NLEM == 2, fixed value
+            line = line + '0'
+            
+        if val == 1:
+            # Used to force CPE to be a capacitor
+            # Not a free parameter
             line = line + '0'
         
         elif val != 0:
@@ -417,6 +425,17 @@ def extract_params(file, circuit):
         d['Q2'] = string_to_float(p[7])
         d['n2'] = string_to_float(p[9])
         d['R3'] = string_to_float(p[21])
+    
+    
+    if circuit == 'Randles_adsorption':
+        p = {}
+        d['R1'] = string_to_float(p[1])
+        d['R2'] = string_to_float(p[4])
+        d['n1'] = 1.0    
+        d['Q1'] = string_to_float(p[3])
+        d['Q2'] = string_to_float(p[7])
+        d['n2'] = string_to_float(p[9])
+        
         
     else:
         print('Circuit not recognized')

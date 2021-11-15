@@ -13,8 +13,9 @@ def list_circuits():
     #
     
     l = ['CPE', 'RC',  'RRC', 'Randles', 'Randles_CPE', 
-                    'Randles_uelec']
-    funcs = [CPE, RC, RRC, Randles, Randles_CPE, Randles_uelec]
+                    'Randles_uelec', 'Randles_adsorption']
+    funcs = [CPE, RC, RRC, Randles, Randles_CPE, Randles_uelec,
+             Randles_adsorption]
     return l, funcs
 
 
@@ -154,6 +155,33 @@ def Randles_uelec(f, params):
 
 
 
+def Randles_adsorption(f, params):
+    '''
+    Params:
+        R1: Series resistance
+        R2: CT resistance
+        Q1: dl capacitance
+        n1: dl exponent (0 < n < 1)
+        Q2: Adsorption CPE
+        n2: Adsorption exponent (0 < n < 1)
+    '''
+    
+    R1 = params['R1']
+    R2 = params['R2']
+    Q1 = params['Q1']
+    n1 = params['n1']
+    Q2 = params['Q2']
+    n2 = params['n2']
+    
+    Ca = CPE(f, {'Q':Q2, 'n':n2})
+    Cdl = CPE(f, {'Q':Q1, 'n':n1})
+    
+    Z = R1 + 1/(1/Cdl + 1/(R2+Ca))
+    
+    return Z
+    
+
+
 ############################################
 ##      Add new circuits above here!      ##
 ############################################
@@ -225,8 +253,62 @@ def leastsq_errorfunc(w, Z, params, circuit):
     # weight = np.ones(len(re_fit))
     
     S = np.sum(weight*error)
+            
     return S
 
+
+
+def calc_chi_squared(w, Z, params, circuit):
+    '''
+    Copy of leastsq_errorfunc that returns chi squared instead
+    
+    Unweighted so not preferred for fitting
+    
+    Parameters
+    ----------
+    w : array of frequencies
+    Z : array of (re + im)
+    params : dict of fit parameters.
+    circuit : string representing circuit
+
+    Returns
+    -------
+    S : Weighted sum of squares.
+
+    '''
+    
+    circuit_list, circuit_funcs = list_circuits()
+    
+    
+    if not circuit in circuit_list:
+        print('Circuit not recognized. Allowed circuits: ')
+        for c in circuit_list:
+            print(c)
+        raise ValueError('Circuit not listed in circuits.py')
+    
+    circuitfunc = circuit_funcs[circuit_list.index(circuit)]
+    
+    
+    
+    Z = np.asarray(Z)
+
+    re = np.real(Z)
+    im = np.imag(Z)
+    
+    
+    Z_fit = circuitfunc(w, params)
+    
+    re_fit = np.real(Z_fit)
+    im_fit = np.imag(Z_fit) 
+    
+    error = np.array([(re-re_fit)**2, np.abs((im-im_fit)**2)])
+    
+    chi_squared = np.sum(error/np.array([np.abs(Z)]))
+    
+    chi_squared = chi_squared/len(w)
+        
+    return chi_squared
+        
 
 
 def leastsq_errorfunc_array(param_array, w, Z, circuit, param_names):
@@ -293,6 +375,7 @@ def leastsq_errorfunc_array(param_array, w, Z, circuit, param_names):
     # weight = np.ones(len(re_fit))
     
     S = np.sum(weight*error)
+        
     return S
 
 
