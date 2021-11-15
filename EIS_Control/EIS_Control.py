@@ -391,13 +391,10 @@ class MainWindow:
             # Connect to scope
             inst = self.rm.open_resource(self.scope.get())
                  
-            
             # Set scope parameters
-            inst.write('TRMD AUTO')
-            inst.write('MSIZ 70K')
-            inst.write('TDIV 100MS')
-            inst.write('TRMD STOP')
-            inst.write('C1:OFST %sV' %self.DC_offset)
+            inst.write('C1:VDIV 5mV')
+            inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
+            
         
         except:
             # No instrument connected
