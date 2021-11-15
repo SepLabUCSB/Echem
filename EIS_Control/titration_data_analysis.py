@@ -2,14 +2,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import EIS_fit.EIS_fit as EIS_fit
+   
+import EIS_Fit.EIS_fit as EIS_fit
 
 plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 data_dir = r'C:\Users\BRoehrich\Desktop\2021-11-10'
 
-
+#%%
 bounds = {
     'R1': [1e-1, 1e9],
     'R2': [1e-1, 1e9],

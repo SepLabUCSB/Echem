@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import circuits
+from EIS_Fit import circuits
 import pandas as pd
 # plt.style.use('Z:/Projects/Brian/scientific.mplstyle')
 # colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -180,13 +180,14 @@ def genetic_algorithm(freqs, Z, bounds, circuit,
         
     # initialize best candidate
     best, best_eval = pop[0], objective(freqs, Z, pop[0], circuit)
+
     
     # iterate through generations
     for gen in range(n_iter):
         
         #check for new best solution
-        scores = [objective(freqs, Z, c, circuit) for c in pop]   
-
+        scores = [objective(freqs, Z, c, circuit) for c in pop] 
+        
         for i in range(n_pop):
             if scores[i] < best_eval:
                 best, best_eval = pop[i], scores[i]
