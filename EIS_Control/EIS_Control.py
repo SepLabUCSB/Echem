@@ -111,7 +111,7 @@ class MainWindow:
                           if file.startswith('Rigol')]
         
         self.waveform = tk.StringVar(self.frame)
-        self.waveform.set(self.file_list[0])
+        self.waveform.set(self.file_list[3])
         self.waveform_selector = tk.OptionMenu(self.frame, self.waveform, 
                                                *self.file_list, command=self.show_waveform)
         self.waveform_selector.grid(row=2, column=2)
