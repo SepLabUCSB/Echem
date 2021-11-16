@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from EIS_Fit.EIS_fit import DataFile
+from EIS_Fit import EIS_fit
 
 plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -49,13 +49,13 @@ class Spectrum:
         
     
     def fit(self, n_iter=None, starting_guess = None,
-            plot = False):
+            plot = False, **kwargs):
         self.circuit = 'Randles_adsorption'
         DataFile = EIS_fit.DataFile(self.file, circuit=self.circuit, 
                                     Z=self.Z, bounds=bounds)
         
         
-        DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess)
+        DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
         DataFile.LEVM_fit()
         
         if plot:
