@@ -8,9 +8,7 @@ import sys
 import time
 from datetime import date
 import pyvisa
-import rigol_control
-import siglent_control
-import create_waveform
+from EIS_Control import rigol_control, siglent_control, create_waveform
 default_stdout = sys.stdout
 default_stdin  = sys.stdin
 default_stderr = sys.stderr

@@ -11,7 +11,7 @@ import os
 plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-folder = 'C:/Users/BRoehrich/Desktop/test_folder'
+# folder = 'C:/Users/BRoehrich/Desktop/test_folder'
 
 """
 **Type %matplotlib in console before running file**

@@ -2,8 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-   
-import EIS_Fit.EIS_fit as EIS_fit
+from EIS_Fit.EIS_fit import DataFile
 
 plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -128,10 +127,10 @@ def fit_all(d):
 
     for i in range(len(d)):
         if i == 0:
-            d[i].fit(n_iter = 200, plot=True)
+            d[i].fit(n_iter = 200, plot=False)
         elif i > 0:
             if i%5 == 0:
-                plot = True
+                plot = False
             else:
                 plot = False
             d[i].fit(n_iter = 25, starting_guess = d[i-1].params,
