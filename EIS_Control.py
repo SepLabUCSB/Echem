@@ -29,7 +29,11 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Record reference spectrum
+Checkbox for Gamry/ Autolab (I = -Ch2 for autolab, + for gamry)
+
+Make sure correction is unchecked to record reference spectrum
+
+Get Arb and scope name from self.rm.list_resources()
 
 '''
 
@@ -121,7 +125,18 @@ class MainWindow:
             text = tk.Label(self.frame, text='Arb:')
             text.grid(row=3, column=1)
             self.arb = tk.StringVar(self.frame)
-            self.arb.set('USB0::0x1AB1::0x0643::DG8A232302748::INSTR')
+            
+            try:
+                # Look for Rigol arb, i.e.
+                # 'USB0::0x1AB1::0x0643::DG8A232302748::INSTR'
+                default_arb = [inst for inst in self.rm.list_resources() 
+                                if len(inst.split('::')) > 3 
+                                and inst.split('::')[3].startswith('DG')][0]
+            
+            except:
+                default_arb = ''
+            
+            self.arb.set(default_arb)
             self.arb_selector = tk.OptionMenu(self.frame, self.arb, 
                                                    *self.rm.list_resources())
             self.arb_selector.grid(row=3, column=2)
@@ -141,7 +156,16 @@ class MainWindow:
             text = tk.Label(self.frame, text='Scope:')
             text.grid(row=4, column=1)
             self.scope = tk.StringVar(self.frame)
-            self.scope.set('USB0::0xF4ED::0xEE3A::SDS1EDEX5R5381::INSTR')
+            
+            try:
+                default_scope = [inst for inst in self.rm.list_resources() 
+                                if len(inst.split('::')) > 3 
+                                and inst.split('::')[3].startswith('SDS')][0]
+            
+            except:
+                default_scope = ''
+            
+            self.scope.set(default_scope)
             self.scope_selector = tk.OptionMenu(self.frame, self.scope, 
                                                    *self.rm.list_resources())
             self.scope_selector.grid(row=4, column=2)
