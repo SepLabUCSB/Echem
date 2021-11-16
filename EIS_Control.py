@@ -31,10 +31,6 @@ To add:
 
 Checkbox for Gamry/ Autolab (I = -Ch2 for autolab, + for gamry)
 
-Make sure correction is unchecked to record reference spectrum
-
-Get Arb and scope name from self.rm.list_resources()
-
 '''
 
 class PrintLogger(): 
@@ -723,8 +719,20 @@ class MainWindow:
         # Record impedance spectrum of a resistor to calibrate
         # Save with resistance and waveform labelled
         
+        # Check that reference correction is unchecked
+        if self.ref_corr_var.get():
+            print('Uncheck "Apply Reference Correction" before\n'+
+                  'recording a reference spectrum!\n')  
+                  
+            return
+        
+        
         # Prompt for resistance value
         R = tk.simpledialog.askstring('Calibration', 'Resistance:')
+        
+        # Break on "cancel" button
+        if not R:
+            return
         
         
         # Record spectra
