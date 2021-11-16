@@ -29,7 +29,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Checkbox for Gamry/ Autolab (I = -Ch2 for autolab, + for gamry)
+Real time fitting
 
 '''
 
@@ -101,6 +101,17 @@ class MainWindow:
         ### FRAME 1: Instrument selection and control ###
         #################################################
         
+        # Potentiostat selection
+        text = tk.Label(self.frame, text='Potentiostat:')
+        text.grid(row=1, column=1)
+        self.potentiostat = tk.StringVar(self.frame)
+        self.potentiostat.set('Gamry')
+        self.potentiostat_selector = tk.OptionMenu(self.frame, self.potentiostat,
+                                                   *['Gamry', 'Autolab'])
+        self.potentiostat_selector.grid(row=1, column=2)
+        
+        
+        
         # Waveform selection dropdown menu
         text = tk.Label(self.frame, text='Waveform:')
         text.grid(row=2, column=1)
@@ -109,7 +120,7 @@ class MainWindow:
                           if file.startswith('Rigol')]
         
         self.waveform = tk.StringVar(self.frame)
-        self.waveform.set(self.file_list[3])
+        self.waveform.set(self.file_list[4])
         self.waveform_selector = tk.OptionMenu(self.frame, self.waveform, 
                                                *self.file_list, command=self.show_waveform)
         self.waveform_selector.grid(row=2, column=2)
@@ -540,7 +551,12 @@ class MainWindow:
                 print(f'Frame %s: {d.time:.2f} s'%frame)
                 
                 V = d.CH1data
-                I = -d.CH2data * current_range
+                
+                if self.potentiostat.get() == 'Autolab':
+                    # Autolab BNC out inverts current signal
+                    I = -d.CH2data * current_range
+                elif self.potentiostat.get() == 'Gamry':
+                    I = d.CH2data * current_range
                 
                 Z = V/I
                 phase = np.angle(V/I, deg=True)
