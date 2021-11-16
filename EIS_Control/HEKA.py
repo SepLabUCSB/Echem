@@ -9,7 +9,7 @@ filedir = r'C:\Users\BRoehrich\Desktop\HEKA python\Analysis folder'
 
 
 params = {
-    'out_dir': r'C:\Users\BRoehrich\Desktop\HEKA python\Analysis folder',
+    'out_dir': r'C:\Users\BRoehrich\Desktop\HEKA python\Analysis folder\Output',
     'csv_dir': r'C:\Users\BRoehrich\Desktop\git\echem\EIS_Control\csv',
     
     'number_of_freqs': 44,
@@ -19,14 +19,14 @@ params = {
     'correct_filter': True,
     'filter_correct_mode': False,
     
-    'sample_time' : 1,
+    'sample_time' : 5,
     'AUTOLAB': 0,
     'autolab_current_range': 1e-6,    
     'plot_Nyquist' : 1,
     'plot_Bode' : 1,
     
     'save_Excel' : 0,
-    'save_ASCII' : 1,
+    'save_ASCII' : 0,
         }
 
 
