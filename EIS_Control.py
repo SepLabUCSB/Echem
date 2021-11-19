@@ -399,7 +399,7 @@ class MainWindow:
         # Send currently selected waveform to Arb
         file = os.path.join(rigol_waves, self.waveform.get())    
         df = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
-        s = df['V'].to_numpy()
+        signal = df['V'].to_numpy()
         
         inst = self.rm.open_resource(self.arb.get())
         
@@ -408,7 +408,7 @@ class MainWindow:
         
         try:
             inst.write('*RST')
-            rigol_control.apply_waveform(inst, 1, s, Vpp)
+            rigol_control.apply_waveform(inst, 1, signal, Vpp)
         except:
             print('Could not connect')
             pass

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvisa
-from time import sleep
+from time import sleep, time
 import pandas as pd
 
 
@@ -65,7 +65,7 @@ def wait(inst):
         try:
             r = inst.query('*OPC?')
         except:
-            sleep(0.2)
+            sleep(0.1)
     
 
 
@@ -99,19 +99,20 @@ def apply_waveform(inst, channel, s, Vpp):
         sys.exit()
     
     
-#    try:
-#        print(inst.query('*IDN?'))
-#    except:
-#        print('Could not connect')
-#        import sys
-#        sys.exit()
+    #    try:
+    #        print(inst.query('*IDN?'))
+    #    except:
+    #        print('Could not connect')
+    #        import sys
+    #        sys.exit()
     
+    inst.timeout = 1000
     inst.write(':SOURCE%s:APPL:SEQ'%(channel))
-    wait(inst)
+    # wait(inst)
     inst.write(':SOURCE%s:FUNC:SEQ:FILT INSERT'%(channel))
-    wait(inst)
+    # wait(inst)
     send_bytes(inst, s, channel)
-    wait(inst)
+    # wait(inst)
     inst.write(':SOURCE%s:VOLTAGE %sVPP'%(channel, Vpp))
     inst.write(':SOURCE%s:FUNC:SEQ:SRAT 100000'%(channel))
     inst.write(':SOURCE%s:FUNC:SEQ:EDGETime 0.000005'%(channel))
