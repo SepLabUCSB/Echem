@@ -6,7 +6,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import sys
 import time
-from datetime import date
+from datetime import date, datetime
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
 default_stdout = sys.stdout
@@ -33,12 +33,31 @@ Real time fitting
 
 '''
 
+
+
+##### Create log file #####
+
+LOGGING = True
+
+log_file = 'C:/Users/BRoehrich/Desktop/log.txt'
+
+def log(file, text):
+    if text != '\n' and text != '' and LOGGING:
+        with open(file, 'a') as f:
+            t = str(datetime.now().time())
+            f.write(t + '\t' + text + '\n')
+            f.close()
+
+
+##### PrintLogger class #####
+
 class PrintLogger(): 
     # Class to print console output into Tkinter window
     def __init__(self, textbox): # pass reference to text widget
         self.textbox = textbox # keep ref
 
     def write(self, text):
+        log(log_file, text)
         self.textbox.insert(tk.END, text) # write text to textbox
         self.textbox.see('end') # scroll to end
 
@@ -46,6 +65,8 @@ class PrintLogger():
         pass
 
 
+
+##### MainWindow class #####
 
 class MainWindow:
     
@@ -105,7 +126,7 @@ class MainWindow:
         text = tk.Label(self.frame, text='Potentiostat:')
         text.grid(row=1, column=1)
         self.potentiostat = tk.StringVar(self.frame)
-        self.potentiostat.set('Gamry')
+        self.potentiostat.set('Autolab')
         self.potentiostat_selector = tk.OptionMenu(self.frame, self.potentiostat,
                                                    *['Gamry', 'Autolab'])
         self.potentiostat_selector.grid(row=1, column=2)
@@ -891,7 +912,8 @@ class MainWindow:
     ########################################
     ###     END OF MAINWINDOW CLASS      ###
     ########################################
-        
+
+
 
 root = tk.Tk()
 gui = MainWindow(root)

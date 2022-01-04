@@ -320,6 +320,7 @@ class FT_EIS:
             ax.set_ylim(0, )
             ax.set_xlim(ax.get_ylim())
         
+
         if add_comment == True:
             plt.text(0.1, -0.2, self.metadata['comment'], transform=plt.gcf().transFigure)
         plt.show()
