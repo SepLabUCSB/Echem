@@ -455,7 +455,7 @@ class MainWindow:
         
 
 
-    def record_signals(self):
+    def record_signals(self, save=False):
         
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
@@ -555,6 +555,32 @@ class MainWindow:
             ftdf  = ftdf[np.abs(ftdf['V']) > 100]
             applied_freqs = ftdf['freqs'].to_numpy()
                 
+            
+            # Initialize save files
+            if save and self.asciiVar.get():
+                
+                # Make save folder
+                name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                                                 initialvalue = self.last_file_name)
+                self.last_file_name = name
+                
+                today = str(date.today())
+                save_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                           today, name)
+                
+                createFolder(save_path)
+                
+                # Create metadata file
+                meta_file = os.path.join(save_path, '0000_Metadata.txt')
+                    
+                with open(meta_file, 'w') as f:
+                    f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                    f.write('Waveform: '+ str(self.waveform.get()))    
+                f.close()
+                
+                # Start time list file
+                time_file = os.path.join(save_path, '0000_time_list.txt')
+            
                 
             # Record starting time
             start_time = time.time()
@@ -645,19 +671,180 @@ class MainWindow:
                 # Save the FT data
                 d.waveform = self.waveform.get()
                 self.ft[frame] = d
+                
+                if save:
+                    with open(time_file, 'a') as f:
+                        f.write(str(d.time) + '\n')
+                        f.close()
+                    self.save_frame(frame, d.freqs, np.real(d.Z),
+                                    np.imag(d.Z), save_path)
+                
                 frame += 1
             
             print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
+            if save:
+                print('Saved as ASCII:', save_path, '\n')
         
         
         except:
             self.test_mode_record()
             
             
-            
-            
-    def test_mode_record(self):
+        
+    def record_reference(self):
+        # Record impedance spectrum of a resistor to calibrate
+        # Save with resistance and waveform labelled
+        
+        # Check that reference correction is unchecked
+        if self.ref_corr_var.get():
+            print('Uncheck "Apply Reference Correction" before\n'+
+                  'recording a reference spectrum!\n')  
+                  
+            return
+        
+        
+        # Prompt for resistance value
+        R = tk.simpledialog.askstring('Calibration', 'Resistance:')
+        
+        # Break on "cancel" button
+        if not R:
+            return
+        
+        
+        # Record spectra
+        self.record_signals()
+        
 
+        # Determine reference file path/ name
+        ref_dir = os.path.join(this_dir, 'reference waveforms\\')
+        
+        waveform = self.waveform.get()
+        
+        name = 'REF_%s_%s'%(R, waveform)
+        
+        out_file = os.path.join(ref_dir, name)
+        
+        # Average spectra
+        freqs = self.ft[1].freqs
+        Z = np.mean([np.abs(self.ft[i].Z) for i in self.ft], axis=0)
+        phase = np.mean([self.ft[i].phase for i in self.ft], axis=0)
+        
+        
+        if R.endswith('k'):
+            R = 1e3*float(R[:-1])
+        
+        elif R.endswith('M'):
+            R = 1e6*float(R[:-1])
+        
+        else:
+            R = float(R)
+        
+        
+        # Determine corrections
+        Z_corr      = Z / R
+        phase_corr  = phase
+                
+        df = pd.DataFrame(
+            {'freq': freqs,
+            'Z_corr': Z_corr,
+            'phase_corr': phase_corr}
+            )
+        
+        # Save to csv
+        df.to_csv(out_file, index=False)
+        
+        print('Saved correction file to:')
+        print(out_file, '\n')
+        
+        
+        
+    def save_frame(self, num, freqs, re, im, save_path):
+        d = pd.DataFrame(
+            {'f': freqs,
+            're': re,
+            'im': im}
+            )
+        
+        fname = save_path + f'\\{num:04}s.txt'
+    
+        d.to_csv(fname, columns = ['f', 're', 'im'],
+                     header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
+                     sep = '\t', index = False, encoding='ascii')
+        
+        
+        
+    def save_last(self):
+                
+        if self.ft:
+            try:
+                name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                                                 initialvalue = self.last_file_name)
+                
+                self.last_file_name = name
+                
+                today = str(date.today())
+                
+                if self.asciiVar.get():            
+                    
+                    folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                               today, name)
+                    
+                    createFolder(folder_path)
+                    
+                    time_file = os.path.join(folder_path, '0000_time_list.txt')
+                    
+                    with open(time_file, 'w') as f:
+                        for i, _ in self.ft.items():
+                            time = str(self.ft[i].time)
+                            f.write(time + '\n')
+                        
+                    f.close()
+                        
+                    for i, _ in self.ft.items():
+                        re = np.real(self.ft[i].Z)
+                        im = np.imag(self.ft[i].Z)
+                        freqs = self.ft[i].freqs
+                        
+                        self.save_frame(i, freqs, re, im, folder_path)
+                        
+                                        
+                    meta_file = os.path.join(folder_path, '0000_Metadata.txt')
+                    
+                    with open(meta_file, 'w') as f:
+                        f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                        f.write('Waveform: '+ str(self.waveform.get()))
+                        
+                    f.close()
+                    
+                        
+                    self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
+                    
+                    print('Saved as ASCII:', folder_path, '\n')
+                 
+                    
+                if self.csvVar.get():
+                    print('csv saving not yet supported...\n')
+            
+            except:
+                # User hits cancel
+                # Still option to save previous run
+                pass
+                
+
+        else:
+            print('No previous measurement to export\n')
+
+
+    
+
+    def record_and_save(self):
+        self.record_signals(save=True)
+        # self.save_last()
+     
+        
+     
+    def test_mode_record(self):
+        # Fake data for software debugging
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
         
@@ -747,172 +934,20 @@ class MainWindow:
                 0: d1,
                 1: d2
                 }
-        
-
-        
-        
-        
-    def record_reference(self):
-        # Record impedance spectrum of a resistor to calibrate
-        # Save with resistance and waveform labelled
-        
-        # Check that reference correction is unchecked
-        if self.ref_corr_var.get():
-            print('Uncheck "Apply Reference Correction" before\n'+
-                  'recording a reference spectrum!\n')  
-                  
-            return
-        
-        
-        # Prompt for resistance value
-        R = tk.simpledialog.askstring('Calibration', 'Resistance:')
-        
-        # Break on "cancel" button
-        if not R:
-            return
-        
-        
-        # Record spectra
-        self.record_signals()
-        
-
-        # Determine reference file path/ name
-        ref_dir = os.path.join(this_dir, 'reference waveforms\\')
-        
-        waveform = self.waveform.get()
-        
-        name = 'REF_%s_%s'%(R, waveform)
-        
-        out_file = os.path.join(ref_dir, name)
-        
-        # Average spectra
-        freqs = self.ft[1].freqs
-        Z = np.mean([np.abs(self.ft[i].Z) for i in self.ft], axis=0)
-        phase = np.mean([self.ft[i].phase for i in self.ft], axis=0)
-        
-        
-        if R.endswith('k'):
-            R = 1e3*float(R[:-1])
-        
-        elif R.endswith('M'):
-            R = 1e6*float(R[:-1])
-        
-        else:
-            R = float(R)
-        
-        
-        # Determine corrections
-        Z_corr      = Z / R
-        phase_corr  = phase
-                
-        df = pd.DataFrame(
-            {'freq': freqs,
-            'Z_corr': Z_corr,
-            'phase_corr': phase_corr}
-            )
-        
-        # Save to csv
-        df.to_csv(out_file, index=False)
-        
-        print('Saved correction file to:')
-        print(out_file, '\n')
-        
-        
-        
-        
-        
-    def save_last(self):
-        
-        def createFolder(directory):
-            try:
-                if not os.path.exists(directory):
-                    os.makedirs(directory)
-            except OSError:
-                print ('Error: Creating directory. ' +  directory)
-        
-        
-        if self.ft:
-            try:
-                name = tk.simpledialog.askstring('Save name', 'Input save name:',
-                                                 initialvalue = self.last_file_name)
-                
-                self.last_file_name = name
-                
-                today = str(date.today())
-                
-                if self.asciiVar.get():            
-                    
-                    folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
-                                               today, name)
-                    
-                    createFolder(folder_path)
-                    
-                    time_file = os.path.join(folder_path, '0000_time_list.txt')
-                    
-                    with open(time_file, 'w') as f:
-                        for i, _ in self.ft.items():
-                            time = str(self.ft[i].time)
-                            f.write(time + '\n')
-                        
-                    f.close()
-                        
-                    for i, _ in self.ft.items():
-                        re = np.real(self.ft[i].Z)
-                        im = np.imag(self.ft[i].Z)
-                        freqs = self.ft[i].freqs
-                        
-                        d = pd.DataFrame(
-                            {'f': freqs,
-                            're': re,
-                            'im': im}
-                            )
-                        
-                        fname = folder_path + '\\' + f'{i:04}' +'s.txt'
-                    
-                        d.to_csv(fname, columns = ['f', 're', 'im'],
-                                     header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
-                                     sep = '\t', index = False, encoding='ascii')
-                    
-                    meta_file = os.path.join(folder_path, '0000_Metadata.txt')
-                    
-                    with open(meta_file, 'w') as f:
-                        f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                        f.write('Waveform: '+ str(self.waveform.get()))
-                        
-                    f.close()
-                    
-                        
-                    self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
-                    
-                    print('Saved as ASCII:', folder_path, '\n')
-                 
-                    
-                if self.csvVar.get():
-                    print('csv saving not yet supported...\n')
             
-            except:
-                # User hits cancel
-                # Still option to save previous run
-                pass
-                
-
-        else:
-            print('No previous measurement to export\n')
-
-
-    
-
-    def record_and_save(self):
-        self.record_signals()
-        self.save_last()
-            
-        
         
         
     ########################################
     ###     END OF MAINWINDOW CLASS      ###
     ########################################
 
+
+def createFolder(directory):
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    except OSError:
+        print ('Error: Creating directory. ' +  directory)
 
 
 root = tk.Tk()
