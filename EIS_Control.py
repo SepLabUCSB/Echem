@@ -7,6 +7,7 @@ import os
 import sys
 import time
 from datetime import date, datetime
+from multiprocessing import Process
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
 default_stdout = sys.stdout
@@ -37,7 +38,7 @@ Real time fitting
 
 ##### Create log file #####
 
-LOGGING = True
+LOGGING = False
 
 log_file = 'C:/Users/BRoehrich/Desktop/log.txt'
 
@@ -272,7 +273,7 @@ class MainWindow:
         
         
         # DC Voltage offset
-        text = tk.Label(self.frame2, text='DC Voltage:')
+        text = tk.Label(self.frame2, text='DC Voltage (V):')
         text.grid(row=3, column = 0)
         self.DC_offset = tk.Text(self.frame2, height=1, width=7)
         self.DC_offset.insert('1.0', '0.0')
@@ -581,17 +582,9 @@ class MainWindow:
                 # Start time list file
                 time_file = os.path.join(save_path, '0000_time_list.txt')
             
-                
-            # Record starting time
-            start_time = time.time()
-            self.ft = {}
-            frame = 0
             
             
-            # Record frames
-            print('')
-            print('Recording for ~%d s' %t)
-            while time.time() - start_time < t:
+            def record_frame():
                 d = siglent_control.record_single(inst, start_time, frame_time,
                                               vdiv1, voffset1, vdiv2, voffset2,
                                               sara, sample_time=1)
@@ -628,8 +621,15 @@ class MainWindow:
                 d.freqs = df['freqs'].to_numpy()
                 d.Z = df['Z'].to_numpy()
                 d.phase = df['phase'].to_numpy()
+                d.waveform = self.waveform.get()
                 
+                self.ft[frame] = d
+                
+                
+            
+            def process_frame(frame):
                 # Plot this result to figure canvas
+                d = self.ft[frame]
                 Z = np.abs(d.Z)
                 phase = d.phase
                 
@@ -668,10 +668,7 @@ class MainWindow:
                 self.fig.canvas.draw()
                 self.fig.canvas.flush_events()
                 
-                # Save the FT data
-                d.waveform = self.waveform.get()
-                self.ft[frame] = d
-                
+                                
                 if save:
                     with open(time_file, 'a') as f:
                         f.write(str(d.time) + '\n')
@@ -679,9 +676,27 @@ class MainWindow:
                     self.save_frame(frame, d.freqs, np.real(d.Z),
                                     np.imag(d.Z), save_path)
                 
+                
+            
+            
+            # Record starting time
+            start_time = time.time()
+            self.ft = {}
+            
+            # Record frames
+            print('')
+            print('Recording for ~%d s' %t)
+            frame = 0
+            while time.time() - start_time < t:
+                record_frame()            
+                process_frame(frame)
                 frame += 1
             
+
+                
+            
             print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
+            
             if save:
                 print('Saved as ASCII:', save_path, '\n')
         
