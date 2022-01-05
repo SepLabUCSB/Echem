@@ -7,8 +7,10 @@ import os
 import sys
 import time
 from datetime import date, datetime
+from array import array
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
+from EIS_Fit import EIS_fit
 default_stdout = sys.stdout
 default_stdin  = sys.stdin
 default_stderr = sys.stderr
@@ -37,7 +39,7 @@ Real time fitting
 
 ##### Create log file #####
 
-LOGGING = True
+LOGGING = False
 
 log_file = 'C:/Users/BRoehrich/Desktop/log.txt'
 
@@ -48,7 +50,8 @@ def log(file, text):
             f.write(t + '\t' + text + '\n')
             f.close()
 
-
+            
+            
 ##### PrintLogger class #####
 
 class PrintLogger(): 
@@ -272,7 +275,7 @@ class MainWindow:
         
         
         # DC Voltage offset
-        text = tk.Label(self.frame2, text='DC Voltage:')
+        text = tk.Label(self.frame2, text='DC Voltage (V):')
         text.grid(row=3, column = 0)
         self.DC_offset = tk.Text(self.frame2, height=1, width=7)
         self.DC_offset.insert('1.0', '0.0')
@@ -324,9 +327,7 @@ class MainWindow:
         self.save_csv_option.grid(row=6, column=2)
         
                 
-        
-        
-        
+            
     def get_units(self, n):    
         if n >= 1e-6 and n < 1e-3:
             return ('u', 1e-6)
@@ -581,20 +582,72 @@ class MainWindow:
                 # Start time list file
                 time_file = os.path.join(save_path, '0000_time_list.txt')
             
+            
+            
+            def siglent_record_single(inst, start_time, frame_time, vdiv1, 
+                                      voffset1, vdiv2, voffset2, sara, 
+                                      frame, sample_time=1):
+                # Determine t=0 for frame
+                frame_start_time = time.time()
+               
+                # Record frame
+                inst.write('TRMD AUTO')
                 
-            # Record starting time
-            start_time = time.time()
-            self.ft = {}
-            frame = 0
+                
+                # Process last frame while waiting
+                if frame != 0:
+                    process_frame(frame-1)
+                    print(time.time() - frame_start_time)
+                while time.time() - frame_start_time < 1.2*frame_time:
+                    time.sleep(0.01)              
+                                
+                
+                # Get CH 1 data
+                inst.write('C1:WF? DAT2')
+                trace1 = inst.read_raw()
+                wave1 = trace1[22:-2]
+                adc1 = np.array(array('b', wave1))
+                
+                # Get CH 2 data
+                inst.write('C2:WF? DAT2')
+                trace2 = inst.read_raw()
+                wave2 = trace2[22:-2]
+                adc2 = np.array(array('b', wave2))
+                
+                # Convert to voltages
+                volts1 = adc1*(vdiv1/25) - voffset1 
+                volts2 = adc2*(vdiv2/25) - voffset2  
+                
+                # Get time array
+                times = np.zeros(len(volts1))
+                for i in range(len(volts1)):
+                    times[i] = frame_start_time + (1/sara)*i - start_time
+                       
+                # Only Fourier transform first sample_time s
+                if sample_time:
+                    end = np.where(times == times[0] + sample_time)[0][0]
+                else:
+                    end = None
+                
+                freqs = sara*np.fft.rfftfreq(len(volts1[:end]))[1:]
+                ft1   =      np.fft.rfft(volts1[:end])[1:]
+                ft2   =      np.fft.rfft(volts2[:end])[1:]
+                
+                ft = siglent_control.FourierTransformData(time    = times[0],
+                                          freqs   = freqs,
+                                          CH1data = ft1,
+                                          CH2data = ft2,)
+                
+                return ft
             
             
-            # Record frames
-            print('')
-            print('Recording for ~%d s' %t)
-            while time.time() - start_time < t:
-                d = siglent_control.record_single(inst, start_time, frame_time,
-                                              vdiv1, voffset1, vdiv2, voffset2,
-                                              sara, sample_time=1)
+            
+            
+            def record_frame(frame):
+                d = siglent_record_single(inst, start_time, frame_time, vdiv1, 
+                                          voffset1, vdiv2, voffset2, sara, 
+                                          frame, sample_time=1)
+                
                 print(f'Frame %s: {d.time:.2f} s'%frame)
                 
                 V = d.CH1data
@@ -628,8 +681,16 @@ class MainWindow:
                 d.freqs = df['freqs'].to_numpy()
                 d.Z = df['Z'].to_numpy()
                 d.phase = df['phase'].to_numpy()
+                d.waveform = self.waveform.get()
                 
+                self.ft[frame] = d
+                
+                
+            
+            def process_frame(frame):
+                fit_frame(frame)
                 # Plot this result to figure canvas
+                d = self.ft[frame]
                 Z = np.abs(d.Z)
                 phase = d.phase
                 
@@ -668,20 +729,65 @@ class MainWindow:
                 self.fig.canvas.draw()
                 self.fig.canvas.flush_events()
                 
-                # Save the FT data
-                d.waveform = self.waveform.get()
-                self.ft[frame] = d
-                
+                                
                 if save:
+                    # Add frame time to time list
                     with open(time_file, 'a') as f:
                         f.write(str(d.time) + '\n')
                         f.close()
+                    # Save frame as tab separated .txt
                     self.save_frame(frame, d.freqs, np.real(d.Z),
                                     np.imag(d.Z), save_path)
                 
+                
+            
+            def fit_frame(frame, n_iter = 25, starting_guess = None,
+                          **kwargs):
+                bounds = {
+                        'R1': [1e-1, 1e9],
+                        'R2': [1e-1, 1e9],
+                        'Q1': [1e-15, 1],
+                        'n1': [0.9,1.1],
+                        'Q2': [1e-15, 1],
+                        'n2': [0.8,1.1]
+                        }
+                
+                d = self.ft[frame]
+                Z = d.Z
+                freqs = d.freqs
+                
+                
+                DataFile = EIS_fit.DataFile(file='', circuit='Randles_adsorption', 
+                                    Z=Z, freqs=freqs, bounds=bounds)
+        
+                
+                DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
+                # DataFile.LEVM_fit(timeout = 0.5)
+                
+                params = DataFile.params
+                self.ft[frame].params = params
+                print(params)
+                
+            
+            
+            # Record starting time
+            start_time = time.time()
+            self.ft = {}
+            
+            # Record frames
+            print('')
+            print('Recording for ~%d s' %t)
+            frame = 0
+            while time.time() - start_time < t:
+                record_frame(frame)   
                 frame += 1
             
+            # Process the last frame
+            process_frame(frame-1)
+                       
+            
             print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
+            
             if save:
                 print('Saved as ASCII:', save_path, '\n')
         

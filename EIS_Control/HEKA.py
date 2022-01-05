@@ -100,21 +100,21 @@ if __name__ == '__main__':
 #%%
 # Plot normalized Z vs t at select frequencies
 
-data = l[0].ft
+# data = l[0].ft
 
-freqs = data[1]['f'].to_numpy()
-Zall = [ 
-        [data[i].iloc[j,3] for i in data] 
-        for j in range(len(freqs))
-        ]
+# freqs = data[1]['f'].to_numpy()
+# Zall = [ 
+#         [data[i].iloc[j,3] for i in data] 
+#         for j in range(len(freqs))
+#         ]
 
-fig, ax = plt.subplots()
+# fig, ax = plt.subplots()
 
-for j in [100,1000, 4400, 17000]:
-    i = np.where(freqs == j)[0][0]
-    ax.plot(range(180)[1:], np.abs(Zall[i])[1:]/np.abs(Zall[i][1]),
-        label = f'{freqs[i]} Hz')
+# for j in [100,1000, 4400, 17000]:
+#     i = np.where(freqs == j)[0][0]
+#     ax.plot(range(180)[1:], np.abs(Zall[i])[1:]/np.abs(Zall[i][1]),
+#         label = f'{freqs[i]} Hz')
         
-ax.set_xlabel('Time/ s')
-ax.set_ylabel('Normalized |Z|')
-ax.legend()
+# ax.set_xlabel('Time/ s')
+# ax.set_ylabel('Normalized |Z|')
+# ax.legend()

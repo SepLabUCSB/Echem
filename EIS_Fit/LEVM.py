@@ -149,6 +149,8 @@ def params_to_LEVM_format(d, circuit):
         # Check LEVM manual pp. 114-150 to choose an appropriate
         # function ('A'-'F' most appropriate for solution phase 
         # echem) and map circuit elements to the correct parameter (0-40)
+        #
+        # Circuits must also be added to extract_params() below!!
         p = {}
         p[1] = d['R1']
         p[4] = d['R2']
@@ -173,6 +175,15 @@ def params_to_LEVM_format(d, circuit):
         p[20] = 2       # Assign CPE for Cad
         function = 'C'
     
+    
+    if circuit == 'RRC':
+        p = {}
+        p[1] = d['R1']
+        p[4] = d['R2']
+        p[3] = d['Q1']
+        function = 'C'
+        
+        
     else:
         print('Circuit not recognized LEVM line 174')
         raise ValueError
@@ -367,12 +378,12 @@ def write_input_file(file, d, freqs, Z, circuit, comment=' '):
 #####                      RUN LEVM                                      #####
 ##############################################################################
 
-def run_LEVM():
+def run_LEVM(timeout):
     '''
     Run LEVM using subproccess.run()
     '''
     LEVM_path = os.getcwd() + '\levm.exe'
-    subprocess.run([], executable=LEVM_path, timeout=2)
+    subprocess.run([], executable=LEVM_path, timeout=timeout)
            
 
 
@@ -428,14 +439,20 @@ def extract_params(file, circuit):
     
     
     if circuit == 'Randles_adsorption':
-        p = {}
+        d = {}
         d['R1'] = string_to_float(p[1])
         d['R2'] = string_to_float(p[4])
         d['n1'] = 1.0    
         d['Q1'] = string_to_float(p[3])
         d['Q2'] = string_to_float(p[7])
         d['n2'] = string_to_float(p[9])
-        
+    
+    
+    if circuit == 'RRC':
+        d = {}
+        d['R1'] = string_to_float(p[1])
+        d['R2'] = string_to_float(p[4])
+        d['Q1'] = string_to_float(p[3])
         
     else:
         print('Circuit not recognized')
@@ -445,7 +462,7 @@ def extract_params(file, circuit):
 
 
 
-def LEVM_fit(freqs, Z, d, circuit, comment = ' '):
+def LEVM_fit(freqs, Z, d, circuit, timeout = 2, comment = ' '):
     '''
     Main function to call to perform LEVM fit
     
@@ -481,7 +498,7 @@ def LEVM_fit(freqs, Z, d, circuit, comment = ' '):
     os.chdir(LEVM_dir)
     
     write_input_file('INFL', d, freqs, Z, circuit, comment)
-    run_LEVM()
+    run_LEVM(timeout = timeout)
     fits = extract_params('OUTIN', circuit)
     
     # Return to LEVM.py directory
