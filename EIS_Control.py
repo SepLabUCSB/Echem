@@ -240,11 +240,6 @@ class MainWindow:
         self.plot_phase_option.grid(row=6, column=2)
         
         
-        self.fit = tk.IntVar(value=0)
-        self.fit_option = tk.Checkbutton(self.frame, text='Fit', 
-                                                variable=self.fit)
-        self.fit_option.grid(row=6, column=3)
-        
         
         
         
@@ -319,19 +314,19 @@ class MainWindow:
         
         # Save options
         
-        text = tk.Label(self.frame2, text='Save as...')
-        text.grid(row=6, column = 0)        
+        self.fit = tk.IntVar(value=0)
+        self.fit_option = tk.Checkbutton(self.frame2, text='Fit', 
+                                                variable=self.fit)
+        self.fit_option.grid(row=6, column=0)
         
-        self.asciiVar = tk.IntVar(value=1)
-        self.save_ascii_option = tk.Checkbutton(self.frame2, text='ASCII', 
-                                                variable=self.asciiVar)
-        self.save_ascii_option.grid(row=6, column=1)
         
-        self.csvVar = tk.IntVar(value=0)
-        self.save_csv_option = tk.Checkbutton(self.frame2, text='CSV', 
-                                              variable=self.csvVar)
-        self.save_csv_option.grid(row=6, column=2)
         
+        
+        self.circuit = tk.StringVar(self.frame2)
+        self.circuit.set('RRC')
+        self.circuit_selector = tk.OptionMenu(self.frame2, self.circuit,
+                                                   *['RRC', 'Randles_adsorption'])
+        self.circuit_selector.grid(row=6, column=1, columnspan=2)
                 
             
     def get_units(self, n):    
@@ -776,10 +771,11 @@ class MainWindow:
                 bounds = {
                         'R1': [1e-1, 1e9],
                         'R2': [1e-1, 1e9],
-                        'C': [1e-15, 1],
-                        # 'n1': [0.9,1.1],
-                        # 'Q2': [1e-15, 1],
-                        # 'n2': [0.8,1.1]
+                        'Q1': [1e-15, 1],
+                        'n1': [0.9,1.1],
+                        'Q2': [1e-15, 1],
+                        'n2': [0.8,1.1],
+                        'C': [1e-15, 1]
                         }
                 
                 d = self.ft[frame]
@@ -787,7 +783,7 @@ class MainWindow:
                 freqs = d.freqs
                 
                 
-                DataFile = EIS_fit.DataFile(file='', circuit='RRC', 
+                DataFile = EIS_fit.DataFile(file='', circuit=self.circuit.get(), 
                                     Z=Z, freqs=freqs, bounds=bounds)
         
                 
