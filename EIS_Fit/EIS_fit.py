@@ -110,16 +110,20 @@ class DataFile:
         self.chi_squared = circuits.calc_chi_squared(self.freqs, self.Z, 
                                                      self.params, self.circuit)
         
+        circuit_list, circuit_funcs = circuits.list_circuits()
+        circuitfunc = circuit_funcs[circuit_list.index(self.circuit)]
+        
+        self.fits = circuitfunc(self.freqs, self.params)
         
         
-        
-    def LEVM_fit(self, **kwargs):
+    def LEVM_fit(self, timeout=2, **kwargs):
         '''
         Perform least-squares fit using LEVM.py
         '''
         try:
             self.params = LEVM.LEVM_fit(self.freqs, self.Z, 
-                                        self.params, self.circuit)
+                                        self.params, self.circuit,
+                                        timeout = timeout)
         
         except:
             # print('LEVM fit timed out, performing GA fit. File: ', 
@@ -132,6 +136,11 @@ class DataFile:
         
         self.chi_squared = circuits.calc_chi_squared(self.freqs, self.Z, 
                                                      self.params, self.circuit)
+        
+        circuit_list, circuit_funcs = circuits.list_circuits()
+        circuitfunc = circuit_funcs[circuit_list.index(self.circuit)]
+        
+        self.fits = circuitfunc(self.freqs, self.params)
     
         
     def plot_fit(self, ax=None, Bode=False):
@@ -139,15 +148,15 @@ class DataFile:
         circuit_list, circuit_funcs = circuits.list_circuits()
         circuitfunc = circuit_funcs[circuit_list.index(self.circuit)]
         
-        fits = circuitfunc(self.freqs, self.params)
+        self.fits = circuitfunc(self.freqs, self.params)
                 
         if ax is not None:
             if Bode:
                 ax.plot(self.freqs, np.abs(self.Z), 'o', color=colors[0])
-                ax.plot(self.freqs, np.abs(fits), '-', color=colors[0])
+                ax.plot(self.freqs, np.abs(self.fits), '-', color=colors[0])
                 ax2 = ax.twinx()
                 ax2.plot(self.freqs, np.angle(self.Z, deg=True), 'x', color=colors[1])
-                ax2.plot(self.freqs, np.angle(fits, deg=True), '-', color=colors[1])
+                ax2.plot(self.freqs, np.angle(self.fits, deg=True), '-', color=colors[1])
                 ax.set_xscale('log')
                 ax.set_xlabel('Frequency/ Hz')
                 ax.set_ylabel('|Z|/ $\Omega$')
@@ -155,7 +164,7 @@ class DataFile:
                 
             else:
                 ax.plot(self.re/1e6, -self.im/1e6, 'o')
-                ax.plot(np.real(fits)/1e6, -np.imag(fits)/1e6, '-')
+                ax.plot(np.real(self.fits)/1e6, -np.imag(self.fits)/1e6, '-')
                 ax.set_xlabel("Z'/ M$\Omega$")
                 ax.set_ylabel("Z''/ M$\Omega$")
         
