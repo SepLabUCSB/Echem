@@ -242,6 +242,7 @@ class MainWindow:
         
         
         
+        
         ########################################
         ### FRAME 2: User-adjustable options ###
         ########################################
@@ -313,19 +314,19 @@ class MainWindow:
         
         # Save options
         
-        text = tk.Label(self.frame2, text='Save as...')
-        text.grid(row=6, column = 0)        
+        self.fit = tk.IntVar(value=0)
+        self.fit_option = tk.Checkbutton(self.frame2, text='Fit', 
+                                                variable=self.fit)
+        self.fit_option.grid(row=6, column=0)
         
-        self.asciiVar = tk.IntVar(value=1)
-        self.save_ascii_option = tk.Checkbutton(self.frame2, text='ASCII', 
-                                                variable=self.asciiVar)
-        self.save_ascii_option.grid(row=6, column=1)
         
-        self.csvVar = tk.IntVar(value=0)
-        self.save_csv_option = tk.Checkbutton(self.frame2, text='CSV', 
-                                              variable=self.csvVar)
-        self.save_csv_option.grid(row=6, column=2)
         
+        
+        self.circuit = tk.StringVar(self.frame2)
+        self.circuit.set('RRC')
+        self.circuit_selector = tk.OptionMenu(self.frame2, self.circuit,
+                                                   *['RRC', 'Randles_adsorption'])
+        self.circuit_selector.grid(row=6, column=1, columnspan=2)
                 
             
     def get_units(self, n):    
@@ -466,8 +467,14 @@ class MainWindow:
         self.ax.set_xscale('linear')
         self.ax2.clear()
         
-        line1, = self.ax.plot([],[], '-', color=colors[0])
-        line2, = self.ax2.plot([],[], 'o', color=colors[1])
+        # line1: Z data
+        # line2: phase data
+        # line3: Z fit
+        # line4: phase fit
+        line1, = self.ax.plot([],[], 'o', color=colors[0])
+        line2, = self.ax2.plot([],[], 'x', color=colors[1])
+        line3, = self.ax.plot([],[], '-', color=colors[0])
+        line4, = self.ax2.plot([],[], '-', color=colors[1])
                
         
         self.ax.set_xscale('log')
@@ -501,7 +508,9 @@ class MainWindow:
             except:
                 print('Invalid reference file: ')
                 print(file)
-                print('')
+                print('Uncheck "Apply reference correction" or record a')
+                print('reference spectrum of a resistor.\n')
+                return
                 
             
             
@@ -597,7 +606,7 @@ class MainWindow:
                 # Process last frame while waiting
                 if frame != 0:
                     process_frame(frame-1)
-                    print(time.time() - frame_start_time)
+                    # print(time.time() - frame_start_time)
                 while time.time() - frame_start_time < 1.2*frame_time:
                     time.sleep(0.01)              
                                 
@@ -688,7 +697,12 @@ class MainWindow:
                 
             
             def process_frame(frame):
-                fit_frame(frame)
+                
+                # Fit, if the option is checked
+                if self.fit.get():
+                    fit_frame(frame)
+                    
+                    
                 # Plot this result to figure canvas
                 d = self.ft[frame]
                 Z = np.abs(d.Z)
@@ -699,6 +713,9 @@ class MainWindow:
                     if not plot_phase:
                         line1.set_xdata(d.freqs)          
                         line1.set_ydata(Z)
+                        if hasattr(self.ft[frame], 'fits'):
+                            line3.set_xdata(d.freqs)
+                            line3.set_ydata(np.abs(self.ft[frame].fits))
                         self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
                         self.ax.set_ylabel('|Z|/ $\Omega$')
                         self.ax2.set_yticks([])
@@ -707,8 +724,11 @@ class MainWindow:
                     if not plot_Z:
                         line2.set_xdata(d.freqs)
                         line2.set_ydata(phase)
-                        self.ax.set_ylim(min(phase)-10, max(phase)+10)
-                        self.ax.set_ylabel('Phase/ $\degree$')
+                        if hasattr(self.ft[frame], 'fits'):
+                            line4.set_xdata(d.freqs)
+                            line4.set_ydata(np.angle(self.ft[frame].fits))
+                        self.ax2.set_ylim(min(phase)-10, max(phase)+10)
+                        self.ax2.set_ylabel('Phase/ $\degree$')
                         self.ax2.set_yticks([])
                     
                 if plot_Z and plot_phase:
@@ -716,6 +736,11 @@ class MainWindow:
                     line2.set_xdata(d.freqs)
                     line1.set_ydata(Z)
                     line2.set_ydata(phase)
+                    if hasattr(self.ft[frame], 'fits'):
+                        line3.set_xdata(d.freqs)
+                        line4.set_xdata(d.freqs)
+                        line3.set_ydata(np.abs(self.ft[frame].fits))
+                        line4.set_ydata(np.angle(self.ft[frame].fits, deg=True))
                     self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
                     self.ax2.set_ylim(min(phase)-10, max(phase)+10)
                     self.ax.set_ylabel('|Z|/ $\Omega$')
@@ -749,7 +774,8 @@ class MainWindow:
                         'Q1': [1e-15, 1],
                         'n1': [0.9,1.1],
                         'Q2': [1e-15, 1],
-                        'n2': [0.8,1.1]
+                        'n2': [0.8,1.1],
+                        'C': [1e-15, 1]
                         }
                 
                 d = self.ft[frame]
@@ -757,16 +783,15 @@ class MainWindow:
                 freqs = d.freqs
                 
                 
-                DataFile = EIS_fit.DataFile(file='', circuit='Randles_adsorption', 
+                DataFile = EIS_fit.DataFile(file='', circuit=self.circuit.get(), 
                                     Z=Z, freqs=freqs, bounds=bounds)
         
                 
                 DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
-                # DataFile.LEVM_fit(timeout = 0.5)
+                DataFile.LEVM_fit(timeout = 0.5)
                 
-                params = DataFile.params
-                self.ft[frame].params = params
-                print(params)
+                self.ft[frame].params = DataFile.params # R, C parameters
+                self.ft[frame].fits   = DataFile.fits   # Fitted Z vs freq
                 
             
             
