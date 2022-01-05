@@ -7,7 +7,7 @@ import os
 import sys
 import time
 from datetime import date, datetime
-from multiprocessing import Process
+from array import array
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
 default_stdout = sys.stdout
@@ -49,7 +49,8 @@ def log(file, text):
             f.write(t + '\t' + text + '\n')
             f.close()
 
-
+            
+            
 ##### PrintLogger class #####
 
 class PrintLogger(): 
@@ -584,10 +585,70 @@ class MainWindow:
             
             
             
-            def record_frame():
-                d = siglent_control.record_single(inst, start_time, frame_time,
-                                              vdiv1, voffset1, vdiv2, voffset2,
-                                              sara, sample_time=1)
+            def siglent_record_single(inst, start_time, frame_time, vdiv1, 
+                                      voffset1, vdiv2, voffset2, sara, 
+                                      frame, sample_time=1):
+                # Determine t=0 for frame
+                frame_start_time = time.time()
+               
+                # Record frame
+                inst.write('TRMD AUTO')
+                
+                
+                # Process last frame while waiting
+                if frame != 0:
+                    process_frame(frame-1)
+                    # print(time.time() - frame_start_time)
+                while time.time() - frame_start_time < 1.2*frame_time:
+                    time.sleep(0.01)              
+                                
+                
+                # Get CH 1 data
+                inst.write('C1:WF? DAT2')
+                trace1 = inst.read_raw()
+                wave1 = trace1[22:-2]
+                adc1 = np.array(array('b', wave1))
+                
+                # Get CH 2 data
+                inst.write('C2:WF? DAT2')
+                trace2 = inst.read_raw()
+                wave2 = trace2[22:-2]
+                adc2 = np.array(array('b', wave2))
+                
+                # Convert to voltages
+                volts1 = adc1*(vdiv1/25) - voffset1 
+                volts2 = adc2*(vdiv2/25) - voffset2  
+                
+                # Get time array
+                times = np.zeros(len(volts1))
+                for i in range(len(volts1)):
+                    times[i] = frame_start_time + (1/sara)*i - start_time
+                       
+                # Only Fourier transform first sample_time s
+                if sample_time:
+                    end = np.where(times == times[0] + sample_time)[0][0]
+                else:
+                    end = None
+                
+                freqs = sara*np.fft.rfftfreq(len(volts1[:end]))[1:]
+                ft1   =      np.fft.rfft(volts1[:end])[1:]
+                ft2   =      np.fft.rfft(volts2[:end])[1:]
+                
+                ft = siglent_control.FourierTransformData(time    = times[0],
+                                          freqs   = freqs,
+                                          CH1data = ft1,
+                                          CH2data = ft2,)
+                
+                return ft
+            
+            
+            
+            
+            def record_frame(frame):
+                d = siglent_record_single(inst, start_time, frame_time, vdiv1, 
+                                          voffset1, vdiv2, voffset2, sara, 
+                                          frame, sample_time=1)
+                
                 print(f'Frame %s: {d.time:.2f} s'%frame)
                 
                 V = d.CH1data
@@ -688,12 +749,9 @@ class MainWindow:
             print('Recording for ~%d s' %t)
             frame = 0
             while time.time() - start_time < t:
-                record_frame()            
-                process_frame(frame)
+                record_frame(frame)   
                 frame += 1
-            
-
-                
+                       
             
             print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
             
