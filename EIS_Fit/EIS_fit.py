@@ -68,30 +68,27 @@ End: export csv of frequency, param 1, param 2, ...
 
 class DataFile:
     
-    def __init__(self, file, circuit, bounds=bounds, ax=None, Z=None):
+    def __init__(self, file, circuit, bounds=bounds, ax=None, Z=None,
+                 freqs=None):
         
-        df = pd.read_csv(file, skiprows=1, names=
+        if file != '':
+            df = pd.read_csv(file, skiprows=1, names=
                            ('freqs', 're', 'im'), sep='\t')
+            self.freqs = df['freqs'].to_numpy()
+            self.re = df['re'].to_numpy()
+            self.im = df['im'].to_numpy()
+            self.Z = self.re + 1j*self.im
+        
+        else:
+            self.Z = Z
+            self.freqs = freqs
+            self.re = np.real(Z)
+            self.im = np.imag(Z)
         
         self.file = file
         self.circuit = circuit
         self.bounds = bounds
-        
-        self.freqs = df['freqs'].to_numpy()
-        self.re = df['re'].to_numpy()
-        self.im = df['im'].to_numpy()
-        self.Z = self.re + 1j*self.im
-        
-        try:
-            # Use given Z array instead of extracing from file
-            if len(Z) != 0:
-                self.Z = Z
-                self.re = np.real(Z)
-                self.im = np.imag(Z)
-                
-        except:
-            pass
-        
+                        
         self.params = dict()
         self.score = 1e9
         
@@ -105,7 +102,7 @@ class DataFile:
         '''
         if ax is not None:
             ax.plot(self.re/1e6, -self.im/1e6, 'o')
-            
+        
         self.params, self.score = ga.genetic_algorithm(
             self.freqs, self.Z, self.bounds, self.circuit, ax=ax,
             starting_guess = starting_guess, **kwargs)

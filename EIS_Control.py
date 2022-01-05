@@ -10,6 +10,7 @@ from datetime import date, datetime
 from array import array
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
+from EIS_Fit import EIS_fit
 default_stdout = sys.stdout
 default_stdin  = sys.stdin
 default_stderr = sys.stderr
@@ -326,9 +327,7 @@ class MainWindow:
         self.save_csv_option.grid(row=6, column=2)
         
                 
-        
-        
-        
+            
     def get_units(self, n):    
         if n >= 1e-6 and n < 1e-3:
             return ('u', 1e-6)
@@ -598,7 +597,7 @@ class MainWindow:
                 # Process last frame while waiting
                 if frame != 0:
                     process_frame(frame-1)
-                    # print(time.time() - frame_start_time)
+                    print(time.time() - frame_start_time)
                 while time.time() - frame_start_time < 1.2*frame_time:
                     time.sleep(0.01)              
                                 
@@ -689,6 +688,7 @@ class MainWindow:
                 
             
             def process_frame(frame):
+                fit_frame(frame)
                 # Plot this result to figure canvas
                 d = self.ft[frame]
                 Z = np.abs(d.Z)
@@ -731,12 +731,42 @@ class MainWindow:
                 
                                 
                 if save:
+                    # Add frame time to time list
                     with open(time_file, 'a') as f:
                         f.write(str(d.time) + '\n')
                         f.close()
+                    # Save frame as tab separated .txt
                     self.save_frame(frame, d.freqs, np.real(d.Z),
                                     np.imag(d.Z), save_path)
                 
+                
+            
+            def fit_frame(frame, n_iter = 25, starting_guess = None,
+                          **kwargs):
+                bounds = {
+                        'R1': [1e-1, 1e9],
+                        'R2': [1e-1, 1e9],
+                        'Q1': [1e-15, 1],
+                        'n1': [0.9,1.1],
+                        'Q2': [1e-15, 1],
+                        'n2': [0.8,1.1]
+                        }
+                
+                d = self.ft[frame]
+                Z = d.Z
+                freqs = d.freqs
+                
+                
+                DataFile = EIS_fit.DataFile(file='', circuit='Randles_adsorption', 
+                                    Z=Z, freqs=freqs, bounds=bounds)
+        
+                
+                DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
+                # DataFile.LEVM_fit(timeout = 0.5)
+                
+                params = DataFile.params
+                self.ft[frame].params = params
+                print(params)
                 
             
             
@@ -751,6 +781,9 @@ class MainWindow:
             while time.time() - start_time < t:
                 record_frame(frame)   
                 frame += 1
+            
+            # Process the last frame
+            process_frame(frame-1)
                        
             
             print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
