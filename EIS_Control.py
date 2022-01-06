@@ -514,311 +514,359 @@ class MainWindow:
                 
             
             
-            
-                
+        # Get recording time
+        t = self.recording_time.get('1.0', 'end')
+        current_range = self.current_range.get('1.0', 'end')
+        current_range = float(current_range)
+             
+        
         try:
-            # Get recording time
-            t = self.recording_time.get('1.0', 'end')
-            current_range = self.current_range.get('1.0', 'end')
-            current_range = float(current_range)
-                 
+            t = float(t)
+            t > 0
+        except:
+            print('Invalid time. Must be a real number > 0.')
+            return
+        
+        
+        
+        # Connect to scope
+        inst = self.rm.open_resource(self.scope.get())
+             
+        
+        # Set and record some scope parameters
+        inst.write('TRMD AUTO')
+        inst.write('MSIZ 70K')
+        inst.write('TDIV 100MS')
+        inst.write('TRMD STOP')
+        inst.write('C1:OFST %sV' %self.DC_offset)
+        
+        vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
+        voffset1    = float(inst.query('C1:OFST?')[8:-2])
+        vdiv2       = float(inst.query('C2:VDIV?')[8:-2])
+        voffset2    = float(inst.query('C2:OFST?')[8:-2])
+        sara        = float(inst.query('SARA?')[5:-5])
+        tdiv        = float(inst.query('TDIV?')[5:-2])
+        frame_time  = 14*tdiv
+        
+        
+        # Get applied frequencies
+        file  = os.path.join(rigol_waves, self.waveform.get())    
+        df    = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
+        
+        freqs = 100000*np.fft.rfftfreq(len(df))
+        V     = np.fft.rfft(df['V'])
+        ftdf  = pd.DataFrame({
+                'freqs': freqs,
+                'V': V})
+        
+        ftdf  = ftdf[np.abs(ftdf['V']) > 100]
+        applied_freqs = ftdf['freqs'].to_numpy()
             
+        
+        # Initialize save files
+        if save:
+            
+            # Make save folder
             try:
-                t = float(t)
-                t > 0
-            except:
-                print('Invalid time. Must be a real number > 0.')
-                return
-            
-            
-            
-            # Connect to scope
-            inst = self.rm.open_resource(self.scope.get())
-                 
-            
-            # Set and record some scope parameters
-            inst.write('TRMD AUTO')
-            inst.write('MSIZ 70K')
-            inst.write('TDIV 100MS')
-            inst.write('TRMD STOP')
-            inst.write('C1:OFST %sV' %self.DC_offset)
-            
-            vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
-            voffset1    = float(inst.query('C1:OFST?')[8:-2])
-            vdiv2       = float(inst.query('C2:VDIV?')[8:-2])
-            voffset2    = float(inst.query('C2:OFST?')[8:-2])
-            sara        = float(inst.query('SARA?')[5:-5])
-            tdiv        = float(inst.query('TDIV?')[5:-2])
-            frame_time  = 14*tdiv
-            
-            
-            # Get applied frequencies
-            file  = os.path.join(rigol_waves, self.waveform.get())    
-            df    = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
-            
-            freqs = 100000*np.fft.rfftfreq(len(df))
-            V     = np.fft.rfft(df['V'])
-            ftdf  = pd.DataFrame({
-                    'freqs': freqs,
-                    'V': V})
-            
-            ftdf  = ftdf[np.abs(ftdf['V']) > 100]
-            applied_freqs = ftdf['freqs'].to_numpy()
-                
-            
-            # Initialize save files
-            if save and self.asciiVar.get():
-                
-                # Make save folder
                 name = tk.simpledialog.askstring('Save name', 'Input save name:',
-                                                 initialvalue = self.last_file_name)
-                self.last_file_name = name
-                
+                                             initialvalue = self.last_file_name)
                 today = str(date.today())
                 save_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
-                                           today, name)
+                                       today, name)
+            
+            except:
+                # User hits cancel
+                return
+            
+            # Reinitialize last file name
+            self.last_file_name = name
+                        
+            createFolder(save_path)
+            
+            # Create metadata file
+            meta_file = os.path.join(save_path, '0000_Metadata.txt')
                 
-                createFolder(save_path)
-                
-                # Create metadata file
-                meta_file = os.path.join(save_path, '0000_Metadata.txt')
-                    
-                with open(meta_file, 'w') as f:
-                    f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                    f.write('Waveform: '+ str(self.waveform.get()))    
-                f.close()
-                
-                # Start time list file
-                time_file = os.path.join(save_path, '0000_time_list.txt')
+            with open(meta_file, 'w') as f:
+                f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                f.write('Waveform: '+ str(self.waveform.get()))    
+            f.close()
+            
+            # Start time list file
+            time_file = os.path.join(save_path, '0000_time_list.txt')
+            
+            # Start fits file
+            fits_file = os.path.join(save_path, '0000_fits.txt')
+        
+        
+        
+        def siglent_record_single(inst, start_time, frame_time, vdiv1, 
+                                  voffset1, vdiv2, voffset2, sara, 
+                                  frame, sample_time=1):
+            # Determine t=0 for frame
+            frame_start_time = time.time()
+           
+            # Record frame
+            inst.write('TRMD AUTO')
             
             
+            # Process last frame while waiting
+            if frame != 0:
+                process_frame(frame-1)
+                # print(time.time() - frame_start_time)
+            while time.time() - frame_start_time < 1.2*frame_time:
+                time.sleep(0.01)              
+                            
             
-            def siglent_record_single(inst, start_time, frame_time, vdiv1, 
+            # Get CH 1 data
+            inst.write('C1:WF? DAT2')
+            trace1 = inst.read_raw()
+            wave1 = trace1[22:-2]
+            adc1 = np.array(array('b', wave1))
+            
+            # Get CH 2 data
+            inst.write('C2:WF? DAT2')
+            trace2 = inst.read_raw()
+            wave2 = trace2[22:-2]
+            adc2 = np.array(array('b', wave2))
+            
+            # Convert to voltages
+            volts1 = adc1*(vdiv1/25) - voffset1 
+            volts2 = adc2*(vdiv2/25) - voffset2  
+            
+            # Get time array
+            times = np.zeros(len(volts1))
+            for i in range(len(volts1)):
+                times[i] = frame_start_time + (1/sara)*i - start_time
+                   
+            # Only Fourier transform first sample_time s
+            if sample_time:
+                end = np.where(times == times[0] + sample_time)[0][0]
+            else:
+                end = None
+            
+            freqs = sara*np.fft.rfftfreq(len(volts1[:end]))[1:]
+            ft1   =      np.fft.rfft(volts1[:end])[1:]
+            ft2   =      np.fft.rfft(volts2[:end])[1:]
+            
+            ft = siglent_control.FourierTransformData(time    = times[0],
+                                      freqs   = freqs,
+                                      CH1data = ft1,
+                                      CH2data = ft2,)
+            
+            return ft
+        
+        
+        
+        
+        def record_frame(frame):
+            d = siglent_record_single(inst, start_time, frame_time, vdiv1, 
                                       voffset1, vdiv2, voffset2, sara, 
-                                      frame, sample_time=1):
-                # Determine t=0 for frame
-                frame_start_time = time.time()
-               
-                # Record frame
-                inst.write('TRMD AUTO')
-                
-                
-                # Process last frame while waiting
-                if frame != 0:
-                    process_frame(frame-1)
-                    # print(time.time() - frame_start_time)
-                while time.time() - frame_start_time < 1.2*frame_time:
-                    time.sleep(0.01)              
-                                
-                
-                # Get CH 1 data
-                inst.write('C1:WF? DAT2')
-                trace1 = inst.read_raw()
-                wave1 = trace1[22:-2]
-                adc1 = np.array(array('b', wave1))
-                
-                # Get CH 2 data
-                inst.write('C2:WF? DAT2')
-                trace2 = inst.read_raw()
-                wave2 = trace2[22:-2]
-                adc2 = np.array(array('b', wave2))
-                
-                # Convert to voltages
-                volts1 = adc1*(vdiv1/25) - voffset1 
-                volts2 = adc2*(vdiv2/25) - voffset2  
-                
-                # Get time array
-                times = np.zeros(len(volts1))
-                for i in range(len(volts1)):
-                    times[i] = frame_start_time + (1/sara)*i - start_time
-                       
-                # Only Fourier transform first sample_time s
-                if sample_time:
-                    end = np.where(times == times[0] + sample_time)[0][0]
-                else:
-                    end = None
-                
-                freqs = sara*np.fft.rfftfreq(len(volts1[:end]))[1:]
-                ft1   =      np.fft.rfft(volts1[:end])[1:]
-                ft2   =      np.fft.rfft(volts2[:end])[1:]
-                
-                ft = siglent_control.FourierTransformData(time    = times[0],
-                                          freqs   = freqs,
-                                          CH1data = ft1,
-                                          CH2data = ft2,)
-                
-                return ft
+                                      frame, sample_time=1)
+            
+            print(f'Frame %s: {d.time:.2f} s'%frame)
+            
+            V = d.CH1data
+            
+            if self.potentiostat.get() == 'Autolab':
+                # Autolab BNC out inverts current signal
+                I = -d.CH2data * current_range
+            elif self.potentiostat.get() == 'Gamry':
+                I = d.CH2data * current_range
+            
+            Z = V/I
+            phase = np.angle(V/I, deg=True)
             
             
+            df = pd.DataFrame(
+                    {
+                    'freqs': d.freqs,
+                    'Z': Z,
+                    'phase': phase
+                    }
+            )
+            
+            df = df[df['freqs'].isin(applied_freqs)]
+            
+            # Apply calibration correction
+            if self.ref_corr_var.get():
+                df['Z'] = df['Z'] / Z_corr
+                df['phase'] = df['phase'] - phase_corr
             
             
-            def record_frame(frame):
-                d = siglent_record_single(inst, start_time, frame_time, vdiv1, 
-                                          voffset1, vdiv2, voffset2, sara, 
-                                          frame, sample_time=1)
-                
-                print(f'Frame %s: {d.time:.2f} s'%frame)
-                
-                V = d.CH1data
-                
-                if self.potentiostat.get() == 'Autolab':
-                    # Autolab BNC out inverts current signal
-                    I = -d.CH2data * current_range
-                elif self.potentiostat.get() == 'Gamry':
-                    I = d.CH2data * current_range
-                
-                Z = V/I
-                phase = np.angle(V/I, deg=True)
-                
-                
-                df = pd.DataFrame(
-                        {
-                        'freqs': d.freqs,
-                        'Z': Z,
-                        'phase': phase
-                        }
-                )
-                
-                df = df[df['freqs'].isin(applied_freqs)]
-                
-                # Apply calibration correction
-                if self.ref_corr_var.get():
-                    df['Z'] = df['Z'] / Z_corr
-                    df['phase'] = df['phase'] - phase_corr
-                
-                
-                d.freqs = df['freqs'].to_numpy()
-                d.Z = df['Z'].to_numpy()
-                d.phase = df['phase'].to_numpy()
-                d.waveform = self.waveform.get()
-                
-                self.ft[frame] = d
-                
-                
+            d.freqs = df['freqs'].to_numpy()
+            d.Z = df['Z'].to_numpy()
+            d.phase = df['phase'].to_numpy()
+            d.waveform = self.waveform.get()
             
-            def process_frame(frame):
+            self.ft[frame] = d
+            
+            
+        
+        def process_frame(frame):
+            
+            # Fit, if the option is checked
+            if self.fit.get():
+                fit_frame(frame)
                 
-                # Fit, if the option is checked
-                if self.fit.get():
-                    fit_frame(frame)
-                    
-                    
-                # Plot this result to figure canvas
-                d = self.ft[frame]
-                Z = np.abs(d.Z)
-                phase = d.phase
                 
-                # Determine which plot to make
-                if plot_Z:
-                    if not plot_phase:
-                        line1.set_xdata(d.freqs)          
-                        line1.set_ydata(Z)
-                        if hasattr(self.ft[frame], 'fits'):
-                            line3.set_xdata(d.freqs)
-                            line3.set_ydata(np.abs(self.ft[frame].fits))
-                        self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                        self.ax.set_ylabel('|Z|/ $\Omega$')
-                        self.ax2.set_yticks([])
-                
-                if plot_phase:
-                    if not plot_Z:
-                        line2.set_xdata(d.freqs)
-                        line2.set_ydata(phase)
-                        if hasattr(self.ft[frame], 'fits'):
-                            line4.set_xdata(d.freqs)
-                            line4.set_ydata(np.angle(self.ft[frame].fits))
-                        self.ax2.set_ylim(min(phase)-10, max(phase)+10)
-                        self.ax2.set_ylabel('Phase/ $\degree$')
-                        self.ax2.set_yticks([])
-                    
-                if plot_Z and plot_phase:
-                    line1.set_xdata(d.freqs)
-                    line2.set_xdata(d.freqs)
+            # Plot this result to figure canvas
+            d = self.ft[frame]
+            Z = np.abs(d.Z)
+            phase = d.phase
+            
+            # Determine which plot to make
+            if plot_Z:
+                if not plot_phase:
+                    line1.set_xdata(d.freqs)          
                     line1.set_ydata(Z)
-                    line2.set_ydata(phase)
                     if hasattr(self.ft[frame], 'fits'):
                         line3.set_xdata(d.freqs)
-                        line4.set_xdata(d.freqs)
                         line3.set_ydata(np.abs(self.ft[frame].fits))
-                        line4.set_ydata(np.angle(self.ft[frame].fits, deg=True))
                     self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                    self.ax2.set_ylim(min(phase)-10, max(phase)+10)
                     self.ax.set_ylabel('|Z|/ $\Omega$')
-                    self.ax2.set_ylabel('Phase/ $\degree$')
-                    
-                    
-                # Draw the plot
-                self.fig.tight_layout()
-                self.ax.set_xticks([1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])
-                self.ax.set_xlim(0.7*min(d.freqs), 1.5*max(d.freqs))
-                self.fig.canvas.draw()
-                self.fig.canvas.flush_events()
-                
-                                
-                if save:
-                    # Add frame time to time list
-                    with open(time_file, 'a') as f:
-                        f.write(str(d.time) + '\n')
-                        f.close()
-                    # Save frame as tab separated .txt
-                    self.save_frame(frame, d.freqs, np.real(d.Z),
-                                    np.imag(d.Z), save_path)
-                
-                
+                    self.ax2.set_yticks([])
             
-            def fit_frame(frame, n_iter = 25, starting_guess = None,
-                          **kwargs):
+            if plot_phase:
+                if not plot_Z:
+                    line2.set_xdata(d.freqs)
+                    line2.set_ydata(phase)
+                    if hasattr(self.ft[frame], 'fits'):
+                        line4.set_xdata(d.freqs)
+                        line4.set_ydata(np.angle(self.ft[frame].fits))
+                    self.ax2.set_ylim(min(phase)-10, max(phase)+10)
+                    self.ax2.set_ylabel('Phase/ $\degree$')
+                    self.ax2.set_yticks([])
+                
+            if plot_Z and plot_phase:
+                line1.set_xdata(d.freqs)
+                line2.set_xdata(d.freqs)
+                line1.set_ydata(Z)
+                line2.set_ydata(phase)
+                if hasattr(self.ft[frame], 'fits'):
+                    line3.set_xdata(d.freqs)
+                    line4.set_xdata(d.freqs)
+                    line3.set_ydata(np.abs(self.ft[frame].fits))
+                    line4.set_ydata(np.angle(self.ft[frame].fits, deg=True))
+                self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
+                self.ax2.set_ylim(min(phase)-10, max(phase)+10)
+                self.ax.set_ylabel('|Z|/ $\Omega$')
+                self.ax2.set_ylabel('Phase/ $\degree$')
+                
+                
+            # Draw the plot
+            self.fig.tight_layout()
+            self.ax.set_xticks([1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])
+            self.ax.set_xlim(0.7*min(d.freqs), 1.5*max(d.freqs))
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
+            
+                            
+            if save:
+                # Add frame time to time list
+                with open(time_file, 'a') as f:
+                    f.write(str(d.time) + '\n')
+                    f.close()
+                # Save frame as tab separated .txt
+                self.save_frame(frame, d.freqs, np.real(d.Z),
+                                np.imag(d.Z), save_path)
+            
+            
+        
+        def fit_frame(frame, n_iter = 25, starting_guess = None,
+                      **kwargs):
+            
+            # initialize bounds, give starting guess for frame 0
+            if self.circuit.get() == 'Randles_adsorption':
                 bounds = {
                         'R1': [1e-1, 1e9],
                         'R2': [1e-1, 1e9],
                         'Q1': [1e-15, 1],
                         'n1': [0.9,1.1],
                         'Q2': [1e-15, 1],
-                        'n2': [0.8,1.1],
+                        'n2': [0.8,1.1]
+                        }
+                if frame == 0:
+                    starting_guess = {
+                        'R1': 100,
+                        'R2': 20e3,
+                        'Q1': 1e-6,
+                        'n1': 1,
+                        'Q2': 1e-6,
+                        'n2': 1
+                        }
+            
+                    
+            if self.circuit.get() == 'RRC':
+                bounds = {
+                        'R1': [1e-1, 1e9],
+                        'R2': [1e-1, 1e9],
                         'C': [1e-15, 1]
                         }
-                
-                d = self.ft[frame]
-                Z = d.Z
-                freqs = d.freqs
-                
-                
-                DataFile = EIS_fit.DataFile(file='', circuit=self.circuit.get(), 
-                                    Z=Z, freqs=freqs, bounds=bounds)
-        
-                
-                DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
-                DataFile.LEVM_fit(timeout = 0.5)
-                
-                self.ft[frame].params = DataFile.params # R, C parameters
-                self.ft[frame].fits   = DataFile.fits   # Fitted Z vs freq
-                
+            
+            if frame > 0:
+                starting_guess = self.ft[frame-1].params
+            
+            Z     = self.ft[frame].Z
+            freqs = self.ft[frame].freqs
             
             
-            # Record starting time
-            start_time = time.time()
-            self.ft = {}
+            # Perform fit
+            DataFile = EIS_fit.DataFile(file='', circuit=self.circuit.get(), 
+                                Z=Z, freqs=freqs, bounds=bounds)
+    
+            DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
+            DataFile.LEVM_fit(timeout = 0.5) # Needs short timeout
+                                             # to not interfere with data
+                                             # collection
             
-            # Record frames
-            print('')
-            print('Recording for ~%d s' %t)
-            frame = 0
-            while time.time() - start_time < t:
-                record_frame(frame)   
-                frame += 1
-            
-            # Process the last frame
-            process_frame(frame-1)
-                       
-            
-            print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
+            # Save fit parameters
+            self.ft[frame].params = DataFile.params # R, C parameters
+            self.ft[frame].fits   = DataFile.fits   # Fitted Z vs freq
             
             if save:
-                print('Saved as ASCII:', save_path, '\n')
+                with open(fits_file, 'a') as f:
+                    if frame == 0:
+                        f.write('time,')
+                        for key, _ in self.ft[frame].params.items():
+                            f.write(key + ',')
+                        f.write('\n')
+                    
+                    f.write(str(self.ft[frame].time) + ',')
+                    for key, val in self.ft[frame].params.items():
+                        f.write(str(val) + ',')
+                    f.write('\n')
+                    f.close()
+            
+            
+            
         
         
+        # Record starting time
+        start_time = time.time()
+        self.ft = {}
+        
+        # Record frames
+        print('')
+        print('Recording for ~%d s' %t)
+        frame = 0
+        while time.time() - start_time < t:
+            record_frame(frame)   
+            frame += 1
+        
+        # Process the last frame
+        process_frame(frame-1)
+        try:
+            print(self.ft[frame-1].params)
         except:
-            self.test_mode_record()
+            pass
+        
+        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
+        
+        if save:
+            print('Saved as ASCII:', save_path, '\n')
+        
+        
+        
             
             
         
@@ -914,47 +962,42 @@ class MainWindow:
                 self.last_file_name = name
                 
                 today = str(date.today())
+                                    
+                folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                           today, name)
                 
-                if self.asciiVar.get():            
-                    
-                    folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
-                                               today, name)
-                    
-                    createFolder(folder_path)
-                    
-                    time_file = os.path.join(folder_path, '0000_time_list.txt')
-                    
-                    with open(time_file, 'w') as f:
-                        for i, _ in self.ft.items():
-                            time = str(self.ft[i].time)
-                            f.write(time + '\n')
-                        
-                    f.close()
-                        
+                createFolder(folder_path)
+                
+                time_file = os.path.join(folder_path, '0000_time_list.txt')
+                
+                with open(time_file, 'w') as f:
                     for i, _ in self.ft.items():
-                        re = np.real(self.ft[i].Z)
-                        im = np.imag(self.ft[i].Z)
-                        freqs = self.ft[i].freqs
-                        
-                        self.save_frame(i, freqs, re, im, folder_path)
-                        
-                                        
-                    meta_file = os.path.join(folder_path, '0000_Metadata.txt')
+                        time = str(self.ft[i].time)
+                        f.write(time + '\n')
                     
-                    with open(meta_file, 'w') as f:
-                        f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                        f.write('Waveform: '+ str(self.waveform.get()))
-                        
-                    f.close()
+                f.close()
                     
-                        
-                    self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
+                for i, _ in self.ft.items():
+                    re = np.real(self.ft[i].Z)
+                    im = np.imag(self.ft[i].Z)
+                    freqs = self.ft[i].freqs
                     
-                    print('Saved as ASCII:', folder_path, '\n')
+                    self.save_frame(i, freqs, re, im, folder_path)
+                    
+                                    
+                meta_file = os.path.join(folder_path, '0000_Metadata.txt')
+                
+                with open(meta_file, 'w') as f:
+                    f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                    f.write('Waveform: '+ str(self.waveform.get()))
+                    
+                f.close()
+                
+                    
+                self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
+                
+                print('Saved as ASCII:', folder_path, '\n')
                  
-                    
-                if self.csvVar.get():
-                    print('csv saving not yet supported...\n')
             
             except:
                 # User hits cancel
@@ -970,102 +1013,9 @@ class MainWindow:
 
     def record_and_save(self):
         self.record_signals(save=True)
-        # self.save_last()
      
         
-     
-    def test_mode_record(self):
-        # Fake data for software debugging
-        plot_Z     = self.plot_Z.get()
-        plot_phase = self.plot_phase.get()
-        
-        self.ax.set_xscale('linear')
-        self.ax.clear()
-        self.ax.set_xscale('linear')
-        self.ax2.clear()
-        
-        line1, = self.ax.plot([],[], '-', color=colors[0])
-        line2, = self.ax2.plot([],[], 'o', color=colors[1])
-               
-        
-        self.ax.set_xscale('log')
-        self.ax.set_xlabel('Frequency/ Hz')
-        self.fig.tight_layout()
-        self.canvas.draw_idle()
-        
-        
-        if self.test_mode:
-            # Show fake data if no instrument connected
-            
-            # Make up data
-            Z1 = np.linspace(1,1000, num = 20) + 1j*np.linspace(1,1000, num=20)
-            Z2 = np.linspace(1,2000, num = 20) + 1j*np.linspace(1,1000, num=20)
-            
-            d1 = siglent_control.FourierTransformData(
-                time = 1.2, 
-                freqs = np.logspace(1,3, num=20), 
-                CH1data = [], 
-                CH2data = [],
-                Z = Z1,
-                phase = np.angle(Z1, deg=True),
-                waveform = self.waveform.get()
-                )
-            
-            d2 = siglent_control.FourierTransformData(
-                time = 2.7, 
-                freqs = np.logspace(1,3, num=20), 
-                CH1data = [], 
-                CH2data = [],
-                Z = Z2,
-                phase = np.angle(Z2, deg=True),
-                waveform = self.waveform.get()
-                )
-            
-            # Data to plot
-            Z = np.abs(d1.Z)
-            phase = np.angle(d1.Z, deg=True)
-            
-              
-            if plot_Z:
-                if not plot_phase:
-                    line1.set_xdata(d1.freqs)          
-                    line1.set_ydata(Z)
-                    self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                    self.ax.set_ylabel('|Z|/ $\Omega$')
-                    self.ax2.set_yticks([])
-            
-            if plot_phase:
-                if not plot_Z:
-                    line2.set_xdata(d1.freqs)
-                    line2.set_ydata(phase)
-                    self.ax.set_ylim(min(phase)-10, max(phase)+10)
-                    self.ax.set_ylabel('Phase/ $\degree$')
-                    self.ax2.set_yticks([])
-                
-            if plot_Z and plot_phase:
-                line1.set_xdata(d1.freqs)
-                line2.set_xdata(d1.freqs)
-                line1.set_ydata(Z)
-                line2.set_ydata(phase)
-                self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                self.ax2.set_ylim(min(phase)-10, max(phase)+10)
-                self.ax.set_ylabel('|Z|/ $\Omega$')
-                self.ax2.set_ylabel('Phase/ $\degree$')
-                
-                
-            self.fig.tight_layout()
-            self.ax.set_xticks([1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])
-            self.ax.set_xlim(0.7*min(d1.freqs), 1.5*max(d1.freqs))
-            
-            self.fig.canvas.draw()
-            self.fig.canvas.flush_events()
-            
-            # Data to save
-            self.ft = {
-                0: d1,
-                1: d2
-                }
-            
+         
         
         
     ########################################
