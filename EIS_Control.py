@@ -486,14 +486,26 @@ class MainWindow:
         
         # Get waveform correction factors
         if self.ref_corr_var.get():
+            # Path
+            ref_dir = os.path.join(this_dir, 'reference waveforms\\')
             
+            # Resistance
             R = self.ref_corr_val.get('1.0', 'end')
             R = R[:-1]
             
-            ref_dir = os.path.join(this_dir, 'reference waveforms\\')
+            # Waveform
+            waveform = self.waveform.get()
             
-            fname = 'REF_%s_%s'%(R, self.waveform.get())
+            if waveform.split('_')[1] == 'opt':
+                # Use same correction factors for optimized waveform as
+                # for unoptimized
+                waveform = waveform.split('_')
+                del waveform[1]
+                waveform = '_'.join(waveform)
             
+            
+            # Put it all together and get corrections
+            fname = 'REF_%s_%s'%(R, waveform)
             file = os.path.join(ref_dir, fname)
             
             try:
