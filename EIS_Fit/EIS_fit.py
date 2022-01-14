@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import time
-plt.style.use('Z:/Projects/Brian/scientific.mplstyle')
+# plt.style.use('Z:/Projects/Brian/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 '''
