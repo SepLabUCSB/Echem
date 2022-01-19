@@ -719,6 +719,11 @@ class MainWindow:
             # Fit, if the option is checked
             if self.fit.get():
                 fit_frame(frame)
+                if self.circuit.get() == 'Randles_adsorption':
+                    Rct = self.ft[frame-1].params["R2"]
+                    Cad = self.ft[frame-1].params["Q2"]
+                    ket = 1/(2*Rct*Cad)
+                    print(f'Rct: {Rct}, Cad: {Cad}, ket: {ket}')
                 
                 
             # Plot this result to figure canvas
@@ -867,6 +872,7 @@ class MainWindow:
         frame = 0
         while time.time() - start_time < t:
             record_frame(frame)   
+            print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
         
         # Process the last frame
