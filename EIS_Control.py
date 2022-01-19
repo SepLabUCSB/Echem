@@ -445,8 +445,8 @@ class MainWindow:
             inst = self.rm.open_resource(self.scope.get())
                  
             # Set scope parameters
-            inst.write('C1:VDIV 2mV')
-            inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
+            # inst.write('C1:VDIV 5mV')
+            # inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
             
             inst.write('TRMD AUTO')
             
@@ -804,12 +804,12 @@ class MainWindow:
                         }
                 if frame == 0:
                     starting_guess = {
-                        'R1': 100,
-                        'R2': 20e3,
-                        'Q1': 1e-6,
-                        'n1': 1,
-                        'Q2': 1e-6,
-                        'n2': 1
+                        'R1': 284, 
+                        'R2': 62000, 
+                        'Q1': 1.8e-07, 
+                        'n1': 1, 
+                        'Q2': 3.2e-07, 
+                        'n2': 0.9
                         }
             
                     
@@ -832,27 +832,31 @@ class MainWindow:
                                 Z=Z, freqs=freqs, bounds=bounds)
     
             DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
-            DataFile.LEVM_fit(timeout = 0.5) # Needs short timeout
+            DataFile.LEVM_fit(timeout = 0.4) # Needs short timeout
                                              # to not interfere with data
                                              # collection
             
-            # Save fit parameters
-            self.ft[frame].params = DataFile.params # R, C parameters
-            self.ft[frame].fits   = DataFile.fits   # Fitted Z vs freq
-            
-            if save:
-                with open(fits_file, 'a') as f:
-                    if frame == 0:
-                        f.write('time,')
-                        for key, _ in self.ft[frame].params.items():
-                            f.write(key + ',')
+            # Save fit parameters, if fit was successful
+            try:
+                self.ft[frame].params = DataFile.params # R, C parameters
+                self.ft[frame].fits   = DataFile.fits   # Fitted Z vs freq
+                
+                if save:
+                    with open(fits_file, 'a') as f:
+                        if frame == 0:
+                            f.write('time,')
+                            for key, _ in self.ft[frame].params.items():
+                                f.write(key + ',')
+                            f.write('\n')
+                        
+                        f.write(str(self.ft[frame].time) + ',')
+                        for key, val in self.ft[frame].params.items():
+                            f.write(str(val) + ',')
                         f.write('\n')
-                    
-                    f.write(str(self.ft[frame].time) + ',')
-                    for key, val in self.ft[frame].params.items():
-                        f.write(str(val) + ',')
-                    f.write('\n')
-                    f.close()
+                        f.close()
+            
+            except:
+                pass
             
             
             

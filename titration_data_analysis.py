@@ -7,9 +7,10 @@ from EIS_Fit import EIS_fit
 plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-data_dir = r'C:\Users\BRoehrich\Desktop\2021-11-10'
+# data_dir = r'C:\Users\BRoehrich\Desktop\2021-11-10'
+data_dir = r'Z:\Projects\Brian\5 - Plaxco collab\Data\2021-11-19'
 
-#%%
+
 bounds = {
     'R1': [1e-1, 1e9],
     'R2': [1e-1, 1e9],
@@ -19,28 +20,33 @@ bounds = {
     'n2': [0.8,1.1]
     }
 
-
-ref_file = 'C:/Users/BRoehrich/Desktop/git/echem/EIS_Control/reference waveforms/REF_10k_Rigol_100k_1k_1_16freqs.csv'
-corr_df = pd.read_csv(ref_file, skiprows=1, names=('freq', 'Z_corr', 'phase_corr'))
-
-phase_corr = corr_df['phase_corr'].to_numpy()
+starting_guess = {
+    'R1': 284, 
+    'R2': 62000, 
+    'Q1': 1.8e-07, 
+    'n1': 1, 
+    'Q2': 3.2e-07, 
+    'n2': 0.9
+    }
 
 
 
 class Spectrum:
-    
-    global phase_corr
-    
-    def __init__(self, C, freqs, re, im, file):
+        
+    def __init__(self, C, freqs, re, im, file, AC = None,
+                 DC = None, elec_size = None):
         
         self.file   = file
         self.C      = float(C)
         self.freqs  = freqs.astype(int)
         self.re     = re
         self.im     = im
+        self.AC     = AC
+        self.DC     = DC
+        self.elec_size = elec_size
         
         self.Z = re + 1j*im
-        self.phase = np.angle(self.Z, deg=True) - phase_corr
+        self.phase = np.angle(self.Z, deg=True)
         
         phase_peak_i = np.where(self.phase == max(self.phase[:-4]))[0][0]
         phase_min_i = np.where(self.phase == min(self.phase[6:]))[0][0]
@@ -61,10 +67,12 @@ class Spectrum:
         if plot:
             fig, ax = plt.subplots()
             DataFile.plot_fit(ax=ax, Bode=True)
+            plt.title(self.file.split('\\')[6])
             plt.show()
         
         # Get fit parameters
         self.params = DataFile.params
+        self.ket = 1/(2*self.params['R2']*self.params['Q2'])
         self.chi_squared = DataFile.chi_squared
         print(self.params, self.chi_squared)
         
@@ -99,30 +107,6 @@ def extract_data(folder, d):
 
 
 
-d1 = []
-d2 = []
-d3 = []
-
-
-
-for folder in os.listdir(data_dir):
-    if folder.startswith('elec1'):
-        extract_data(folder, d1)
-        
-    if folder.startswith('elec2'):
-        extract_data(folder, d2)
-        
-    if folder.startswith('elec3'):
-        extract_data(folder, d3)
-        
-        
-        
-# Sort in order of increasing concentration (d.C)      
-d1.sort(key= lambda d:d.C) 
-d2.sort(key= lambda d:d.C)
-d3.sort(key= lambda d:d.C)
-
-
 def fit_all(d):
 
     for i in range(len(d)):
@@ -136,12 +120,72 @@ def fit_all(d):
             d[i].fit(n_iter = 25, starting_guess = d[i-1].params,
                      plot = plot)
 
-  
-#%%
 
-fit_all(d1)
-fit_all(d2)
-fit_all(d3)
+l = []
+
+for folder in os.listdir(data_dir):
+    elec_size, AC, DC, conc = folder.split('_')
+    conc = float(conc[:-6])
+    
+    freqs = np.array([])
+    re_list = []
+    im_list = []  
+    
+    for file in os.listdir(os.path.join(data_dir, folder)): 
+        file = os.path.join(data_dir, folder, file)
+        if file.endswith('s.txt'):
+            df = pd.read_csv(file, skiprows=1, names=('f', 're', 'im'), sep='\t')
+
+            freqs = df['f'].to_numpy()
+            re_list.append(df['re'].to_numpy())
+            im_list.append(df['im'].to_numpy())
+            
+            
+        
+    re = np.mean(re_list, axis=0)
+    im = np.mean(im_list, axis=0)
+    
+    spec = Spectrum(conc, freqs, re, im, file, AC, DC, elec_size)
+    spec.fit(n_iter = 100, plot=True, starting_guess = starting_guess)
+    l.append(spec)
+        
+        
+# Sort in order of increasing concentration (d.C)      
+# d1.sort(key= lambda d:d.C) 
+# d2.sort(key= lambda d:d.C)
+# d3.sort(key= lambda d:d.C)
+
+
+# colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+# fig, ax = plt.subplots()
+# Rct = {}
+# Cad = {}
+# ket = {}
+# index = {}
+# for s in l:
+#     s.Rct = s.params['R2']
+#     s.Cad = s.params['Q2']
+#     s.ket = 1/(2*s.Rct*s.Cad)
+#     if s.AC == '100mV':
+#         if s.C == 0:
+#             if s.DC == '-270':
+#                 Rct[s.elec_size] = s.Rct
+#                 Cad[s.elec_size] = s.Cad
+#                 ket[s.elec_size] = s.ket
+#                 index[s.elec_size] = int(s.elec_size[0])
+
+# for s in l:
+#     if s.AC == '100mV':
+#         if s.C == 0:
+#             ax.scatter(s.DC, s.Rct/Rct[s.elec_size],
+#             color = colors[index[s.elec_size] - 1],
+#             label = s.elec_size)
+            
+# ax.set_ylim(-1,5)
+# ax.set_xlabel('DC bias/ mV')
+# ax.set_ylabel('Normalized $R_{ct}$')
+# ax.legend()
+
 
   
 #%%   
