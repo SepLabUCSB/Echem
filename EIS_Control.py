@@ -720,8 +720,8 @@ class MainWindow:
             if self.fit.get():
                 fit_frame(frame)
                 if self.circuit.get() == 'Randles_adsorption':
-                    Rct = self.ft[frame-1].params["R2"]
-                    Cad = self.ft[frame-1].params["Q2"]
+                    Rct = self.ft[frame].params["R2"]
+                    Cad = self.ft[frame].params["Q2"]
                     ket = 1/(2*Rct*Cad)
                     print(f'Rct: {Rct}, Cad: {Cad}, ket: {ket}')
                 
