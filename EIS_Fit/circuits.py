@@ -12,9 +12,9 @@ def list_circuits():
     # !! Add circuits here when they are defined below !!
     #
     
-    l = ['CPE', 'RC',  'RRC', 'Randles', 'Randles_CPE', 
+    l = ['CPE', 'RC',  'RRC', 'RRQ', 'Randles', 'Randles_CPE', 
                     'Randles_uelec', 'Randles_adsorption']
-    funcs = [CPE, RC, RRC, Randles, Randles_CPE, Randles_uelec,
+    funcs = [CPE, RC, RRC, RRQ, Randles, Randles_CPE, Randles_uelec,
              Randles_adsorption]
     return l, funcs
 
@@ -73,6 +73,25 @@ def RRC(f, params):
     C = params['C']
     
     Z_C = 1/(1j*w*C)
+    
+    return R1 + (R2*Z_C)/(Z_C + R2)
+
+
+def RRQ(f, params):
+    '''
+    Params:
+        R1: Series resistance
+        R2: Parallel resistance
+        Q1: Capacitance CPE
+        n1: CPE phase
+    '''
+    w = 2*np.pi*f
+    R1 = params['R1']
+    R2 = params['R2']
+    Q1 = params['Q1']
+    n1 = params['n1']
+    
+    Z_C = 1/(Q1*(w*1j)**n1)
     
     return R1 + (R2*Z_C)/(Z_C + R2)
 

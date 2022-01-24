@@ -181,7 +181,16 @@ def params_to_LEVM_format(d, circuit):
         p[4] = d['R2']
         p[3] = d['C']
         function = 'C'
+    
         
+    elif circuit == 'RRQ':
+        p = {}
+        p[1] = d['R1']
+        p[2] = d['R2']
+        p[7] = d['Q1']
+        p[9] = d['n1']
+        p[10] = 2
+        function = 'C'
         
     else:
         print('Circuit not recognized LEVM line 174')
@@ -452,6 +461,15 @@ def extract_params(file, circuit):
         d['R1'] = string_to_float(p[1])
         d['R2'] = string_to_float(p[4])
         d['C'] = string_to_float(p[3])
+        
+        
+    if circuit == 'RRQ':
+        d = {}
+        d['R1'] = string_to_float(p[1])
+        d['R2'] = string_to_float(p[2])   
+        d['Q1'] = string_to_float(p[7])
+        d['n1'] = string_to_float(p[9])
+        
         
     else:
         print('Circuit not recognized')
