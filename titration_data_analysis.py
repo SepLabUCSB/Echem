@@ -7,17 +7,16 @@ from EIS_Fit import EIS_fit
 plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-# data_dir = r'C:\Users\BRoehrich\Desktop\2021-11-10'
-data_dir = r'Z:\Projects\Brian\5 - Plaxco collab\Data\2021-11-19'
+data_dir = r'C:/Users/BRoehrich/Desktop/2022-01-19'
 
 
 bounds = {
     'R1': [1e-1, 1e9],
-    'R2': [1e-1, 1e9],
+    'R2': [1e3, 1e9],
     'Q1': [1e-15, 1],
     'n1': [0.9,1.1],
     'Q2': [1e-15, 1],
-    'n2': [0.8,1.1]
+    'n2': [0.5,1.1]
     }
 
 starting_guess = {
@@ -67,7 +66,7 @@ class Spectrum:
         if plot:
             fig, ax = plt.subplots()
             DataFile.plot_fit(ax=ax, Bode=True)
-            plt.title(self.file.split('\\')[6])
+            plt.title(self.file)
             plt.show()
         
         # Get fit parameters
@@ -80,8 +79,7 @@ class Spectrum:
 
 
 def extract_data(folder, d):
-    _, C, _, _ = folder.split(' ')
-    C = C.replace('_', '.')
+    elec, C = folder.split('_')
     
     freqs = np.array([])
     re_list = []
@@ -111,21 +109,17 @@ def fit_all(d):
 
     for i in range(len(d)):
         if i == 0:
-            d[i].fit(n_iter = 200, plot=False)
+            d[i].fit(n_iter = 200, plot=True, starting_guess = starting_guess)
         elif i > 0:
-            if i%5 == 0:
-                plot = False
-            else:
-                plot = False
-            d[i].fit(n_iter = 25, starting_guess = d[i-1].params,
-                     plot = plot)
+            d[i].fit(n_iter = 100, starting_guess = d[i-1].params,
+                     plot = True)
 
 
 l = []
 
 for folder in os.listdir(data_dir):
-    elec_size, AC, DC, conc = folder.split('_')
-    conc = float(conc[:-6])
+    elec, conc = folder.split('_')
+    conc = float(conc)
     
     freqs = np.array([])
     re_list = []
@@ -134,63 +128,24 @@ for folder in os.listdir(data_dir):
     for file in os.listdir(os.path.join(data_dir, folder)): 
         file = os.path.join(data_dir, folder, file)
         if file.endswith('s.txt'):
+            if file.endswith('fits.txt'): continue
             df = pd.read_csv(file, skiprows=1, names=('f', 're', 'im'), sep='\t')
 
             freqs = df['f'].to_numpy()
             re_list.append(df['re'].to_numpy())
             im_list.append(df['im'].to_numpy())
             
-            
         
     re = np.mean(re_list, axis=0)
     im = np.mean(im_list, axis=0)
     
-    spec = Spectrum(conc, freqs, re, im, file, AC, DC, elec_size)
-    spec.fit(n_iter = 100, plot=True, starting_guess = starting_guess)
+    spec = Spectrum(conc, freqs, re, im, file, elec_size=elec)
+    # spec.fit(n_iter = 100, plot=True, starting_guess = starting_guess)
     l.append(spec)
         
-        
-# Sort in order of increasing concentration (d.C)      
-# d1.sort(key= lambda d:d.C) 
-# d2.sort(key= lambda d:d.C)
-# d3.sort(key= lambda d:d.C)
+#%% 
 
-
-# colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-# fig, ax = plt.subplots()
-# Rct = {}
-# Cad = {}
-# ket = {}
-# index = {}
-# for s in l:
-#     s.Rct = s.params['R2']
-#     s.Cad = s.params['Q2']
-#     s.ket = 1/(2*s.Rct*s.Cad)
-#     if s.AC == '100mV':
-#         if s.C == 0:
-#             if s.DC == '-270':
-#                 Rct[s.elec_size] = s.Rct
-#                 Cad[s.elec_size] = s.Cad
-#                 ket[s.elec_size] = s.ket
-#                 index[s.elec_size] = int(s.elec_size[0])
-
-# for s in l:
-#     if s.AC == '100mV':
-#         if s.C == 0:
-#             ax.scatter(s.DC, s.Rct/Rct[s.elec_size],
-#             color = colors[index[s.elec_size] - 1],
-#             label = s.elec_size)
-            
-# ax.set_ylim(-1,5)
-# ax.set_xlabel('DC bias/ mV')
-# ax.set_ylabel('Normalized $R_{ct}$')
-# ax.legend()
-
-
-  
-#%%   
-
-def plot_Bodes(l):
+def plot_Bodes(l, name=None):
     # Bode plots  
     # l: list of spectra sorted by target concentration
         
@@ -205,7 +160,8 @@ def plot_Bodes(l):
     ax.set_xscale('log')
     ax.set_xlabel('Frequency/ Hz')
     ax.set_ylabel('Phase/ $\degree$')
-
+    if name:
+        ax.set_title(name)
 
 
 def plot_phase_change(l):
@@ -239,26 +195,26 @@ def plot_phase_change(l):
 def plot_fit_params(d, name):
     # Plot fit parameters vs target concentration
     
-    R1s  = np.array([spectrum.params['R1'] for spectrum in d])[:-6]
-    R2s  = np.array([spectrum.params['R2'] for spectrum in d])[:-6]
-    Cdls = np.array([spectrum.params['Q1'] for spectrum in d])[:-6]
-    ndls = np.array([spectrum.params['n1'] for spectrum in d])[:-6]
-    Cas  = np.array([spectrum.params['Q2'] for spectrum in d])[:-6]
-    nas  = np.array([spectrum.params['n2'] for spectrum in d])[:-6]
+    R1s  = np.array([spectrum.params['R1'] for spectrum in d])[:-2]
+    R2s  = np.array([spectrum.params['R2'] for spectrum in d])[:-2]
+    Cdls = np.array([spectrum.params['Q1'] for spectrum in d])[:-2]
+    ndls = np.array([spectrum.params['n1'] for spectrum in d])[:-2]
+    Cas  = np.array([spectrum.params['Q2'] for spectrum in d])[:-2]
+    nas  = np.array([spectrum.params['n2'] for spectrum in d])[:-2]
     ket  = 1/(2*R2s*Cas)
     
     
-    concs = np.array([spectrum.C for spectrum in d])[:-6]
+    concs = np.array([spectrum.C for spectrum in d])[:-2]
     
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     
     # Rs
-    fig, ax = plt.subplots()
-    ax.plot(concs, R1s, color = colors[0])
-    ax.set_xlabel('[Vancomycin]/ M')
-    ax.set_ylabel('$R_{s}$ / $\Omega$')
-    ax.set_xscale('log')
-    ax.set_title(name)
+    # fig, ax = plt.subplots()
+    # ax.plot(concs, R1s, color = colors[0])
+    # ax.set_xlabel('[Vancomycin]/ M')
+    # ax.set_ylabel('$R_{s}$ / $\Omega$')
+    # ax.set_xscale('log')
+    # ax.set_title(name)
     
     
     # Rct
@@ -289,87 +245,145 @@ def plot_fit_params(d, name):
     
 
     # # All 4 parameters normalized
-    # fig, ax = plt.subplots()
-    # # ax.plot(concs, R1s/R1s[1], color = colors[0], label='$R_{s}$')
-    # ax.plot(concs, R2s/R2s[1], color = colors[1], label='$R_{ct}$')
-    # ax.plot(concs, Cdls/Cdls[1], color = colors[2], label='$C_{dl}$')
-    # ax.plot(concs, Cas/Cas[1], color = colors[3], label='$C_{ad}$')
+    fig, ax = plt.subplots()
+    # ax.plot(concs, R1s/R1s[1], color = colors[0], label='$R_{s}$')
+    ax.plot(concs, R2s/R2s[1], color = colors[1], label='$R_{ct}$')
+    ax.plot(concs, Cdls/Cdls[1], color = colors[2], label='$C_{dl}$')
+    ax.plot(concs, Cas/Cas[1], color = colors[3], label='$C_{ad}$')
     # ax.plot(concs, ndls/ndls[1], color=colors[4], label='$n_{dl}$')
     # ax.plot(concs, nas/nas[1], color=colors[5], label='$n_{ad}$')
-    # ax.set_xlabel('[Vancomycin]/ M')
-    # ax.set_ylabel('Normalized Parameter')
-    # ax.set_xscale('log')
-    # ax.legend()
-    # ax.set_title(name)
+    ax.set_xlabel('[Vancomycin]/ M')
+    ax.set_ylabel('Normalized Parameter')
+    ax.set_xscale('log')
+    ax.legend()
+    ax.set_title(name)
     
     # ket
-    # fig, ax = plt.subplots()
-    # ax.plot(concs, ket, color = colors[4])
-    # ax.set_xlabel('[Vancomycin]/ M')
-    # ax.set_ylabel('$k_{et}$/ $s^{-1}$')
-    # ax.set_xscale('log')
-    # ax.set_title(name)
+    fig, ax = plt.subplots()
+    ax.plot(concs, ket, color = colors[4])
+    ax.set_xlabel('[Vancomycin]/ M')
+    ax.set_ylabel('$k_{et}$/ $s^{-1}$')
+    ax.set_xscale('log')
+    ax.set_title(name)
     
     l = [concs, ket, R1s, R2s, Cdls, Cas, ndls, nas]
     
     return l
 
 
+d1 = [d for d in l if d.elec_size == '1']
+d3 = [d for d in l if d.elec_size == '3']
+d4 = [d for d in l if d.elec_size == '4']
+d5 = [d for d in l if d.elec_size == '5']
 
 
+for d in [d1,d3,d4,d5]:
+    d.sort(key=lambda d:d.C)
+    fit_all(d)
 
 
 l1 = plot_fit_params(d1, 'Electrode 1')
-l2 = plot_fit_params(d2, 'Electrode 2')
 l3 = plot_fit_params(d3, 'Electrode 3')
+l4 = plot_fit_params(d4, 'Electrode 4')
+l5 = plot_fit_params(d5, 'Electrode 5')
 
-#%%
+ket1 = l1[1]
+ket3 = l3[1]
+ket4 = l4[1]
+ket5 = l5[1]
+
+mean = np.mean([ket1, ket3, ket4, ket5], axis=0)
+std = np.std([ket1, ket3, ket4, ket5], axis=0)
+
+fig, ax = plt.subplots()
+ax.errorbar(l1[0], mean, std, capsize=4, 
+                    elinewidth=2,)
+ax.set_xlabel('[Vancomycin]/ M')
+ax.set_ylabel('$k_{et}$/ $s^{-1}$')
+ax.set_xscale('log') 
+
 # mean = np.mean([ket1, ket2, ket3], axis=0)
 # std = np.std([ket1, ket2, ket3], axis=0)
 
 
-names = ['concs', '$k_{et}$', '$R_{s}$', '$R_{ct}$', '$C_{dl}$', 
-         '$C_{ad}$', '$n_{dl}$', '$n_{ad}$']
+# names = ['concs', '$k_{et}$', '$R_{s}$', '$R_{ct}$', '$C_{dl}$', 
+#          '$C_{ad}$', '$n_{dl}$', '$n_{ad}$']
 
-fig, ax = plt.subplots()
+# fig, ax = plt.subplots()
 
-for i in range(len(l1)):
-    if i > 2:
-        mean = np.mean([l1[i]/l1[i][1], 
-                        l2[i]/l2[i][1], 
-                        l3[i]/l3[i][1]
-                        ], axis=0)
-        std = np.std([l1[i]/l1[i][1], 
-                        l2[i]/l2[i][1], 
-                        l3[i]/l3[i][1]
-                        ], axis=0)
-        ax.errorbar(l1[0], mean, std, capsize=4, 
-                    elinewidth=2, label= names[i])
+# for i in range(len(l1)):
+#     if i > 2:
+#         mean = np.mean([l1[i]/l1[i][1], 
+#                         l2[i]/l2[i][1], 
+#                         l3[i]/l3[i][1]
+#                         ], axis=0)
+#         std = np.std([l1[i]/l1[i][1], 
+#                         l2[i]/l2[i][1], 
+#                         l3[i]/l3[i][1]
+#                         ], axis=0)
+#         ax.errorbar(l1[0], mean, std, capsize=4, 
+#                     elinewidth=2, label= names[i])
 
 
 # ax.plot(concs, ket1, 'o-', label = 'Electrode 1')
 # ax.plot(concs, ket2, 'o-', label = 'Electrode 2')
 # ax.plot(concs, ket3, 'o-', label = 'Electrode 3')
 # ax.errorbar(concs, mean, std, capsize=3)
-ax.set_xlabel('[Vancomycin]/ M')
-ax.set_ylabel('Normalized Parameter')
-ax.set_xscale('log')
-ax.legend()
+# ax.set_xlabel('[Vancomycin]/ M')
+# ax.set_ylabel('Normalized Parameter')
+# ax.set_xscale('log')
+# ax.legend()
 
 
-ket_mean = np.mean([l1[1], l2[1], l3[1]], axis=0)
+# ket_mean = np.mean([l1[1], l2[1], l3[1]], axis=0)
 
-ket_std = np.std([l1[1], l2[1], l3[1]], axis=0)
+# ket_std = np.std([l1[1], l2[1], l3[1]], axis=0)
 
-fig, ax = plt.subplots()
-ax.errorbar(l1[0], ket_mean, ket_std, capsize=4, 
-                    elinewidth=2,)
-ax.set_xlabel('[Vancomycin]/ M')
-ax.set_ylabel('$k_{et}$/ $s^{-1}$')
-ax.set_xscale('log')
+# fig, ax = plt.subplots()
+# ax.errorbar(l1[0], ket_mean, ket_std, capsize=4, 
+#                     elinewidth=2,)
+# ax.set_xlabel('[Vancomycin]/ M')
+# ax.set_ylabel('$k_{et}$/ $s^{-1}$')
+# ax.set_xscale('log')
 
 
+def save_fits(l):
+    '''
+    l = list of Spectrum objects
+    '''
+        
+    rows_list = []
+    
+    for spectrum in l:
+        dict1 = {
+               'Conc': spectrum.C,
+               'elec_size': spectrum.elec_size,
+               'R1': spectrum.params['R1'],
+               'R2': spectrum.params['R2'],
+               'Q1': spectrum.params['Q1'],
+               'n1': spectrum.params['n1'],
+               'Q2': spectrum.params['Q2'],
+               'n2': spectrum.params['n2'],
+               'ket': spectrum.ket,
+               'chi_squared': spectrum.chi_squared
+               }
+        
+        rows_list.append(dict1)
+        rows_list.sort(key= lambda d: (d['elec_size'], d['Conc']))
+        
+        # out_df = out_df.append(data_list, ignore_index=True)
+        df = pd.DataFrame(rows_list)
+    
+    df.to_csv(r'C:\Users\BRoehrich\Desktop\saved_fits.csv')
+    
+    return df
+        
+        
+        
 
+        
+        
+        
 
 
 
