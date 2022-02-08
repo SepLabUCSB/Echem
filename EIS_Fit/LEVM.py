@@ -294,16 +294,16 @@ def write_binary_line(file, p):
             # CPE assigned using NLEM == 2, fixed value
             line = line + '0'
             
-        if val == 1:
+        elif val == 1:
             # Used to force CPE to be a capacitor
             # Not a free parameter
             line = line + '0'
-        
-        elif val != 0:
-            line = line + '1'
-            
+                    
         elif val == 0:
             line = line + '0'
+            
+        else:
+            line = line + '1'
     
     with open(file, 'a') as f:
         f.write(line + '\n')
@@ -391,8 +391,10 @@ def run_LEVM(timeout):
     Run LEVM using subproccess.run()
     '''
     LEVM_path = os.getcwd() + '\LEVM.EXE'
-    subprocess.run([], executable=LEVM_path, timeout=timeout)
-           
+    try:
+        subprocess.run([], executable=LEVM_path, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        print('LEVM.exe timed out')
 
 
 def extract_params(file, circuit):
@@ -431,10 +433,10 @@ def extract_params(file, circuit):
         for lineno, line in enumerate(f):
             if lineno > 2 and lineno < 11:
                 for element in line.split():
-                    if m in p.keys():
-                        p[m] = element
+                    p[m] = element
                     m += 1
-                    
+    
+    
     if circuit == 'Randles_uelec':
         d = {}
         d['R1'] = string_to_float(p[1])
@@ -446,24 +448,24 @@ def extract_params(file, circuit):
         d['R3'] = string_to_float(p[21])
     
     
-    if circuit == 'Randles_adsorption':
+    elif circuit == 'Randles_adsorption':
         d = {}
         d['R1'] = string_to_float(p[1])
-        d['R2'] = string_to_float(p[4])
-        d['n1'] = 1.0    
-        d['Q1'] = string_to_float(p[3])
-        d['Q2'] = string_to_float(p[7])
-        d['n2'] = string_to_float(p[9])
+        d['R2'] = string_to_float(p[24])
+        d['n1'] = string_to_float(p[14])   
+        d['Q1'] = string_to_float(p[12])
+        d['Q2'] = string_to_float(p[17])
+        d['n2'] = string_to_float(p[19])
     
     
-    if circuit == 'RRC':
+    elif circuit == 'RRC':
         d = {}
         d['R1'] = string_to_float(p[1])
         d['R2'] = string_to_float(p[4])
         d['C'] = string_to_float(p[3])
         
         
-    if circuit == 'RRQ':
+    elif circuit == 'RRQ':
         d = {}
         d['R1'] = string_to_float(p[1])
         d['R2'] = string_to_float(p[2])   
@@ -472,8 +474,9 @@ def extract_params(file, circuit):
         
         
     else:
-        print('Circuit not recognized')
+        print('Circuit not recognized by extract_params()')
         raise ValueError('Circuit not recognized by extract_params()')
+        
     
     return d
 
