@@ -31,7 +31,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Real time fitting
+Multiplexing
 
 '''
 
@@ -173,7 +173,7 @@ class MainWindow:
             self.arb_selector.grid(row=3, column=2)
             self.apply_waveform_button = tk.Button(self.frame, text='Apply Wave', 
                                                    command=self.apply_waveform)
-            self.apply_waveform_button.grid(row=3, column=3)
+            self.apply_waveform_button.grid(row=2, column=3)
             
         except:
             # If no instrument connected, no button
@@ -208,7 +208,7 @@ class MainWindow:
         # Record, save buttons
         self.record_signals_button = tk.Button(self.frame, text='Record Signals', 
                                                command=self.record_signals)
-        self.record_signals_button.grid(row=4, column=3)
+        self.record_signals_button.grid(row=3, column=3)
         
         
         self.record_reference_button = tk.Button(self.frame, text='Record Reference', 
@@ -220,10 +220,15 @@ class MainWindow:
                                                    command=self.save_last)
         self.save_button.grid(row=5, column=2, columnspan=1)
         
-
+        
+        self.multiplex_button = tk.Button(self.frame, text='Multiplex', 
+                                                   command=self.multiplex)
+        self.multiplex_button.grid(row=5, column=3, columnspan=1)
+        
+        
         self.record_save_button = tk.Button(self.frame, text='Record and save', 
                                                    command=self.record_and_save)
-        self.record_save_button.grid(row=5, column=3, columnspan=2)
+        self.record_save_button.grid(row=4, column=3, columnspan=1)
         
         
         
@@ -890,7 +895,55 @@ class MainWindow:
         
         
             
+    def multiplex(self):
+        
+        no_of_channels = tk.simpledialog.askstring(
+                        'Number of channels', 'Number of channels:')    
+        
+        no_of_channels = int(no_of_channels)
+        
+        
+        
+        elec_numbers = tk.simpledialog.askstring(
+                        'Electrode numbers', 'Electrode numbers:',
+                        initialvalue = 'e.g. 1,3,4,6')
+        
+        elec_numbers = elec_numbers.split(',')
+        
+        
+        
+        number_of_concs = tk.simpledialog.askstring(
+                        'Number of concentrations', 'Number of concentrations:')
+        
+        number_of_concs = int(number_of_concs)
+        
+        
+        for _ in range(number_of_concs):
+
+            conc = tk.simpledialog.askstring(title=None,
+                                                 prompt='Concentration: ')
+      
             
+            print(conc)
+            
+            first_time = time.time()
+            
+            for i in range(no_of_channels):
+                start_time = time.time()
+                print('here')
+                
+                time.sleep(2)
+                print(f'recording electrode {i}, {time.time() - first_time}')
+                # self.record_signals()
+                # self.save_last(name = f'{elec_numbers[i]}_{conc}')
+                
+                while time.time() - start_time < 15:
+                    time.sleep(0.1)
+                
+            del conc
+            
+        
+                
         
     def record_reference(self):
         # Record impedance spectrum of a resistor to calibrate
@@ -974,11 +1027,12 @@ class MainWindow:
         
         
         
-    def save_last(self):
+    def save_last(self, name = None):
                 
         if self.ft:
             try:
-                name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                if not name:
+                    name = tk.simpledialog.askstring('Save name', 'Input save name:',
                                                  initialvalue = self.last_file_name)
                 
                 self.last_file_name = name
