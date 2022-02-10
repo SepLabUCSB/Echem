@@ -450,8 +450,8 @@ class MainWindow:
             inst = self.rm.open_resource(self.scope.get())
                  
             # Set scope parameters
-            # inst.write('C1:VDIV 5mV')
-            # inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
+            inst.write('C1:VDIV 5mV')
+            inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
             
             inst.write('TRMD AUTO')
             
@@ -555,7 +555,7 @@ class MainWindow:
         inst.write('MSIZ 70K')
         inst.write('TDIV 100MS')
         inst.write('TRMD STOP')
-        inst.write('C1:OFST %sV' %self.DC_offset)
+#        inst.write('C1:OFST %sV' %self.DC_offset)
         
         vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
         voffset1    = float(inst.query('C1:OFST?')[8:-2])
@@ -680,7 +680,7 @@ class MainWindow:
                                       voffset1, vdiv2, voffset2, sara, 
                                       frame, sample_time=1)
             
-            print(f'Frame %s: {d.time:.2f} s'%frame)
+#            print(f'Frame %s: {d.time:.2f} s'%frame)
             
             V = d.CH1data
             
