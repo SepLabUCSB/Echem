@@ -918,27 +918,34 @@ class MainWindow:
         number_of_concs = int(number_of_concs)
         
         
+        updatefile = os.path.join(this_dir, 'update.txt')
+        
+        
         for _ in range(number_of_concs):
 
             conc = tk.simpledialog.askstring(title=None,
                                                  prompt='Concentration: ')
-      
+           
             
-            print(conc)
+            # Wait for autolab to create start file
+            # ULTRA bad way of triggering recording...
+            while os.path.exists(updatefile) == False:
+                time.sleep(0.1)
             
             first_time = time.time()
             
             for i in range(no_of_channels):
-                start_time = time.time()
-                print('here')
-                
-                time.sleep(2)
+                start_time = time.time()                
+                # time.sleep(2)
                 print(f'recording electrode {i}, {time.time() - first_time}')
                 # self.record_signals()
                 # self.save_last(name = f'{elec_numbers[i]}_{conc}')
                 
                 while time.time() - start_time < 15:
-                    time.sleep(0.1)
+                    time.sleep(15 - time.time() - start_time + 0.2)
+                
+            # Remove the trigger file
+            os.path.remove(updatefile)
                 
             del conc
             
