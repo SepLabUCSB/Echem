@@ -462,7 +462,7 @@ class MainWindow:
         
 
 
-    def record_signals(self, save=False):
+    def record_signals(self, save=False, silent=False):
         
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
@@ -872,22 +872,26 @@ class MainWindow:
         self.ft = {}
         
         # Record frames
-        print('')
-        print('Recording for ~%d s' %t)
+        if not silent:
+            print('')
+            print('Recording for ~%d s' %t)
+            
         frame = 0
         while time.time() - start_time < t:
             record_frame(frame)   
-            print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
+            if not silent:
+                print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
         
         # Process the last frame
         process_frame(frame-1)
         try:
-            print(self.ft[frame-1].params)
+            if not silent:
+                print(self.ft[frame-1].params)
         except:
             pass
         
-        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
+        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
         
         if save:
             print('Saved as ASCII:', save_path, '\n')
@@ -897,32 +901,38 @@ class MainWindow:
             
     def multiplex(self):
         
+        if int(self.recording_time.get('1.0', 'end')) != 10:
+            print('Set recording time to 10 for multiplexing!')
+            return
+        
+        # Ask for number of multiplexed channels
         no_of_channels = tk.simpledialog.askstring(
                         'Number of channels', 'Number of channels:')    
-        
         no_of_channels = int(no_of_channels)
         
-        
-        
+        # Ask for electrode IDs (if desired, otherwise default to 1,2,3,..)
         elec_numbers = tk.simpledialog.askstring(
                         'Electrode numbers', 'Electrode numbers:',
                         initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
-        
         elec_numbers = elec_numbers.split(',')
         
-        
-        
+        # Ask for number of concentrations
         number_of_concs = tk.simpledialog.askstring(
                         'Number of concentrations', 'Number of concentrations:')
-        
         number_of_concs = int(number_of_concs)
         
-        
+        # Path of triggering file
         updatefile = os.path.join(this_dir, 'update.txt')
         
+        # Clean up trigger file to start
+        if os.path.exists(updatefile):
+            os.remove(updatefile)
         
+        
+        # Iterate through concentrations
         for _ in range(number_of_concs):
-
+            
+            # Ask for concentration
             conc = tk.simpledialog.askstring(title=None,
                                                  prompt='Concentration: ')
            
@@ -932,23 +942,20 @@ class MainWindow:
             while os.path.exists(updatefile) == False:
                 time.sleep(0.1)
             
-            first_time = time.time()
-            
+            # Multiplex record and save
             for i in range(no_of_channels):
-                start_time = time.time()
-                print(f'recording electrode {i}, {time.time() - first_time}')
-                self.record_signals()
+                
+                while os.path.exists(updatefile) == False:
+                    # Wait for autolab to create start file
+                    self.root.after(100) #wait 100ms
+                    
+                
+                print(f'Recording electrode {elec_numbers[i]}, {conc}')
+                self.record_signals(silent=True)
                 self.save_last(name = f'{elec_numbers[i]}_{conc}')
                 
-                timeleft = 2 - (time.time() - start_time)
-                self.root.after(int(timeleft*1000), print('done'))
-                print(f'{time.time() - start_time}')
-                
-            # Remove the trigger file
-            os.path.remove(updatefile)
-                
-            del conc
-            
+                os.remove(updatefile)
+                            
         
                 
         
