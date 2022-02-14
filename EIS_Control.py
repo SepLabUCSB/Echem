@@ -906,7 +906,7 @@ class MainWindow:
         
         elec_numbers = tk.simpledialog.askstring(
                         'Electrode numbers', 'Electrode numbers:',
-                        initialvalue = 'e.g. 1,3,4,6')
+                        initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
         
         elec_numbers = elec_numbers.split(',')
         
@@ -935,14 +935,14 @@ class MainWindow:
             first_time = time.time()
             
             for i in range(no_of_channels):
-                start_time = time.time()                
-                # time.sleep(2)
+                start_time = time.time()
                 print(f'recording electrode {i}, {time.time() - first_time}')
-                # self.record_signals()
-                # self.save_last(name = f'{elec_numbers[i]}_{conc}')
+                self.record_signals()
+                self.save_last(name = f'{elec_numbers[i]}_{conc}')
                 
-                while time.time() - start_time < 15:
-                    time.sleep(15 - time.time() - start_time + 0.2)
+                timeleft = 2 - (time.time() - start_time)
+                self.root.after(int(timeleft*1000), print('done'))
+                print(f'{time.time() - start_time}')
                 
             # Remove the trigger file
             os.path.remove(updatefile)
