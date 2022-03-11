@@ -115,6 +115,15 @@ class MainWindow:
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().grid(row=1, column=0)
         
+        
+        # Time resolved fig
+        self.timefig = plt.Figure(figsize=(5,4), dpi=100)
+        self.timeax  = self.timefig.add_subplot(111)
+                        
+        self.timecanvas = FigureCanvasTkAgg(self.timefig, master=root)
+        self.timecanvas.get_tk_widget().grid(row=1, column=2)
+        
+        
         # Other vars to initialize
         self.last_file_name = ''
         self.test_mode = False
@@ -462,7 +471,7 @@ class MainWindow:
         
 
 
-    def record_signals(self, save=False, silent=False):
+    def record_signals(self, save=False, silent=True):
         
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
@@ -471,6 +480,7 @@ class MainWindow:
         self.ax.clear()
         self.ax.set_xscale('linear')
         self.ax2.clear()
+        self.timeax.clear()
         
         # line1: Z data
         # line2: phase data
@@ -480,12 +490,20 @@ class MainWindow:
         line2, = self.ax2.plot([],[], 'x', color=colors[1])
         line3, = self.ax.plot([],[], '-', color=colors[0])
         line4, = self.ax2.plot([],[], '-', color=colors[1])
+        
+        #line5: something vs time
+        line5, = self.timeax.plot([],[], 'o')
                
         
         self.ax.set_xscale('log')
         self.ax.set_xlabel('Frequency/ Hz')
         self.fig.tight_layout()
         self.canvas.draw_idle()
+        
+        self.timeax.set_xlabel('Time/ s')
+        self.timeax.set_ylabel('Phase @ 64 Hz')
+        self.timefig.tight_layout()
+        self.timecanvas.draw_idle()
         
         
         
@@ -782,6 +800,18 @@ class MainWindow:
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
             
+            # Add to vs time
+            idx = np.where(d.freqs == 64)[0][0]
+            # print(d.time)
+            # print(f'64 Hz phase: {phase[idx]}')
+            # line5.set_xdata(d.time)
+            # line5.set_ydata(phase[idx])
+            self.timeax.plot(d.time, phase[idx], 'ok')
+            # self.timefig.tight_layout()
+            self.timefig.canvas.draw()
+            self.timefig.canvas.flush_events()
+            
+            
                             
             if save:
                 # Add frame time to time list
@@ -894,6 +924,7 @@ class MainWindow:
         print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
         
         if save:
+            self.fig.savefig(save_path+'\\0000_fig', dpi=100)
             print('Saved as ASCII:', save_path, '\n')
         
         
