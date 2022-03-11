@@ -31,7 +31,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Multiplexing
+Save state file
 
 '''
 
@@ -91,14 +91,19 @@ class MainWindow:
         self.frame = tk.Frame(self.root)
         self.frame.grid(row=0, column = 0)
         
-        # frame2: upper right
+        # frame2: upper middle
         self.frame2 = tk.Frame(self.root)
         self.frame2.grid(row=0, column = 1)
         
-        # frame3: lower right (console output)
+        # frame3: lower middle (console output)
         self.frame3 = tk.Frame(self.root)
         self.frame3.grid(row=1, column=1)
         self.frame3.pack_propagate(0)
+        
+        # frame4: upper right
+        self.frame4 = tk.Frame(self.root)
+        self.frame4.grid(row=0, column=2)
+        self.frame4.pack_propagate(0)
         
         # console printout to frame3
         self.console = tk.Text(self.frame3, width=50, height=25)
@@ -341,6 +346,32 @@ class MainWindow:
         self.circuit_selector = tk.OptionMenu(self.frame2, self.circuit,
                                                    *['RRC', 'Randles_adsorption'])
         self.circuit_selector.grid(row=6, column=1, columnspan=2)
+        
+        
+        ########################################
+        ###      X VS TIME PLOTTING OPTIONS  ###
+        ########################################
+        
+        
+        
+        self.time_plot_param = tk.StringVar(self.frame4)
+        self.time_plot_param.set('Phase')
+        self.time_plot_param_selector = tk.OptionMenu(self.frame4, self.time_plot_param,
+                                                      *['Phase', '|Z|', 'Parameter'],
+                                                      command=self.selector_changed)
+        self.time_plot_param_selector.grid(row=0, column=2)
+        
+        self.time_plot_val = tk.StringVar(self.frame4)
+        self.time_plot_val.set('-')
+        self.time_plot_val_selector = tk.OptionMenu(self.frame4, self.time_plot_val,
+                                                      ['-'])
+        self.time_plot_val_selector.grid(row=0, column=3)
+        
+        self.selector_changed()
+        
+        
+        
+        
                 
             
     def get_units(self, n):    
@@ -361,6 +392,51 @@ class MainWindow:
     
     
     
+    def selector_changed(self, _=None):
+                
+        self.get_waveform()  # Initialize list of frequencies
+        _, _, params = self.initialize_circuit() # Initialize list of circuit elements
+        
+        
+        if self.time_plot_param.get() in ('Phase', '|Z|'):
+            time_plot_val = self.freqs
+            
+        else:
+            if self.fit.get():
+                time_plot_val = params
+            else:
+                time_plot_val = ['-']
+        
+        menu = self.time_plot_val_selector['menu']
+        menu.delete(0, 'end')
+        for string in time_plot_val:
+            menu.add_command(label=string, 
+                             command=lambda value=string: 
+                                 self.time_plot_val.set(value))
+                
+        
+        self.time_plot_val.set(time_plot_val[0])
+        
+        
+        
+    def get_waveform(self):
+        file = os.path.join(rigol_waves, self.waveform.get())
+        df = pd.read_csv(file, skiprows=9, names=('x', 'V'))
+        s = df['V'].to_numpy()
+        
+        
+        ftdf = pd.DataFrame({'freqs': 100000*np.fft.rfftfreq(len(s)),
+                             'V': np.abs(np.fft.rfft(s))})
+        
+        ftdf  = ftdf[np.abs(ftdf['V']) > 100]
+        applied_freqs = ftdf['freqs'].to_numpy()
+        
+        self.freqs = applied_freqs.astype(int)
+        
+        return [s, applied_freqs]
+        
+    
+      
     def make_waveform(self):
         if not self.ft:
             print('No previous scan. Record data then try again')
@@ -403,7 +479,7 @@ class MainWindow:
                                                *self.file_list, command=self.show_waveform)
         self.waveform_selector.grid(row=2, column=2)
         print('\n')
-    
+        
     
     
     def show_waveform(self, selection=None, new_waveform=None):
@@ -413,9 +489,7 @@ class MainWindow:
                 s = new_waveform
         
         except:
-            file = os.path.join(rigol_waves, self.waveform.get())
-            df = pd.read_csv(file, skiprows=9, names=('x', 'V'))
-            s = df['V'].to_numpy()
+            [s, _] = self.get_waveform()
         
         self.ax.set_xscale('linear')
         self.ax.clear()
@@ -469,6 +543,82 @@ class MainWindow:
             # No instrument connected
             pass
         
+    
+    def update_time_plot(self, t, freqs, Z, phase, params):
+        
+        if self.time_plot_param.get() == 'Phase':
+            freq = int(self.time_plot_val.get())
+            idx = np.where(freqs == freq)[0][0]
+            val = phase[idx]
+        
+        elif self.time_plot_param.get() == '|Z|':
+            freq = int(self.time_plot_val.get())
+            idx = np.where(freqs == freq)[0][0]
+            val = Z[idx]
+        
+        elif self.time_plot_param.get() == '-':
+            return
+        
+        else:
+            freq = None
+            param = self.time_plot_val.get()
+            val = params[param]
+        
+        
+        if freq:
+            label = f'{self.time_plot_param.get()} @ {freq} Hz'
+        else:
+            label = f'{self.time_plot_val.get()}'
+        
+        # Add to vs time
+        self.timeax.plot(t, val, 'ok')
+        self.timeax.set_xlabel('Time/ s')
+        self.timeax.set_ylabel(label)
+        self.timefig.tight_layout()
+        self.timefig.canvas.draw()
+        self.timefig.canvas.flush_events()
+            
+            
+    
+    def initialize_circuit(self):
+        
+        if self.circuit.get() == 'Randles_adsorption':
+                bounds = {
+                        'R1': [1e-1, 1e9],
+                        'R2': [1e-1, 1e9],
+                        'Q1': [1e-15, 1],
+                        'n1': [0.9,1.1],
+                        'Q2': [1e-15, 1],
+                        'n2': [0.8,1.1]
+                        }
+                
+                starting_guess = {
+                    'R1': 284, 
+                    'R2': 62000, 
+                    'Q1': 1.8e-07, 
+                    'n1': 1, 
+                    'Q2': 3.2e-07, 
+                    'n2': 0.9
+                    }
+            
+                    
+        elif self.circuit.get() == 'RRC':
+            bounds = {
+                    'R1': [1e-1, 1e9],
+                    'R2': [1e-1, 1e9],
+                    'C': [1e-15, 1]
+                    }
+            
+            starting_guess = None
+          
+        
+        params = [param for param, val in bounds.items()]
+                
+        return bounds, starting_guess, params
+        
+        
+        
+        
 
 
     def record_signals(self, save=False, silent=True):
@@ -500,8 +650,6 @@ class MainWindow:
         self.fig.tight_layout()
         self.canvas.draw_idle()
         
-        self.timeax.set_xlabel('Time/ s')
-        self.timeax.set_ylabel('Phase @ 64 Hz')
         self.timefig.tight_layout()
         self.timecanvas.draw_idle()
         
@@ -646,7 +794,8 @@ class MainWindow:
             
             # Process last frame while waiting
             if frame != 0:
-                process_frame(frame-1)
+                t, freqs, Z, phase, params = process_frame(frame-1)
+                self.update_time_plot(t, freqs, Z, phase, params)
                 # print(time.time() - frame_start_time)
             while time.time() - frame_start_time < 1.2*frame_time:
                 time.sleep(0.01)              
@@ -711,7 +860,7 @@ class MainWindow:
             Z = V/I
             phase = np.angle(V/I, deg=True)
             
-            
+            # Eliminate unwanted freqs using a DataFrame
             df = pd.DataFrame(
                     {
                     'freqs': d.freqs,
@@ -800,16 +949,7 @@ class MainWindow:
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
             
-            # Add to vs time
-            idx = np.where(d.freqs == 64)[0][0]
-            # print(d.time)
-            # print(f'64 Hz phase: {phase[idx]}')
-            # line5.set_xdata(d.time)
-            # line5.set_ydata(phase[idx])
-            self.timeax.plot(d.time, phase[idx], 'ok')
-            # self.timefig.tight_layout()
-            self.timefig.canvas.draw()
-            self.timefig.canvas.flush_events()
+            
             
             
                             
@@ -822,41 +962,26 @@ class MainWindow:
                 self.save_frame(frame, d.freqs, np.real(d.Z),
                                 np.imag(d.Z), save_path)
             
+            params = None
+            
+            if self.fit.get():
+                params = self.ft[frame].params
+            
+            return d.time, d.freqs, Z, phase, params
+            
             
         
         def fit_frame(frame, n_iter = 25, starting_guess = None,
                       **kwargs):
             
-            # initialize bounds, give starting guess for frame 0
-            if self.circuit.get() == 'Randles_adsorption':
-                bounds = {
-                        'R1': [1e-1, 1e9],
-                        'R2': [1e-1, 1e9],
-                        'Q1': [1e-15, 1],
-                        'n1': [0.9,1.1],
-                        'Q2': [1e-15, 1],
-                        'n2': [0.8,1.1]
-                        }
-                if frame == 0:
-                    starting_guess = {
-                        'R1': 284, 
-                        'R2': 62000, 
-                        'Q1': 1.8e-07, 
-                        'n1': 1, 
-                        'Q2': 3.2e-07, 
-                        'n2': 0.9
-                        }
+            if frame == 0:
+                bounds, starting_guess, params = self.initialize_circuit()
+                        
             
-                    
-            if self.circuit.get() == 'RRC':
-                bounds = {
-                        'R1': [1e-1, 1e9],
-                        'R2': [1e-1, 1e9],
-                        'C': [1e-15, 1]
-                        }
-            
-            if frame > 0:
+            elif frame > 0:
                 starting_guess = self.ft[frame-1].params
+                bounds = {param:[val/3, val*3] for param, val in
+                          self.ft[frame-1].params.items()}
             
             Z     = self.ft[frame].Z
             freqs = self.ft[frame].freqs
@@ -914,7 +1039,9 @@ class MainWindow:
             frame += 1
         
         # Process the last frame
-        process_frame(frame-1)
+        t, freqs, Z, phase, fits = process_frame(frame-1)
+        self.update_time_plot(t, freqs, Z, phase, fits)
+        
         try:
             if not silent:
                 print(self.ft[frame-1].params)
