@@ -17,6 +17,7 @@ default_stderr = sys.stderr
 
 
 this_dir = rigol_control.__file__[:-16]
+config_file = os.path.join(this_dir, 'config')
 
 
 # Find dir with waveforms
@@ -31,7 +32,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Real time fitting
+Save state file
 
 '''
 
@@ -83,6 +84,8 @@ class MainWindow:
 
         self.rm = pyvisa.ResourceManager()
         self.ft = None
+        self.config = {}
+        self.load_config()
             
         
         # Initialize frames and canvas
@@ -91,14 +94,19 @@ class MainWindow:
         self.frame = tk.Frame(self.root)
         self.frame.grid(row=0, column = 0)
         
-        # frame2: upper right
+        # frame2: upper middle
         self.frame2 = tk.Frame(self.root)
         self.frame2.grid(row=0, column = 1)
         
-        # frame3: lower right (console output)
+        # frame3: lower middle (console output)
         self.frame3 = tk.Frame(self.root)
         self.frame3.grid(row=1, column=1)
         self.frame3.pack_propagate(0)
+        
+        # frame4: upper right
+        self.frame4 = tk.Frame(self.root)
+        self.frame4.grid(row=0, column=2)
+        self.frame4.pack_propagate(0)
         
         # console printout to frame3
         self.console = tk.Text(self.frame3, width=50, height=25)
@@ -115,6 +123,15 @@ class MainWindow:
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().grid(row=1, column=0)
         
+        
+        # Time resolved fig
+        self.timefig = plt.Figure(figsize=(5,4), dpi=100)
+        self.timeax  = self.timefig.add_subplot(111)
+                        
+        self.timecanvas = FigureCanvasTkAgg(self.timefig, master=root)
+        self.timecanvas.get_tk_widget().grid(row=1, column=2)
+        
+        
         # Other vars to initialize
         self.last_file_name = ''
         self.test_mode = False
@@ -129,10 +146,16 @@ class MainWindow:
         text = tk.Label(self.frame, text='Potentiostat:')
         text.grid(row=1, column=1)
         self.potentiostat = tk.StringVar(self.frame)
-        self.potentiostat.set('Autolab')
+        self.potentiostat.set(self.config['potentiostat'])
         self.potentiostat_selector = tk.OptionMenu(self.frame, self.potentiostat,
                                                    *['Gamry', 'Autolab'])
         self.potentiostat_selector.grid(row=1, column=2)
+        
+        
+        # Update config file button
+        self.update_config_button = tk.Button(self.frame, text='Update config', 
+                                                   command=self.update_config_file)
+        self.update_config_button.grid(row=1, column=3)
         
         
         
@@ -144,7 +167,7 @@ class MainWindow:
                           if file.startswith('Rigol')]
         
         self.waveform = tk.StringVar(self.frame)
-        self.waveform.set(self.file_list[4])
+        self.waveform.set(self.config['waveform'])
         self.waveform_selector = tk.OptionMenu(self.frame, self.waveform, 
                                                *self.file_list, command=self.show_waveform)
         self.waveform_selector.grid(row=2, column=2)
@@ -173,7 +196,7 @@ class MainWindow:
             self.arb_selector.grid(row=3, column=2)
             self.apply_waveform_button = tk.Button(self.frame, text='Apply Wave', 
                                                    command=self.apply_waveform)
-            self.apply_waveform_button.grid(row=3, column=3)
+            self.apply_waveform_button.grid(row=2, column=3)
             
         except:
             # If no instrument connected, no button
@@ -208,7 +231,7 @@ class MainWindow:
         # Record, save buttons
         self.record_signals_button = tk.Button(self.frame, text='Record Signals', 
                                                command=self.record_signals)
-        self.record_signals_button.grid(row=4, column=3)
+        self.record_signals_button.grid(row=3, column=3)
         
         
         self.record_reference_button = tk.Button(self.frame, text='Record Reference', 
@@ -220,21 +243,26 @@ class MainWindow:
                                                    command=self.save_last)
         self.save_button.grid(row=5, column=2, columnspan=1)
         
-
+        
+        self.multiplex_button = tk.Button(self.frame, text='Multiplex', 
+                                                   command=self.multiplex)
+        self.multiplex_button.grid(row=5, column=3, columnspan=1)
+        
+        
         self.record_save_button = tk.Button(self.frame, text='Record and save', 
                                                    command=self.record_and_save)
-        self.record_save_button.grid(row=5, column=3, columnspan=2)
+        self.record_save_button.grid(row=4, column=3, columnspan=1)
         
         
         
         # Plot Z, phase toggles
-        self.plot_Z = tk.IntVar(value=1)
+        self.plot_Z = tk.IntVar(value=self.config['plot_Z'])
         self.plot_Z_option = tk.Checkbutton(self.frame, text='|Z|', 
                                                 variable=self.plot_Z)
         self.plot_Z_option.grid(row=6, column=1)
         
         
-        self.plot_phase = tk.IntVar(value=1)
+        self.plot_phase = tk.IntVar(value=self.config['plot_phase'])
         self.plot_phase_option = tk.Checkbutton(self.frame, text='Phase', 
                                                 variable=self.plot_phase)
         self.plot_phase_option.grid(row=6, column=2)
@@ -252,7 +280,7 @@ class MainWindow:
         text = tk.Label(self.frame2, text='Waveform Vpp (mV):')
         text.grid(row=0, column = 0)
         self.waveform_vpp = tk.Text(self.frame2, height=1, width=7)
-        self.waveform_vpp.insert('1.0', '20')
+        self.waveform_vpp.insert('1.0', self.config['waveform_vpp'])
         self.waveform_vpp.grid(row=0, column=1)
         
         
@@ -261,7 +289,7 @@ class MainWindow:
         text = tk.Label(self.frame2, text='Recording time (s):')
         text.grid(row=1, column = 0)
         self.recording_time = tk.Text(self.frame2, height=1, width=7)
-        self.recording_time.insert('1.0', '10')
+        self.recording_time.insert('1.0', self.config['recording_time'])
         self.recording_time.grid(row=1, column=1)
         
         
@@ -270,7 +298,7 @@ class MainWindow:
         text = tk.Label(self.frame2, text='Current range:')
         text.grid(row=2, column = 0)
         self.current_range = tk.Text(self.frame2, height=1, width=7)
-        self.current_range.insert('1.0', '1e-6')
+        self.current_range.insert('1.0', self.config['current_range'])
         self.current_range.grid(row=2, column=1)
         
         
@@ -279,7 +307,7 @@ class MainWindow:
         text = tk.Label(self.frame2, text='DC Voltage (V):')
         text.grid(row=3, column = 0)
         self.DC_offset = tk.Text(self.frame2, height=1, width=7)
-        self.DC_offset.insert('1.0', '0.0')
+        self.DC_offset.insert('1.0', self.config['DC_offset'])
         self.DC_offset.grid(row=3, column=1)
         
         self.DC_offset_button = tk.Button(self.frame2, 
@@ -293,10 +321,10 @@ class MainWindow:
         text = tk.Label(self.frame2, text='Apply reference correction:')
         text.grid(row=4, column = 0)
         self.ref_corr_val = tk.Text(self.frame2, height=1, width=7)
-        self.ref_corr_val.insert('1.0', '10k')
+        self.ref_corr_val.insert('1.0', self.config['ref_corr_val'])
         self.ref_corr_val.grid(row=4, column=1)
         
-        self.ref_corr_var = tk.IntVar(value=1)
+        self.ref_corr_var = tk.IntVar(value=self.config['ref_corr_var'])
         self.ref_corr_option = tk.Checkbutton(self.frame2, 
                                               variable=self.ref_corr_var)
         self.ref_corr_option.grid(row=4, column=2)
@@ -314,7 +342,7 @@ class MainWindow:
         
         # Save options
         
-        self.fit = tk.IntVar(value=0)
+        self.fit = tk.IntVar(value=self.config['fit'])
         self.fit_option = tk.Checkbutton(self.frame2, text='Fit', 
                                                 variable=self.fit)
         self.fit_option.grid(row=6, column=0)
@@ -323,12 +351,100 @@ class MainWindow:
         
         
         self.circuit = tk.StringVar(self.frame2)
-        self.circuit.set('RRC')
+        self.circuit.set(self.config['circuit'])
         self.circuit_selector = tk.OptionMenu(self.frame2, self.circuit,
                                                    *['RRC', 'Randles_adsorption'])
         self.circuit_selector.grid(row=6, column=1, columnspan=2)
-                
+        
+        
+        ########################################
+        ###      X VS TIME PLOTTING OPTIONS  ###
+        ########################################
+        
+        
+        
+        self.time_plot_param = tk.StringVar(self.frame4)
+        self.time_plot_param.set(self.config['time_plot_param'])
+        self.time_plot_param_selector = tk.OptionMenu(self.frame4, self.time_plot_param,
+                                                      *['Phase', '|Z|', 'Parameter'],
+                                                      command=self.selector_changed)
+        self.time_plot_param_selector.grid(row=0, column=2)
+        
+        self.time_plot_val = tk.StringVar(self.frame4)
+        self.time_plot_val.set('-')
+        self.time_plot_val_selector = tk.OptionMenu(self.frame4, self.time_plot_val,
+                                                      ['-'])
+        self.time_plot_val_selector.grid(row=0, column=3)
+        
+        self.selector_changed()
+        self.update_config_file()
+        
+        
+        
+        
+        
+    def load_config(self):
+        if not os.path.isfile(config_file):
+            print('No config file, using default settings')
+            # Default options
+            self.config = {
+             'last_file_name': '',
+             'test_mode': False,
+             'potentiostat': 'Autolab',
+             'waveform': 'Rigol_100k_1k_1_16freqs.csv',
+             'plot_Z': 1,
+             'plot_phase': 1,
+             'waveform_vpp': '20',
+             'recording_time': '10',
+             'current_range': '1e-6',
+             'DC_offset': '0.0',
+             'ref_corr_val': '10k',
+             'ref_corr_var': 1,
+             'fit': 0,
+             'circuit': 'RRC',
+             'time_plot_param': 'Phase',
+             'time_plot_val': '1'
+             }
             
+        else:
+            print("Loaded config file")
+            with open(config_file, 'r') as f:
+                for line in f:
+                    key, val = line.split(':')
+                    self.config[key] = val.strip('\n')
+            
+    
+    
+                
+    def update_config_file(self):
+        self.config = {'last_file_name': self.last_file_name,
+                 'test_mode': self.test_mode,
+                 'potentiostat': self.potentiostat.get(),
+                 'waveform': self.waveform.get(),
+                 'plot_Z': self.plot_Z.get(),
+                 'plot_phase': self.plot_phase.get(),
+                 'waveform_vpp': self.waveform_vpp.get('1.0', 'end').strip('\n'),
+                 'recording_time': self.recording_time.get('1.0', 'end').strip('\n'),
+                 'current_range': self.current_range.get('1.0', 'end').strip('\n'),
+                 'DC_offset': self.DC_offset.get('1.0', 'end').strip('\n'),
+                 'ref_corr_val': self.ref_corr_val.get('1.0', 'end').strip('\n'),
+                 'ref_corr_var': self.ref_corr_var.get(),
+                 'fit': self.fit.get(),
+                 'circuit': self.circuit.get(),
+                 'time_plot_param': self.time_plot_param.get(),
+                 'time_plot_val': self.time_plot_val.get()
+                 }
+        
+        with open(config_file, 'w') as f:
+            for key, val in self.config.items():
+                f.write(str(key) + ':' + str(val))
+                f.write('\n')
+            
+            f.close()
+        return
+
+
+        
     def get_units(self, n):    
         if n >= 1e-6 and n < 1e-3:
             return ('u', 1e-6)
@@ -347,6 +463,52 @@ class MainWindow:
     
     
     
+    def selector_changed(self, _=None):
+                
+        self.get_waveform()  # Initialize list of frequencies
+        _, _, params = self.initialize_circuit() # Initialize list of circuit elements
+        
+        
+        if self.time_plot_param.get() in ('Phase', '|Z|'):
+            time_plot_val = self.freqs
+            
+        else:
+            if self.fit.get():
+                time_plot_val = params
+            else:
+                time_plot_val = ['-']
+        
+        menu = self.time_plot_val_selector['menu']
+        menu.delete(0, 'end')
+        for string in time_plot_val:
+            menu.add_command(label=string, 
+                             command=lambda value=string: 
+                                 self.time_plot_val.set(value))
+                
+        
+        self.time_plot_val.set(time_plot_val[0])
+        self.update_config_file()
+        
+        
+        
+    def get_waveform(self):
+        file = os.path.join(rigol_waves, self.waveform.get())
+        df = pd.read_csv(file, skiprows=9, names=('x', 'V'))
+        s = df['V'].to_numpy()
+        
+        
+        ftdf = pd.DataFrame({'freqs': 100000*np.fft.rfftfreq(len(s)),
+                             'V': np.abs(np.fft.rfft(s))})
+        
+        ftdf  = ftdf[np.abs(ftdf['V']) > 100]
+        applied_freqs = ftdf['freqs'].to_numpy()
+        
+        self.freqs = applied_freqs.astype(int)
+        self.update_config_file()
+        return [s, applied_freqs]
+        
+    
+      
     def make_waveform(self):
         if not self.ft:
             print('No previous scan. Record data then try again')
@@ -388,8 +550,9 @@ class MainWindow:
         self.waveform_selector = tk.OptionMenu(self.frame, self.waveform, 
                                                *self.file_list, command=self.show_waveform)
         self.waveform_selector.grid(row=2, column=2)
+        self.update_config_file()
         print('\n')
-    
+        
     
     
     def show_waveform(self, selection=None, new_waveform=None):
@@ -399,9 +562,7 @@ class MainWindow:
                 s = new_waveform
         
         except:
-            file = os.path.join(rigol_waves, self.waveform.get())
-            df = pd.read_csv(file, skiprows=9, names=('x', 'V'))
-            s = df['V'].to_numpy()
+            [s, _] = self.get_waveform()
         
         self.ax.set_xscale('linear')
         self.ax.clear()
@@ -435,6 +596,8 @@ class MainWindow:
         except:
             print('Could not connect')
             pass
+        
+        self.update_config_file()
     
     
     
@@ -445,8 +608,8 @@ class MainWindow:
             inst = self.rm.open_resource(self.scope.get())
                  
             # Set scope parameters
-            # inst.write('C1:VDIV 5mV')
-            # inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
+            inst.write('C1:VDIV 5mV')
+            inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
             
             inst.write('TRMD AUTO')
             
@@ -455,10 +618,113 @@ class MainWindow:
             # No instrument connected
             pass
         
-
-
-    def record_signals(self, save=False):
+        self.update_config_file()
         
+    
+    def update_time_plot(self, t, freqs, Z, phase, params):
+        # Plot the most recent point of whatever's selected
+        # (self.time_plot_param) onto the ... vs t graph
+        
+        # Get the value
+        if self.time_plot_param.get() == 'Phase':
+            freq = int(self.time_plot_val.get())
+            idx = np.where(freqs == freq)[0][0]
+            val = phase[idx]
+        
+        elif self.time_plot_param.get() == '|Z|':
+            freq = int(self.time_plot_val.get())
+            idx = np.where(freqs == freq)[0][0]
+            val = Z[idx]
+        
+        elif self.time_plot_param.get() == '-':
+            return
+        
+        else:
+            freq = None
+            param = self.time_plot_val.get()
+            val = params[param]
+        
+        
+        # Plot the value
+        if freq:
+            label = f'{self.time_plot_param.get()} @ {freq} Hz'
+        else:
+            label = f'{self.time_plot_val.get()}'
+        
+        self.timeax.plot(t, val, 'ok')
+        self.timeax.set_xlabel('Time/ s')
+        self.timeax.set_ylabel(label)
+        self.timefig.tight_layout()
+        self.timefig.canvas.draw()
+        self.timefig.canvas.flush_events()
+            
+            
+    
+    def initialize_circuit(self):
+        # Returns current EEC parameters, bounds, and starting guess for fit
+        # Update as more circuits are added
+        
+        if self.circuit.get() == 'Randles_adsorption':
+                bounds = {
+                        'R1': [1e-1, 1e9],
+                        'R2': [1e-1, 1e9],
+                        'Q1': [1e-15, 1],
+                        'n1': [0.9,1.1],
+                        'Q2': [1e-15, 1],
+                        'n2': [0.8,1.1]
+                        }
+                
+                starting_guess = {
+                    'R1': 284, 
+                    'R2': 62000, 
+                    'Q1': 1.8e-07, 
+                    'n1': 1, 
+                    'Q2': 3.2e-07, 
+                    'n2': 0.9
+                    }
+            
+                    
+        elif self.circuit.get() == 'RRC':
+            bounds = {
+                    'R1': [1e-1, 1e9],
+                    'R2': [1e-1, 1e9],
+                    'C': [1e-15, 1]
+                    }
+            
+            starting_guess = None
+          
+        
+        params = [param for param, val in bounds.items()]
+        
+        self.update_config_file()
+        
+        return bounds, starting_guess, params
+        
+        
+        
+        
+
+
+    def record_signals(self, save=False, silent=True):
+        '''
+        
+
+        Parameters
+        ----------
+        save : Bool, optional
+            Whether or not to save data as ASCII. The default is False.
+        silent : Bool, optional
+            If True, don't printout to console. The default is True.
+
+        Returns
+        -------
+        None.
+
+        '''
+        
+        self.update_config_file()
+        
+        # Initialize plots
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
         
@@ -466,6 +732,7 @@ class MainWindow:
         self.ax.clear()
         self.ax.set_xscale('linear')
         self.ax2.clear()
+        self.timeax.clear()
         
         # line1: Z data
         # line2: phase data
@@ -475,12 +742,18 @@ class MainWindow:
         line2, = self.ax2.plot([],[], 'x', color=colors[1])
         line3, = self.ax.plot([],[], '-', color=colors[0])
         line4, = self.ax2.plot([],[], '-', color=colors[1])
+        
+        #line5: something vs time
+        line5, = self.timeax.plot([],[], 'o')
                
         
         self.ax.set_xscale('log')
         self.ax.set_xlabel('Frequency/ Hz')
         self.fig.tight_layout()
         self.canvas.draw_idle()
+        
+        self.timefig.tight_layout()
+        self.timecanvas.draw_idle()
         
         
         
@@ -550,7 +823,7 @@ class MainWindow:
         inst.write('MSIZ 70K')
         inst.write('TDIV 100MS')
         inst.write('TRMD STOP')
-        inst.write('C1:OFST %sV' %self.DC_offset)
+#        inst.write('C1:OFST %sV' %self.DC_offset)
         
         vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
         voffset1    = float(inst.query('C1:OFST?')[8:-2])
@@ -611,9 +884,18 @@ class MainWindow:
         
         
         
+        ###################################
+        ###  RECORDING HELPER FUNCTIONS ###
+        ###################################
+        
         def siglent_record_single(inst, start_time, frame_time, vdiv1, 
                                   voffset1, vdiv2, voffset2, sara, 
                                   frame, sample_time=1):
+            # Sends command to scope to record a single frame
+            # Returns siglent_control.FourierTransformData 
+            # object which contains that frame's data
+            
+                        
             # Determine t=0 for frame
             frame_start_time = time.time()
            
@@ -623,7 +905,8 @@ class MainWindow:
             
             # Process last frame while waiting
             if frame != 0:
-                process_frame(frame-1)
+                t, freqs, Z, phase, params = process_frame(frame-1)
+                self.update_time_plot(t, freqs, Z, phase, params)
                 # print(time.time() - frame_start_time)
             while time.time() - frame_start_time < 1.2*frame_time:
                 time.sleep(0.01)              
@@ -671,11 +954,15 @@ class MainWindow:
         
         
         def record_frame(frame):
+            # Wrapper function for siglent_record_single. Records a 
+            # single frame, transforms it to Z, and saves to dict self.ft
+            
+            
             d = siglent_record_single(inst, start_time, frame_time, vdiv1, 
                                       voffset1, vdiv2, voffset2, sara, 
                                       frame, sample_time=1)
             
-            print(f'Frame %s: {d.time:.2f} s'%frame)
+            # print(f'Frame %s: {d.time:.2f} s'%frame)
             
             V = d.CH1data
             
@@ -688,7 +975,7 @@ class MainWindow:
             Z = V/I
             phase = np.angle(V/I, deg=True)
             
-            
+            # Eliminate unwanted freqs using a DataFrame
             df = pd.DataFrame(
                     {
                     'freqs': d.freqs,
@@ -715,10 +1002,18 @@ class MainWindow:
             
         
         def process_frame(frame):
+            # Fits and/or plots data in a frame
+            # frame: int, frame number
+            # Data pulled from self.ft[frame]
             
             # Fit, if the option is checked
             if self.fit.get():
                 fit_frame(frame)
+                if self.circuit.get() == 'Randles_adsorption':
+                    Rct = self.ft[frame].params["R2"]
+                    Cad = self.ft[frame].params["Q2"]
+                    ket = 1/(2*Rct*Cad)
+                    print(f'Rct: {Rct}, Cad: {Cad}, ket: {ket}')
                 
                 
             # Plot this result to figure canvas
@@ -772,6 +1067,9 @@ class MainWindow:
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
             
+            
+            
+            
                             
             if save:
                 # Add frame time to time list
@@ -782,41 +1080,26 @@ class MainWindow:
                 self.save_frame(frame, d.freqs, np.real(d.Z),
                                 np.imag(d.Z), save_path)
             
+            params = None
+            
+            if self.fit.get():
+                params = self.ft[frame].params
+            
+            return d.time, d.freqs, Z, phase, params
+            
             
         
         def fit_frame(frame, n_iter = 25, starting_guess = None,
                       **kwargs):
             
-            # initialize bounds, give starting guess for frame 0
-            if self.circuit.get() == 'Randles_adsorption':
-                bounds = {
-                        'R1': [1e-1, 1e9],
-                        'R2': [1e-1, 1e9],
-                        'Q1': [1e-15, 1],
-                        'n1': [0.9,1.1],
-                        'Q2': [1e-15, 1],
-                        'n2': [0.8,1.1]
-                        }
-                if frame == 0:
-                    starting_guess = {
-                        'R1': 284, 
-                        'R2': 62000, 
-                        'Q1': 1.8e-07, 
-                        'n1': 1, 
-                        'Q2': 3.2e-07, 
-                        'n2': 0.9
-                        }
+            if frame == 0:
+                bounds, starting_guess, params = self.initialize_circuit()
+                        
             
-                    
-            if self.circuit.get() == 'RRC':
-                bounds = {
-                        'R1': [1e-1, 1e9],
-                        'R2': [1e-1, 1e9],
-                        'C': [1e-15, 1]
-                        }
-            
-            if frame > 0:
+            elif frame > 0:
                 starting_guess = self.ft[frame-1].params
+                bounds = {param:[val/3, val*3] for param, val in
+                          self.ft[frame-1].params.items()}
             
             Z     = self.ft[frame].Z
             freqs = self.ft[frame].freqs
@@ -862,29 +1145,95 @@ class MainWindow:
         self.ft = {}
         
         # Record frames
-        print('')
-        print('Recording for ~%d s' %t)
+        if not silent:
+            print('')
+            print('Recording for ~%d s' %t)
+            
         frame = 0
         while time.time() - start_time < t:
             record_frame(frame)   
+            if not silent:
+                print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
         
         # Process the last frame
-        process_frame(frame-1)
+        t, freqs, Z, phase, fits = process_frame(frame-1)
+        self.update_time_plot(t, freqs, Z, phase, fits)
+        
         try:
-            print(self.ft[frame-1].params)
+            if not silent:
+                print(self.ft[frame-1].params)
         except:
             pass
         
-        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s\n')
+        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
         
         if save:
+            self.fig.savefig(save_path+'\\0000_fig', dpi=100)
             print('Saved as ASCII:', save_path, '\n')
         
         
         
             
+    def multiplex(self):
+                
+        if int(self.recording_time.get('1.0', 'end')) != 10:
+            print('Set recording time to 10 for multiplexing!')
+            return
+        
+        # Ask for number of multiplexed channels
+        no_of_channels = tk.simpledialog.askstring(
+                        'Number of channels', 'Number of channels:')    
+        no_of_channels = int(no_of_channels)
+        
+        # Ask for electrode IDs (if desired, otherwise default to 1,2,3,..)
+        elec_numbers = tk.simpledialog.askstring(
+                        'Electrode numbers', 'Electrode numbers:',
+                        initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
+        elec_numbers = elec_numbers.split(',')
+        
+        # Ask for number of concentrations
+        number_of_concs = tk.simpledialog.askstring(
+                        'Number of concentrations', 'Number of concentrations:')
+        number_of_concs = int(number_of_concs)
+        
+        # Path of triggering file
+        updatefile = os.path.join(this_dir, 'update.txt')
+        
+        # Clean up trigger file to start
+        if os.path.exists(updatefile):
+            os.remove(updatefile)
+        
+        
+        # Iterate through concentrations
+        for _ in range(number_of_concs):
             
+            # Ask for concentration
+            conc = tk.simpledialog.askstring(title=None,
+                                                 prompt='Concentration: ')
+           
+            
+            # Wait for autolab to create start file
+            # ULTRA bad way of triggering recording...
+            while os.path.exists(updatefile) == False:
+                time.sleep(0.1)
+            
+            # Multiplex record and save
+            for i in range(no_of_channels):
+                
+                while os.path.exists(updatefile) == False:
+                    # Wait for autolab to create start file
+                    self.root.after(100) #wait 100ms
+                    
+                
+                print(f'Recording electrode {elec_numbers[i]}, {conc}')
+                self.record_signals(silent=True)
+                self.save_last(name = f'{elec_numbers[i]}_{conc}')
+                
+                os.remove(updatefile)
+                            
+        
+                
         
     def record_reference(self):
         # Record impedance spectrum of a resistor to calibrate
@@ -968,11 +1317,12 @@ class MainWindow:
         
         
         
-    def save_last(self):
+    def save_last(self, name = None):
                 
         if self.ft:
             try:
-                name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                if not name:
+                    name = tk.simpledialog.askstring('Save name', 'Input save name:',
                                                  initialvalue = self.last_file_name)
                 
                 self.last_file_name = name
@@ -1050,7 +1400,9 @@ def createFolder(directory):
 root = tk.Tk()
 gui = MainWindow(root)
 root.mainloop()
+
 sys.stdout = default_stdout
 sys.stdin = default_stdin
 sys.stderr = default_stderr
+
 
