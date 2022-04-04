@@ -174,7 +174,7 @@ def Rigol_waveform(freqs, phases, sample_freq, total_time, amax,
     
     S, fname = create_waveform(freqs, phases, sample_freq, total_time,
                                amax=1, amps=amps, Rigol = True, csv = True,
-                               save_path = save_path, save = False, plot=False)
+                               save_path = save_path, save = False, plot=True)
     
     # RIGOL CSV Header
     headerlines = [
