@@ -11,7 +11,7 @@ import os
 plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-folder = 'C:/Users/BRoehrich/Desktop/test_folder'
+folder = r"C:\Users\Eric Liu\Desktop\LiorLab\InsulatingProject\33umdiff"
 
 """
 **Type %matplotlib in console before running file**
@@ -36,8 +36,8 @@ the get_data function to change this.
 
 
 # PARAMETERS TO ADJUST
-threshold = 0.001   # Autopick steps with relative size > threshold
-cutoff = 5          # Remove first n seconds
+threshold = 0.0005   # Autopick steps with relative size > threshold
+cutoff = 60          # Remove first n seconds
 linear_fit = False  # Do linear fit between points. If False, uses median
                     #    value between points instead. True accounts for 
                     #    non-zero baseline
@@ -52,9 +52,9 @@ def get_data(file):
     df = pd.read_fwf(file, skiprows=1, headers=0,
                           names=('t', 'i'))
     df['i'] = df['i']/1000 #convert mA -> A
-    df = df[df['t'] > 5]
+    df = df[df['t'] > cutoff]
     
-    df = df.groupby(np.arange(len(df))//10).mean() #compress to 100 Hz
+    # df = df.groupby(np.arange(len(df))//10).mean() #compress to 100 Hz
 
     return df
 
@@ -258,7 +258,7 @@ class StepPicker(object):
              # Remove steps with delta Z < thresh/2
              for i in range(len(self.ydata)-1):
                  deltas[i] = abs(avg[i+1]-avg[i])/avg[i]
-                 if deltas[i] > thresh/2:
+                 if deltas[i] > thresh:
                      signals[i+1] = 1
                  else:
                      signals[i+1] = 0
@@ -310,6 +310,10 @@ class StepPicker(object):
             # find largest local step, search +- m points
             m = 5
             xi = np.where(self.xdata == x)[0][0] #convert to index
+            
+            # if xi < m: # Make sure not to go to negative indices
+            #     m = xi
+                
             n = np.where(delta == max(delta[xi-m:xi+m+1]))[0][0]
             if not n == xi:
                 # for m in self.criticalPoints[(x,y)]:
@@ -332,7 +336,7 @@ class StepPicker(object):
             next_index = indices[i+1]
             this_ydata = self.ydata[index+2: next_index-2]
             
-            
+                        
             if linear_fit:
                 # Fit line in between steps to account for sloped baseline
                 m, b = np.polyfit(np.arange(index+2,next_index-2), 
