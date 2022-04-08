@@ -2,19 +2,20 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from scipy import signal
 from EIS_Fit import EIS_fit
 
 plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
-data_dir = r'C:/Users/BRoehrich/Desktop/2022-03-08 rat 1/1020am no target -340mV'
+data_dir = r'C:/Users/BRoehrich/Desktop/2022-04-05/2022-04-05/long time dosing'
 
 target = 'Vancomycin'
 
 starting_bounds = {
     'R1': [1e-1, 1e9],
-    'R2': [2000, 300000],
+    'R2': [10000, 150000],
     'Q1': [1e-15, 1],
     'n1': [0.8,1.1],
     'Q2': [1e-15, 1],
@@ -115,7 +116,7 @@ class Spectrum:
         
         
         
-def extract_data(folder):
+def extract_data(folder, average = 1):
     # Extract time series of impedance spectra
     
     res = []
@@ -135,16 +136,20 @@ def extract_data(folder):
             files.append(file)
             file = os.path.join(folder, file)
             df = pd.read_csv(file, skiprows=1, names=('f', 're', 'im'), sep='\t')
-            df = df[df['f'] < 4000]
             res.append(df['re'].to_numpy())
             ims.append(df['im'].to_numpy())
             fs.append(df['f'].to_numpy())
             
     
     specs = []
-    for i in range(len(files)):
+    for i in range(int(len(files)/average)):
+        x = i*average
+        y = (i+1)*average
         try:
-            spec = Spectrum(ts[i], fs[i], res[i], ims[i], files[i])
+            spec = Spectrum(ts[x], fs[x], 
+                            np.mean(res[x:y], axis=0), 
+                            np.mean(ims[x:y], axis=0),
+                            files[x])
             specs.append(spec)
         except:
             print(i)
@@ -165,7 +170,7 @@ def fit_all_data(specs):
             specs[i].fit(n_iter = 200, starting_guess = starting_guess, plot=True,
                      bounds = starting_bounds)
             
-        elif i%25 == 0:
+        elif i%100 == 0:
             
             bounds = {param:[val/2, 2*val] 
                          for param, val in specs[i-1].params.items()}
@@ -173,13 +178,26 @@ def fit_all_data(specs):
             bounds['n2'] = [0.5,1.2]
             
             specs[i].fit(n_iter = 20, starting_guess = specs[i-1].params, plot=True,
-                     bounds = {param:[val/2, 2*val] 
-                         for param, val in specs[i-1].params.items()})
+                     bounds = bounds)
         
         else:
+            bounds = {param:[val/2, 2*val] 
+                         for param, val in specs[i-1].params.items()}
+            bounds['n1'] = [0.8,1.1]
+            bounds['n2'] = [0.5,1.2]
+            
+            
             specs[i].fit(n_iter = 20, starting_guess = specs[i-1].params, plot=False,
-                     bounds = {param:[val/2, 2*val] 
-                         for param, val in specs[i-1].params.items()})
+                     bounds = bounds)
+            
+        if specs[i].chi_squared > 25:
+            bounds = {param:[val/2, 2*val] 
+                         for param, val in specs[i-1].params.items()}
+            bounds['n1'] = [0.8,1.1]
+            bounds['n2'] = [0.5,1.2]
+            
+            specs[i].fit(n_iter = 200, starting_guess = starting_guess, plot=True,
+                     bounds = bounds)
 
 
 
@@ -223,6 +241,25 @@ def plot_params(specs):
     
 
 
+def plot_filtered_ket(specs):
+    ts = []
+    kets = []
+
+    for spec in specs:
+        ts.append(spec.time)
+        kets.append(spec.ket)
+    
+    y = signal.savgol_filter(kets, 15, 3)
+    
+    fig, ax = plt.subplots()
+    ax.plot(ts, kets)
+    ax.plot(ts, y)
+    ax.set_title('ket')
+    ax.set_xlabel('Time/ s')
+    ax.set_ylabel('$k_{et}/  s^{-1}$')
+
+
+
 def save_fits(specs):
     '''
     specs = list of Spectrum objects
@@ -253,8 +290,8 @@ def save_fits(specs):
     
     return df    
     
-specs = extract_data(data_dir)
-plot_phase_maps(specs)
+# specs = extract_data(data_dir, average=5)
+# plot_phase_maps(specs)
 # fit_all_data(specs)
 # plot_params(specs)
 
