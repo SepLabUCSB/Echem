@@ -46,6 +46,7 @@ def send_bytes(inst, signal, channel):
         blocks[i] = signal[16000*i:16000*(i+1)]
 
     
+    wait(inst)
     for i in range(number_of_blocks):
         # print('Sending points %s:%s'%(blocks[i][0], blocks[i][-1]))
         inst.write_binary_values(string, blocks[i], datatype='h')

@@ -21,7 +21,7 @@ params = {
     'correct_filter': 1,
     'filter_correct_mode': 0,
     
-    'sample_time' : 1,
+    'sample_time' : 0.1,
     'AUTOLAB': 0,
     'autolab_current_range': 1e-6,    
     'plot_Nyquist' : 1,
@@ -77,7 +77,7 @@ def make_new_waveform_Rigol(filedir, sample_freq, total_time, amax):
             
             # Rigol_waveform(S, sample_freq, total_time, 2*amax)
             
-#%%
+
 
 if __name__ == '__main__':
     l = []
@@ -100,21 +100,25 @@ if __name__ == '__main__':
 #%%
 # Plot normalized Z vs t at select frequencies
 
-# data = l[0].ft
-
-# freqs = data[1]['f'].to_numpy()
-# Zall = [ 
-#         [data[i].iloc[j,3] for i in data] 
-#         for j in range(len(freqs))
-#         ]
-
-# fig, ax = plt.subplots()
-
-# for j in [100,1000, 4400, 17000]:
-#     i = np.where(freqs == j)[0][0]
-#     ax.plot(range(180)[1:], np.abs(Zall[i])[1:]/np.abs(Zall[i][1]),
-#         label = f'{freqs[i]} Hz')
-        
-# ax.set_xlabel('Time/ s')
-# ax.set_ylabel('Normalized |Z|')
-# ax.legend()
+for i in range(len(l)):
+    data = l[i].ft
+    
+    freqs = data[1]['f'].to_numpy()
+    Zall = [ 
+            [data[i].iloc[j,4] for i in data] 
+            for j in range(len(freqs))
+            ]
+    
+    fig, ax = plt.subplots()
+    
+    # for j in [1,10,110,1000]:
+    for j in [100, 1000, 6400, 17000]:
+        i = np.where(freqs == j)[0][0]
+        ax.plot(range(1800)[1:], np.abs(Zall[i])[1:]/np.abs(Zall[i][1]),
+            label = f'{freqs[i]} Hz')
+        # ax.plot(range(1800)[1:], Zall[i][1:],           # phase
+        #     label = f'{freqs[i]} Hz')
+            
+    ax.set_xlabel('Time/ s')
+    ax.set_ylabel('Normalized |Z|')
+    ax.legend()

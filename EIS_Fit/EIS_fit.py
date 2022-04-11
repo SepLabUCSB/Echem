@@ -19,15 +19,15 @@ doi.org/10.1002/celc.202100778
 path = r'C:/Users/BRoehrich/Desktop/EIS fit folder/2021-06-01_FcMeOH_50 mV_beads_009 (2)'
 
 # circuit = 'Randles_uelec'
-bounds = {
-    'R1': [1e-1, 1e9],
-    'R2': [1e-1, 1e9],
-    'R3': [1e-1, 1e9],
-    'Q1': [1e-15, 1],
-    'n1': [1,1],
-    'Q2': [1e-15, 1],
-    'n2': [0,1]
-    }
+# bounds = {
+#     'R1': [1e-1, 1e9],
+#     'R2': [1e-1, 1e9],
+#     'R3': [1e-1, 1e9],
+#     'Q1': [1e-15, 1],
+#     'n1': [1,1],
+#     'Q2': [1e-15, 1],
+#     'n2': [0,1]
+#     }
 
 
 
@@ -68,10 +68,10 @@ End: export csv of frequency, param 1, param 2, ...
 
 class DataFile:
     
-    def __init__(self, file, circuit, bounds=bounds, ax=None, Z=None,
+    def __init__(self, file, circuit, bounds, ax=None, Z=None,
                  freqs=None):
         
-        if file != '':
+        if len(Z) == 0 and file != '':
             df = pd.read_csv(file, skiprows=1, names=
                            ('freqs', 're', 'im'), sep='\t')
             self.freqs = df['freqs'].to_numpy()
@@ -102,7 +102,7 @@ class DataFile:
         '''
         if ax is not None:
             ax.plot(self.re/1e6, -self.im/1e6, 'o')
-        
+            
         self.params, self.score = ga.genetic_algorithm(
             self.freqs, self.Z, self.bounds, self.circuit, ax=ax,
             starting_guess = starting_guess, **kwargs)
@@ -126,9 +126,9 @@ class DataFile:
                                         timeout = timeout)
         
         except:
-            # print('LEVM fit timed out, performing GA fit. File: ', 
-            #       self.file)
-            # self.ga_fit(starting_guess=self.params, n_iter = 50)
+            print('LEVM fit timed out, performing GA fit. File: ', 
+                  self.file)
+            self.ga_fit(starting_guess=self.params, n_iter = 50)
             pass
                 
         self.score = circuits.leastsq_errorfunc(self.freqs, self.Z,
@@ -149,7 +149,8 @@ class DataFile:
         circuitfunc = circuit_funcs[circuit_list.index(self.circuit)]
         
         self.fits = circuitfunc(self.freqs, self.params)
-                
+              
+        
         if ax is not None:
             if Bode:
                 ax.plot(self.freqs, np.abs(self.Z), 'o', color=colors[0])
@@ -172,7 +173,7 @@ class DataFile:
 
 
 
-def fit_all_runs(path, circuit):
+def fit_all_runs(path, circuit, bounds):
     '''
     Fit all specta in a given folder. Assumes spectra are 
     
@@ -223,10 +224,14 @@ def fit_all_runs(path, circuit):
             
             if i == 1:
                 # Start new fit routine with genetic algorithm
-
+                n = 0
+                fig, ax = plt.subplots()
                 while d[i].score > 100000:
-                    d[i].ga_fit(n_iter=100)
+                    if n > 5:
+                        break
+                    d[i].ga_fit(n_iter=100, ax = ax)
                     d[i].LEVM_fit()
+                    n += 1
                                     
                 print('File 1 fit complete in ', 
                       time.time() - starting_time, 's.')
@@ -234,8 +239,8 @@ def fit_all_runs(path, circuit):
 
             else:
                 # Copy initial parameters from previous fit
-                d[i].params = d[i-1].params  
-                
+                d[i].ga_fit(starting_guess = d[i-1].params,
+                            n_iter=10)
                 d[i].LEVM_fit()
                     
                 if i%50 == 0:

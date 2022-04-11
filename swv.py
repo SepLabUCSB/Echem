@@ -7,8 +7,20 @@ import pyvisa
 import time
 from time import sleep
 from array import array
+from scipy.signal import butter, lfilter, freqz
 plt.style.use('Z:\Projects\Brian\scientific.mplstyle')
 
+
+def butter_lowpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    return b, a
+
+def butter_lowpass_filter(data, cutoff, fs, order=5):
+    b, a = butter_lowpass(cutoff, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
 
 
 class MainWindow:
@@ -78,7 +90,7 @@ class MainWindow:
         text = tk.Label(self.frame, text='Pulse width (s):')
         text.grid(row=4, column = 1, sticky = 'E')
         self.P_width = tk.Text(self.frame, height=1, width=7)
-        self.P_width.insert('1.0', '1')
+        self.P_width.insert('1.0', '0.1')
         self.P_width.grid(row=4, column=2)
         
         # Current range
@@ -307,14 +319,17 @@ class MainWindow:
         arb.write(':OUTPUT1 OFF')
         print(f'Aquisition complete, {time.time() - frame_start_time} s')
             
+        inst.timeout = 10000
         # Get CH 1 data
         inst.write('C1:WF? DAT2')
+        # wait(inst)
         trace1 = inst.read_raw()
         wave1 = trace1[22:-2]
         adc1 = np.array(array('b', wave1))
         
         # Get CH 2 data
         inst.write('C2:WF? DAT2')
+        # wait(inst)
         trace2 = inst.read_raw()
         wave2 = trace2[22:-2]
         adc2 = np.array(array('b', wave2))
@@ -323,7 +338,12 @@ class MainWindow:
         volts1 = adc1*(vdiv1/25) - voffset1 
         volts2 = adc2*(vdiv2/25) - voffset2 
         
+        self.volts1 = volts1
+        self.volts2 = volts2
+        
         self.process_data(volts1, volts2)
+        
+        
         
         
     
@@ -334,33 +354,70 @@ class MainWindow:
         E = -volts1
         I = volts2/float(self.current_range.get('1.0'))
         
+        E = butter_lowpass_filter(E, 2000, self.sara, order=5)
+        I = butter_lowpass_filter(I, 2000, self.sara, order=5)
+        
+        E = E[100:]
+        I = I[100:]
+               
+        # fig, ax = plt.subplots(figsize=(3,3), dpi=150)
+        # ax.plot(I)
+        # ax.plot(np.abs(np.gradient(I))) 
+        
         p_w = float(self.P_width.get('1.0', 'end'))
         
-        start_index = np.where(np.abs(np.gradient(E)) > 0.005)[0][0]
-        start_index = int(start_index - 2*0.1*25000)
+        # Figure out where the staircase waveform starts in the sketchiest way possible
+        avg_grad_I = max(abs((np.gradient(I[:int(self.sara)]))))
+        print(avg_grad_I)
+        start_index = np.where(np.abs(np.gradient(I)) > 
+                               4*np.abs(avg_grad_I))[0][0]
+        start_index = int(start_index - p_w*self.sara)
+        
+        
         
         E = E[start_index:]
         I = I[start_index:]
+             
+        
+        
+        
+                
         
         steps_v = []
         steps_i = []
         
-        for j in range(2*self.number_of_steps+3):
+        
+        for j in range(2*self.number_of_steps+2):
             # Break up into each square wave step
-            a = int(25000*p_w*j)
-            b = int(25000*p_w*(j+1))
+            a = int(self.sara*p_w*j)
+            b = int(self.sara*p_w*(j+1))
+            
             
             steps_v.append(E[a:b])
             steps_i.append(I[a:b])
-            
+        
+        fig, ax = plt.subplots(figsize=(3,3), dpi=150)
+        plt.plot(np.concatenate([arr for arr in steps_v]))
         self.ax.clear()
                 
+<<<<<<< HEAD
         for sw_freq in [10,50, 75, 100,250]:
+=======
+        for sw_freq in [750,500,100,10]:
+>>>>>>> 7bb9c0605b59dbbca08e0f96ff48d3d149d8f893
             I_delta, V_delta, V_step = square_wave(steps_v, steps_i, sw_freq,
-                                                   25000, p_w)
+                                                   self.sara, p_w)
             
             x = V_step[1::2]
-            y = I_delta[1::2]/1e-6
+            y = I_delta[1::2]
+            
+            # x = V_step
+            # y = I_delta/sw_freq
+            
+            if sw_freq == 10:
+                self.V_step = V_step
+                self.I_delta = I_delta
+                self.V_delta = V_delta
             
             self.ax.plot(x, y, label=f'{sw_freq}')
         
@@ -395,10 +452,7 @@ class MainWindow:
         plt.xlabel('Frequency/ Hz')
         plt.ylabel('Potential/ V vs SCE')
         
-        
-        
-        
-        return
+    
         
         
 
@@ -472,7 +526,11 @@ def square_wave(V, I, sw_freq, sample_freq, step_duration):
     V_step  = []
     
     for j in range(1, len(I)):
-        delta_I = np.average(I[j][ind1:ind2] - I[j-1][ind1:ind2])
+        try:
+            delta_I = np.average(I[j][ind1:ind2] - I[j-1][ind1:ind2])
+        except:
+            print(j, I[j], I[j-1])
+            print(len(I), sw_freq)
         delta_V = np.average(V[j][ind1:ind2] - V[j-1][ind1:ind2])
 
         I_delta.append(delta_I)

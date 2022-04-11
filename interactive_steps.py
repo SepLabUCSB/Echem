@@ -11,7 +11,7 @@ import os
 plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-# folder = 'C:/Users/BRoehrich/Desktop/test_folder'
+folder = 'C:/Users/BRoehrich/Desktop/test_folder'
 
 """
 **Type %matplotlib in console before running file**
@@ -35,6 +35,18 @@ the get_data function to change this.
 """
 
 
+# PARAMETERS TO ADJUST
+threshold = 0.001   # Autopick steps with relative size > threshold
+cutoff = 5          # Remove first n seconds
+linear_fit = False  # Do linear fit between points. If False, uses median
+                    #    value between points instead. True accounts for 
+                    #    non-zero baseline
+
+
+
+
+
+
 
 def get_data(file):
     df = pd.read_fwf(file, skiprows=1, headers=0,
@@ -49,6 +61,9 @@ def get_data(file):
 
 
 class StepPicker(object):
+    
+    global threshold, linear_fit
+    
     """Based on
     https://scipy-cookbook.readthedocs.io/items/Matplotlib_Interactive_Plotting.html
     """
@@ -200,7 +215,7 @@ class StepPicker(object):
     
     
     
-    def detect_steps(self, thresh=0.01):
+    def detect_steps(self, thresh=threshold):
         '''
         Initial step detection algorithm
         
@@ -293,7 +308,7 @@ class StepPicker(object):
             
         for (x,y) in list(self.criticalPoints):  
             # find largest local step, search +- m points
-            m = 10
+            m = 5
             xi = np.where(self.xdata == x)[0][0] #convert to index
             n = np.where(delta == max(delta[xi-m:xi+m+1]))[0][0]
             if not n == xi:
@@ -310,25 +325,33 @@ class StepPicker(object):
         indices.insert(0,0)
         indices.append(len(self.xdata-1))
         indices.sort()
-        
         noises = []
         
         for i in range(len(indices)-1):
             index = indices[i]
             next_index = indices[i+1]
-            for i in range(index, next_index):
-                # m, b = np.polyfit(self.xdata[index+2:next_index-2], 
-                #                   self.ydata[index+2:next_index-2], 1)
-                # self.avg[i] = m*i + b
-                this_ydata = self.ydata[index+5: next_index-5]
-                self.avg[i] = np.median(this_ydata)
-                
-                this_noise = np.sqrt(
-                    np.mean(
-                    (this_ydata-np.average(this_ydata))**2)
-                    )
+            this_ydata = self.ydata[index+2: next_index-2]
             
-                noises.append(this_noise)
+            
+            if linear_fit:
+                # Fit line in between steps to account for sloped baseline
+                m, b = np.polyfit(np.arange(index+2,next_index-2), 
+                                      self.ydata[index+2:next_index-2], 1)
+            
+                for i in range(index, next_index):
+                    self.avg[i] = m*i + b
+            
+            else:
+                for i in range(index, next_index):
+                    self.avg[i] = np.median(this_ydata)
+                
+            
+            this_noise = np.sqrt(
+                np.mean(
+                (this_ydata-np.average(this_ydata))**2)
+                )
+        
+            noises.append(this_noise)
                 
             if index != 0:
                 self.avg[index] = self.avg[index-1]
