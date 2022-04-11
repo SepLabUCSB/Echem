@@ -894,6 +894,7 @@ class MainWindow:
         print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
         
         if save:
+            self.fig.savefig(save_path+'\\0000_fig', dpi=100)
             print('Saved as ASCII:', save_path, '\n')
         
         
