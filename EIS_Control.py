@@ -588,7 +588,7 @@ class MainWindow:
         inst = self.rm.open_resource(self.arb.get())
         
         Vpp = self.waveform_vpp.get('1.0', 'end')
-        Vpp = str(float(Vpp)/1000)
+        Vpp = str(float(Vpp)*2/1000)
         
         try:
             inst.write('*RST')
@@ -608,7 +608,7 @@ class MainWindow:
             inst = self.rm.open_resource(self.scope.get())
                  
             # Set scope parameters
-            inst.write('C1:VDIV 5mV')
+#            inst.write('C1:VDIV 5mV')
             inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
             
             inst.write('TRMD AUTO')
@@ -873,7 +873,8 @@ class MainWindow:
                 
             with open(meta_file, 'w') as f:
                 f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                f.write('Waveform: '+ str(self.waveform.get()))    
+                f.write('Waveform: '+ str(self.waveform.get()))   
+                
             f.close()
             
             # Start time list file
@@ -928,6 +929,8 @@ class MainWindow:
             volts1 = adc1*(vdiv1/25) - voffset1 
             volts2 = adc2*(vdiv2/25) - voffset2  
             
+            Vpp = max(volts1) - min(volts1)
+            
             # Get time array
             times = np.zeros(len(volts1))
             for i in range(len(volts1)):
@@ -946,7 +949,8 @@ class MainWindow:
             ft = siglent_control.FourierTransformData(time    = times[0],
                                       freqs   = freqs,
                                       CH1data = ft1,
-                                      CH2data = ft2,)
+                                      CH2data = ft2,
+                                      Vpp = Vpp)
             
             return ft
         
@@ -1170,6 +1174,11 @@ class MainWindow:
         
         if save:
             self.fig.savefig(save_path+'\\0000_fig', dpi=100)
+            
+            with open(meta_file, 'a') as f:
+                avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
+                f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
+            
             print('Saved as ASCII:', save_path, '\n')
         
         
@@ -1356,6 +1365,8 @@ class MainWindow:
                 with open(meta_file, 'w') as f:
                     f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
                     f.write('Waveform: '+ str(self.waveform.get()))
+                    avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
+                    f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
                     
                 f.close()
                 

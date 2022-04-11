@@ -1,7 +1,7 @@
 last_file_name:
 test_mode:False
 potentiostat:Autolab
-waveform:Rigol_100k_1k_1_16freqs.csv
+waveform:Rigol_100k_1k_1_18freqs.csv
 plot_Z:1
 plot_phase:1
 waveform_vpp:20
