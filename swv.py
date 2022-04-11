@@ -26,16 +26,19 @@ class MainWindow:
         
         # Initialize frames and canvas
         
+        self.topframe = tk.Frame(self.root)
+        self.topframe.grid(row=0, column=0, columnspan=2)
+        
         # frame:  left
         self.frame = tk.Frame(self.root)
-        self.frame.grid(row=0, column = 0)
+        self.frame.grid(row=1, column = 0)
         
         # fig: right
         self.fig = plt.Figure(figsize=(5,4), dpi=100)
         self.ax  = self.fig.add_subplot(111)
                 
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
-        self.canvas.get_tk_widget().grid(row=0, column=1)
+        self.canvas.get_tk_widget().grid(row=1, column=1)
         
         
         
@@ -88,9 +91,9 @@ class MainWindow:
         
 
         # AWG Control
-        text = tk.Label(self.frame, text='Arb:')
-        text.grid(row=6, column=0)
-        self.arb = tk.StringVar(self.frame)
+        text = tk.Label(self.topframe, text='Arb:')
+        text.grid(row=0, column=0)
+        self.arb = tk.StringVar(self.topframe)
         
         try:
             # Look for Rigol arb, i.e.
@@ -103,20 +106,20 @@ class MainWindow:
             default_arb = ''
         
         self.arb.set(default_arb)
-        self.arb_selector = tk.OptionMenu(self.frame, self.arb, 
+        self.arb_selector = tk.OptionMenu(self.topframe, self.arb, 
                                                *self.rm.list_resources())
-        self.arb_selector.grid(row=6, column=1)
-        self.apply_waveform_button = tk.Button(self.frame, text='Apply Wave', 
+        self.arb_selector.grid(row=0, column=1)
+        self.apply_waveform_button = tk.Button(self.topframe, text='Apply Wave', 
                                                command=self.apply_waveform)
-        self.apply_waveform_button.grid(row=6, column=2)
+        self.apply_waveform_button.grid(row=0, column=2)
         
         
         
         # Scope control
         
-        text = tk.Label(self.frame, text='Scope:')
-        text.grid(row=7, column=0)
-        self.scope = tk.StringVar(self.frame)
+        text = tk.Label(self.topframe, text='Scope:')
+        text.grid(row=1, column=0)
+        self.scope = tk.StringVar(self.topframe)
         
         try:
             default_scope = [inst for inst in self.rm.list_resources() 
@@ -127,13 +130,13 @@ class MainWindow:
             default_scope = ''
         
         self.scope.set(default_scope)
-        self.scope_selector = tk.OptionMenu(self.frame, self.scope, 
+        self.scope_selector = tk.OptionMenu(self.topframe, self.scope, 
                                                *self.rm.list_resources())
-        self.scope_selector.grid(row=7, column=1)
+        self.scope_selector.grid(row=1, column=1)
         
-        self.record_signals_button = tk.Button(self.frame, text='Record', 
+        self.record_signals_button = tk.Button(self.topframe, text='Record', 
                                                command=self.record_frame)
-        self.record_signals_button.grid(row=7, column=2)
+        self.record_signals_button.grid(row=1, column=2)
         
     
     
@@ -352,7 +355,7 @@ class MainWindow:
             
         self.ax.clear()
                 
-        for sw_freq in [1,5,10,100,1000]:
+        for sw_freq in [10,50, 75, 100,250]:
             I_delta, V_delta, V_step = square_wave(steps_v, steps_i, sw_freq,
                                                    25000, p_w)
             
@@ -459,8 +462,8 @@ def square_wave(V, I, sw_freq, sample_freq, step_duration):
     
     # Get index to sample current from
     # Assumes each step has a total duration of 1 s
-    ind1 = int(0.9*sample_freq / sw_freq)
-    ind2 = int(sample_freq / sw_freq)
+    ind1 = int(0.9*sample_freq / sw_freq - 1)
+    ind2 = int(sample_freq / sw_freq - 1)
 
     # print(ind1, ind2) 
     
