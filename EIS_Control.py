@@ -873,7 +873,9 @@ class MainWindow:
                 
             with open(meta_file, 'w') as f:
                 f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                f.write('Waveform: '+ str(self.waveform.get()))   
+                f.write('Waveform: '+ str(self.waveform.get())) 
+                s_t = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time()))
+                f.write('\nStart time: %s'%s_t)
                 
             f.close()
             
