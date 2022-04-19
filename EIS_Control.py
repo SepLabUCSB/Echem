@@ -32,7 +32,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Save state file
+Averaging over multiple frames for fit
 
 '''
 
@@ -1006,9 +1006,11 @@ class MainWindow:
             
         
         def process_frame(frame):
+            # Called during siglent_record_single to process the last frame
+            #
             # Fits and/or plots data in a frame
             # frame: int, frame number
-            # Data pulled from self.ft[frame]
+            # Data is pulled from self.ft[frame]
             
             # Fit, if the option is checked
             if self.fit.get():
@@ -1093,20 +1095,34 @@ class MainWindow:
             
             
         
-        def fit_frame(frame, n_iter = 25, starting_guess = None,
+        def fit_frame(frame, average = 1, n_iter = 25, starting_guess = None,
                       **kwargs):
+            
+            # Called in process_frame() to fit the last frame
+            
+            if average < 0:
+                print('Average must be greater than 0 frames!')
+                return
+            
             
             if frame == 0:
                 bounds, starting_guess, params = self.initialize_circuit()
                         
-            
             elif frame > 0:
                 starting_guess = self.ft[frame-1].params
-                bounds = {param:[val/3, val*3] for param, val in
+                bounds = {param:[val/2, val*2] for param, val in
                           self.ft[frame-1].params.items()}
             
-            Z     = self.ft[frame].Z
-            freqs = self.ft[frame].freqs
+            
+            if average == 1:
+                Z     = self.ft[frame].Z
+                freqs = self.ft[frame].freqs
+                
+            elif average > 1:
+                x = frame - average
+                y = frame + 1
+                Z     = np.mean(self.ft[x:y].Z, axis=0)
+                freqs = np.mean(self.ft[x:y].freqs, axis=0)
             
             
             # Perform fit
