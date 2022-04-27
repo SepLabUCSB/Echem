@@ -9,38 +9,40 @@ plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
-data_dir = r'C:/Users/BRoehrich/Desktop/2022-04-05/2022-04-05/long time dosing'
+data_dir = r'C:/Users/BRoehrich/Desktop/2022-04-13/2022-04-13/6 hr with dosing -330mV 1154am'
+# data_dir = r'C:/Users/BRoehrich/Desktop/2022-04-13/2022-04-13/30 min equilibration -350mV 1120am'
+# data_dir = r'C:\Users\BRoehrich\Desktop\2022-04-13\2022-04-13\PBS 0mM target'
 
-target = 'Vancomycin'
+
+target = 'Phenylalanine'
 
 starting_bounds = {
-    'R1': [1e-1, 1e9],
-    'R2': [10000, 150000],
-    'Q1': [1e-15, 1],
-    'n1': [0.8,1.1],
-    'Q2': [1e-15, 1],
-    'n2': [0.5,1.2]
+    'R1': [1e-1, 1e3],
+    'R2': [1000, 25000],
+    'Q1': [1e-10, 1e-5],
+    'n1': [0.85,1.1],
+    'Q2': [1e-15, 1e-5],
+    'n2': [0.85,1.1]
     }
 
-# Restrictive Rct bounds
-# bounds = {
-#     'R1': [1e-1, 1e9],
-#     'R2': [1, 50000],
-#     'Q1': [1e-15, 1],
-#     'n1': [0.8,1.1],
-#     'Q2': [1e-15, 1],
-#     'n2': [0.8,1.1]
-#     }
+absolute_bounds = {
+    'R1': [1e-2, 1e4],
+    'R2': [1000, 500000],
+    'Q1': [1e-10, 1e-4],
+    'n1': [0.85,1.1],
+    'Q2': [1e-15, 1e-4],
+    'n2': [0.85,1.1]
+    }
 
 # Vancomycin
-starting_guess = {
-    'R1': 284, 
-    'R2': 40000, 
-    'Q1': 1.8e-07, 
-    'n1': 1, 
-    'Q2': 3.2e-07, 
-    'n2': 0.9
-    }
+# starting_guess = {
+#     'R1': 284, 
+#     'R2': 40000, 
+#     'Q1': 1.8e-07, 
+#     'n1': 1, 
+#     'Q2': 3.2e-07, 
+#     'n2': 0.9
+#     }
 
 
 # Tobramycin
@@ -52,6 +54,18 @@ starting_guess = {
 #     'Q2': 5e-07, 
 #     'n2': 1
 #     }
+
+
+# Phenylalanine
+starting_guess = {
+    'R1': 100, 
+    'R2': 8800, 
+    'Q1': 6e-07, 
+    'n1': 1, 
+    'Q2': 7e-07, 
+    'n2': 1
+    }
+
 
 units = {
     'R1': '$\Omega$',
@@ -97,10 +111,14 @@ class Spectrum:
         
         
         DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
-        t = DataFile.params
+        # t = DataFile.params
+        # t_chi = DataFile.chi_squared
         DataFile.LEVM_fit()
-        if DataFile.params == t:
-            print('LEVM fit returns same params')
+        # Compare parameters & fit before/ after LEVM
+        # print('')
+        # print([(DataFile.params[key] - t[key])/t[key] for key in t])
+        # print((DataFile.chi_squared - t_chi)/t_chi)
+        
         
         if plot:
             fig, ax = plt.subplots()
@@ -116,7 +134,7 @@ class Spectrum:
         
         
         
-def extract_data(folder, average = 1):
+def extract_data(folder, average = 1, freq_cutoff = 100000):
     # Extract time series of impedance spectra
     
     res = []
@@ -136,9 +154,16 @@ def extract_data(folder, average = 1):
             files.append(file)
             file = os.path.join(folder, file)
             df = pd.read_csv(file, skiprows=1, names=('f', 're', 'im'), sep='\t')
+            df = df[df['f'] <= freq_cutoff]
+            
             res.append(df['re'].to_numpy())
             ims.append(df['im'].to_numpy())
             fs.append(df['f'].to_numpy())
+            
+            
+            
+            
+            
             
     
     specs = []
@@ -156,6 +181,8 @@ def extract_data(folder, average = 1):
             print(res[i])
             return
     
+    print('Loaded all files.')
+    
     return specs
 
 
@@ -166,38 +193,48 @@ def fit_all_data(specs):
     specs.sort(key=lambda s:s.time)
     
     for i in range(len(specs)):
+        
+        plot = False
+        
         if i == 0:
-            specs[i].fit(n_iter = 200, starting_guess = starting_guess, plot=True,
-                     bounds = starting_bounds)
-            
-        elif i%100 == 0:
-            
-            bounds = {param:[val/2, 2*val] 
-                         for param, val in specs[i-1].params.items()}
-            bounds['n1'] = [0.8,1.1]
-            bounds['n2'] = [0.5,1.2]
-            
-            specs[i].fit(n_iter = 20, starting_guess = specs[i-1].params, plot=True,
-                     bounds = bounds)
+            n_iter = 200
+            r_mut = 0.4
+            bounds = starting_bounds
+            plot = True
         
         else:
+            n_iter = 50
+            r_mut = 0.25
+            if i %100 == 0:
+                plot = True
+            
             bounds = {param:[val/2, 2*val] 
                          for param, val in specs[i-1].params.items()}
-            bounds['n1'] = [0.8,1.1]
-            bounds['n2'] = [0.5,1.2]
             
+            for param, val in bounds.items():
+                if param.startswith('n'):
+                    bounds[param] = absolute_bounds[param]
+                if val[0] < absolute_bounds[param][0]:
+                    bounds[param][0] = absolute_bounds[param][0]
+                if val[1] > absolute_bounds[param][1]:
+                    bounds[param][1] = absolute_bounds[param][1]
+                
+        
+        
+        
+        specs[i].fit(n_iter = n_iter, starting_guess = starting_guess, 
+                     plot = plot, bounds = bounds, r_mut = r_mut)
             
-            specs[i].fit(n_iter = 20, starting_guess = specs[i-1].params, plot=False,
-                     bounds = bounds)
+
             
-        if specs[i].chi_squared > 25:
-            bounds = {param:[val/2, 2*val] 
-                         for param, val in specs[i-1].params.items()}
-            bounds['n1'] = [0.8,1.1]
-            bounds['n2'] = [0.5,1.2]
+        # if specs[i].chi_squared > 25:
+        #     bounds = {param:[val/2, 2*val] 
+        #                  for param, val in specs[i-1].params.items()}
+        #     bounds['n1'] = [0.8,1.1]
+        #     bounds['n2'] = [0.5,1.2]
             
-            specs[i].fit(n_iter = 200, starting_guess = starting_guess, plot=True,
-                     bounds = bounds)
+        #     specs[i].fit(n_iter = 200, starting_guess = starting_guess, plot=True,
+        #              bounds = bounds)
 
 
 
@@ -249,14 +286,37 @@ def plot_filtered_ket(specs):
         ts.append(spec.time)
         kets.append(spec.ket)
     
-    y = signal.savgol_filter(kets, 15, 3)
+    y = signal.savgol_filter(kets, 15, 1)
     
     fig, ax = plt.subplots()
     ax.plot(ts, kets)
     ax.plot(ts, y)
+    # # Vertical lines to show injection points
+    # ax.axvline(1640, 0.1, 0.8, color='k', linestyle='--')
+    # ax.axvline(8200, 0.1, 0.8, color='k', linestyle='--')
     ax.set_title('ket')
     ax.set_xlabel('Time/ s')
     ax.set_ylabel('$k_{et}/  s^{-1}$')
+
+
+
+def plot_freq_vs_t(specs, freq):
+    
+    i = np.where(specs[0].freqs.astype(int) == int(freq))[0][0]
+    
+    ts = []
+    vals = []
+    
+    for spec in specs:
+        ts.append(spec.time)
+        vals.append(spec.phase[i])
+    
+    fig, ax = plt.subplots()
+    ax.plot(ts, vals)
+    ax.set_title(f'Phase @ {int(freq)} Hz')
+    ax.set_xlabel('Time/ s')
+    ax.set_ylabel('Phase/ $\degree$')
+    
 
 
 
@@ -290,9 +350,9 @@ def save_fits(specs):
     
     return df    
     
-# specs = extract_data(data_dir, average=5)
+specs = extract_data(data_dir, average=5, freq_cutoff = 3000)
 # plot_phase_maps(specs)
-# fit_all_data(specs)
+fit_all_data(specs)
 # plot_params(specs)
 
 

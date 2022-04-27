@@ -32,7 +32,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Save state file
+Averaging over multiple frames for fit
 
 '''
 
@@ -588,7 +588,7 @@ class MainWindow:
         inst = self.rm.open_resource(self.arb.get())
         
         Vpp = self.waveform_vpp.get('1.0', 'end')
-        Vpp = str(float(Vpp)/1000)
+        Vpp = str(float(Vpp)*2/1000)
         
         try:
             inst.write('*RST')
@@ -608,7 +608,7 @@ class MainWindow:
             inst = self.rm.open_resource(self.scope.get())
                  
             # Set scope parameters
-            inst.write('C1:VDIV 5mV')
+#            inst.write('C1:VDIV 5mV')
             inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
             
             inst.write('TRMD AUTO')
@@ -873,7 +873,10 @@ class MainWindow:
                 
             with open(meta_file, 'w') as f:
                 f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                f.write('Waveform: '+ str(self.waveform.get()))    
+                f.write('Waveform: '+ str(self.waveform.get())) 
+                s_t = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time()))
+                f.write('\nStart time: %s'%s_t)
+                
             f.close()
             
             # Start time list file
@@ -928,6 +931,8 @@ class MainWindow:
             volts1 = adc1*(vdiv1/25) - voffset1 
             volts2 = adc2*(vdiv2/25) - voffset2  
             
+            Vpp = max(volts1) - min(volts1)
+            
             # Get time array
             times = np.zeros(len(volts1))
             for i in range(len(volts1)):
@@ -946,7 +951,8 @@ class MainWindow:
             ft = siglent_control.FourierTransformData(time    = times[0],
                                       freqs   = freqs,
                                       CH1data = ft1,
-                                      CH2data = ft2,)
+                                      CH2data = ft2,
+                                      Vpp = Vpp)
             
             return ft
         
@@ -1002,9 +1008,11 @@ class MainWindow:
             
         
         def process_frame(frame):
+            # Called during siglent_record_single to process the last frame
+            #
             # Fits and/or plots data in a frame
             # frame: int, frame number
-            # Data pulled from self.ft[frame]
+            # Data is pulled from self.ft[frame]
             
             # Fit, if the option is checked
             if self.fit.get():
@@ -1089,20 +1097,34 @@ class MainWindow:
             
             
         
-        def fit_frame(frame, n_iter = 25, starting_guess = None,
+        def fit_frame(frame, average = 1, n_iter = 25, starting_guess = None,
                       **kwargs):
+            
+            # Called in process_frame() to fit the last frame
+            
+            if average < 0:
+                print('Average must be greater than 0 frames!')
+                return
+            
             
             if frame == 0:
                 bounds, starting_guess, params = self.initialize_circuit()
                         
-            
             elif frame > 0:
                 starting_guess = self.ft[frame-1].params
-                bounds = {param:[val/3, val*3] for param, val in
+                bounds = {param:[val/2, val*2] for param, val in
                           self.ft[frame-1].params.items()}
             
-            Z     = self.ft[frame].Z
-            freqs = self.ft[frame].freqs
+            
+            if average == 1:
+                Z     = self.ft[frame].Z
+                freqs = self.ft[frame].freqs
+                
+            elif average > 1:
+                x = frame - average
+                y = frame + 1
+                Z     = np.mean(self.ft[x:y].Z, axis=0)
+                freqs = np.mean(self.ft[x:y].freqs, axis=0)
             
             
             # Perform fit
@@ -1170,6 +1192,11 @@ class MainWindow:
         
         if save:
             self.fig.savefig(save_path+'\\0000_fig', dpi=100)
+            
+            with open(meta_file, 'a') as f:
+                avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
+                f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
+            
             print('Saved as ASCII:', save_path, '\n')
         
         
@@ -1356,6 +1383,8 @@ class MainWindow:
                 with open(meta_file, 'w') as f:
                     f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
                     f.write('Waveform: '+ str(self.waveform.get()))
+                    avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
+                    f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
                     
                 f.close()
                 
