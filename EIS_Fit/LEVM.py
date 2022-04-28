@@ -23,7 +23,7 @@ inputs = {
     'IOPT':'   0',
     'DINP':'  Z',
     'DFIT':'Z',
-    'PINP':'Z',
+    'PINP':'R',
     'PFIT':'R',
     'FREEQ':'F',
     'NEG':' ',
@@ -32,7 +32,7 @@ inputs = {
     'DATTYP':'C',
     'IPAR':'         0',
     'ROE':' .0000D+00',
-    'IFP':'     1',
+    'IFP':'     7',
     'IRE':'   -11',
 
     'M':'   27', # M is number of frequencies, automatically determined from input data
@@ -139,10 +139,12 @@ def params_to_LEVM_format(d, circuit):
     
     def _round(x):
         OOM = math.floor(math.log10(x))
-        # return round(x/(10**OOM))*10**OOM
-        # return 10**OOM
-        return x
+        return 10**OOM
+        # return x
     
+    
+    # for key, val in d.items():
+    #     d[key] = _round(val)
     
     if circuit == 'Randles_uelec':
         # Write initial guesses to select parameters
@@ -165,7 +167,7 @@ def params_to_LEVM_format(d, circuit):
     elif circuit == 'Randles_adsorption':
         p = {}
         p[1] = d['R1']  # Rs
-        p[24] = d['R2']  # Rct
+        p[25] = d['R2']  # Rct
         p[12] = d['Q1']  # Cdl
         p[14] = d['n1']  # Cdl phase
         p[15] = 2        # Assign CPE for Cdl
@@ -393,8 +395,10 @@ def run_LEVM(timeout):
     LEVM_path = os.getcwd() + '\LEVM.EXE'
     try:
         subprocess.run([], executable=LEVM_path, timeout=timeout)
+        return 0
     except subprocess.TimeoutExpired:
         print('LEVM.exe timed out')
+        return 1
 
 
 def extract_params(file, circuit):
@@ -451,7 +455,7 @@ def extract_params(file, circuit):
     elif circuit == 'Randles_adsorption':
         d = {}
         d['R1'] = string_to_float(p[1])
-        d['R2'] = string_to_float(p[24])
+        d['R2'] = string_to_float(p[25])
         d['n1'] = string_to_float(p[14])   
         d['Q1'] = string_to_float(p[12])
         d['Q2'] = string_to_float(p[17])
@@ -517,9 +521,10 @@ def LEVM_fit(freqs, Z, d, circuit, timeout = 2, comment = ' '):
     os.chdir(LEVM_dir)
     
     write_input_file('INFL', d, freqs, Z, circuit, comment)
-    run_LEVM(timeout = timeout)
+    timedout = run_LEVM(timeout = timeout)
+    if timedout == 1:
+        return 0
     fits = extract_params('OUTIN', circuit)
-    
     # Return to LEVM.py directory
     os.chdir(path)
     
@@ -562,22 +567,22 @@ Z_test = np.array([18735629.81418155-10792324.49845394j,
         1253126.61199721 -2787895.35068144j,
         1014951.57014762 -2072276.43707479j])
 
-d_test = {'R1': 265151.38227128744,
-      'R2': 8488042.354616795,
-      'R3': 41022106.03535404,
-      'Q1': 3.6273344688041505e-12,
-      'n1': 1.0,
-      'Q2': 6.424844265974332e-10,
-      'n2': 0.6790376343555156}
-
-
-# d_test = {'R1': 2.3911E5,
-#       'R2': 9.7956E6,
-#       'R3': 3.16791E7,
-#       'Q1': 4.07581E-12,
+# d_test = {'R1': 265151.38227128744,
+#       'R2': 8488042.354616795,
+#       'R3': 41022106.03535404,
+#       'Q1': 3.6273344688041505e-12,
 #       'n1': 1.0,
-#       'Q2': 4.93661E-10,
-#       'n2': 0.704902}
+#       'Q2': 6.424844265974332e-10,
+#       'n2': 0.6790376343555156}
+
+
+d_test = {'R1': 2.3911E5,
+      'R2': 9.7956E6,
+      'R3': 3.16791E7,
+      'Q1': 4.07581E-12,
+      'n1': 1.0,
+      'Q2': 4.93661E-10,
+      'n2': 0.704902}
 
 if __name__ == '__main__':
     fits = LEVM_fit(freqs_test, Z_test, d_test, 'Randles_uelec')
