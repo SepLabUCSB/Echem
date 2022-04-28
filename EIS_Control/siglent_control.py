@@ -10,7 +10,7 @@ import pandas as pd
 class FourierTransformData:
     
     def __init__(self, time, freqs, CH1data, CH2data, Z = None,
-                 phase = None, waveform = None):
+                 phase = None, waveform = None, Vpp = None):
         self.time = time
         self.freqs = freqs
         self.CH1data = CH1data
@@ -19,6 +19,7 @@ class FourierTransformData:
         self.Z = Z
         self.phase = phase
         self.waveform = waveform
+        self.Vpp = Vpp
 
 
 
