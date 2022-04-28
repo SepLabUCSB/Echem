@@ -69,7 +69,7 @@ End: export csv of frequency, param 1, param 2, ...
 class DataFile:
     
     def __init__(self, file, circuit, bounds, ax=None, Z=None,
-                 freqs=None):
+                 freqs=None, params=None):
         
         if len(Z) == 0 and file != '':
             df = pd.read_csv(file, skiprows=1, names=
@@ -88,8 +88,11 @@ class DataFile:
         self.file = file
         self.circuit = circuit
         self.bounds = bounds
-                        
-        self.params = dict()
+        
+        if params:
+            self.params = params
+        else:                
+            self.params = dict()
         self.score = 1e9
         
         self.ax = ax
@@ -120,16 +123,16 @@ class DataFile:
         '''
         Perform least-squares fit using LEVM.py
         '''
-        try:
-            self.params = LEVM.LEVM_fit(self.freqs, self.Z, 
-                                        self.params, self.circuit,
-                                        timeout = timeout)
         
-        except:
+        
+        self.params = LEVM.LEVM_fit(self.freqs, self.Z, 
+                                    self.params, self.circuit,
+                                    timeout = timeout)
+        
+        if self.params == 0:
             print('LEVM fit timed out, performing GA fit. File: ', 
                   self.file)
             self.ga_fit(starting_guess=self.params, n_iter = 50)
-            pass
                 
         self.score = circuits.leastsq_errorfunc(self.freqs, self.Z,
                                                 self.params, self.circuit)

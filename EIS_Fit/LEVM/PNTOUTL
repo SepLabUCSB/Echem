@@ -1,0 +1,126 @@
+ LEVM : COMPLEX NONLINEAR LEAST SQUARES IMMITTANCE DATA FITTING PROGRAM
+
+               VERSION 8.06 - 2/05
+
+
+                                                                                
+
+ DATA ENTERED IN ZR FORMAT TO BE USED IN ZR FIT;      CIRCUIT MODEL : C
+
+            *********  FIT OF COMPLEX DATA  *********
+- # OF DATA POINTS = 22     WEIGHT: IRCH =  3     # OF FREE PARAMETERS = 5
+- PRINTS EVERY  0 ITERATIONS     MAX # ITERATIONS= 99     MAIN WT USES: DATA
+
+      MODULUS WEIGHTING: RESULTS RAISED TO THE POWER 0.00000D+00
+
+ INITIAL PARAMETER GUESSES AND FIXED (0) OR FREE (1 OR 2) STATUS
+     P( 1) =    3.626089D+01    1        P(17) =    1.514524D-06    1
+     P( 2) =    0.000000D+00    0        P(18) =    0.000000D+00    0
+     P( 3) =    0.000000D+00    0        P(19) =    8.194066D-01    1
+     P( 4) =    0.000000D+00    0        P(20) =    2.000000D+00    0
+     P( 5) =    0.000000D+00    0        P(21) =    0.000000D+00    0
+     P( 6) =    0.000000D+00    0        P(22) =    0.000000D+00    0
+     P( 7) =    0.000000D+00    0        P(23) =    0.000000D+00    0
+     P( 8) =    0.000000D+00    0        P(24) =    0.000000D+00    0
+     P( 9) =    0.000000D+00    0        P(25) =    2.271478D+03    1
+     P(10) =    0.000000D+00    0        P(26) =    0.000000D+00    0
+     P(11) =    0.000000D+00    0        P(27) =    0.000000D+00    0
+     P(12) =    4.917869D-07    1        P(28) =    0.000000D+00    0
+     P(13) =    0.000000D+00    0        P(29) =    0.000000D+00    0
+     P(14) =    1.000000D+00    0        P(30) =    0.000000D+00    0
+     P(15) =    2.000000D+00    0        P(31) =    0.000000D+00    0
+     P(16) =    0.000000D+00    0        P(32) =    0.000000D+00    0
+
+               THE FOLLOWING PARAMETERS ARE ALWAYS FIXED
+     P(33) =    0.000000D+00             P(37) =    0.000000D+00
+     P(34) =    0.000000D+00             P(38) =    0.000000D+00
+     P(35) =    0.000000D+00             P(39) =    0.000000D+00
+     P(36) =    0.000000D+00             P(40) =    0.000000D+00
+
+-NO TRANSFORMATION MADE: DATA IN ZR FORMAT
+
+     TERMINATION: NUMBER OF CALLS TO FCN WITH IFLAG=1 EXCEEDS MAXFEV.
+
+                FINAL L2 NORM OF THE RESIDUALS     .1337880D+05
+                NUMBER OF FUNCTION EVALUATIONS          99
+                NUMBER OF JACOBIAN EVALUATIONS          71
+
+          WEIGHTED SUM OF SQUARES, S:      1.7899229478028D+08
+          SIGMAF SQUARED ESTIMATE, XS:     4.5895460200071D+06
+          SIGMAF ESTIMATE:                 2.1423225760859D+03
+          FIT QUALITY FACTOR:                   8.461D+02
+          NO. DEGREES OF FREEDOM:                   39
+
+
+   ORIGINAL PARAMETER NUMBERS
+   PARAMETER ESTIMATES
+   ESTIMATED STD DEV OF PARAMETERS
+   ESTIMATED RELATIVE STD DEV OF PARAMETERS
+
+
+        1          12          17          19          25
+    2.7061D-05  4.8556D-07  1.4984D-06  8.1911D-01  2.0431D+03
+    7.4935D+02  1.0467D-06  9.5510D-07  1.5586D-01  9.9935D+03
+    2.7691D+07  2.1557D+00  6.3742D-01  1.9028D-01  4.8913D+00
+
+
+      PDAV=    5.5381D+06      PDRMS=    1.2384D+07
+
+   ESTIMATED PARAMETER CORRELATION MATRIX
+     .1000D+01
+     .6359D+00   .1000D+01
+    -.6197D+00  -.9968D+00   .1000D+01
+    -.6669D+00  -.9887D+00   .9753D+00   .1000D+01
+     .4894D+00   .9548D+00  -.9645D+00  -.9115D+00   .1000D+01
+
+       AV ARR      SD WR       SD WI       SD WC       AV ARI     # IT
+     3.280D-01   2.187D+03   2.397D+03   2.142D+03   3.527D-01    0
+
+       AV RR      SD RR       SD RI       SD RC        SSE    # OPIT
+    -2.591D-01   5.158D-01   1.214D+00   8.710D-01   7.877D-01    0
+
+     **************   END  MAIN  FIT   ***************
+
+
+     TERMINATION: NUMBER OF CALLS TO FCN WITH IFLAG=1 EXCEEDS MAXFEV.
+
+                FINAL L2 NORM OF THE RESIDUALS     .2795812D+04
+                NUMBER OF FUNCTION EVALUATIONS          99
+                NUMBER OF JACOBIAN EVALUATIONS          72
+
+          WEIGHTED SUM OF SQUARES, S:      7.8165663359042D+06
+          SIGMAF SQUARED ESTIMATE, XS:     2.0042477784370D+05
+          SIGMAF ESTIMATE:                 4.4768825966703D+02
+          FIT QUALITY FACTOR:                   7.084D+02
+          NO. DEGREES OF FREEDOM:                   39
+
+
+   ORIGINAL PARAMETER NUMBERS
+   PARAMETER ESTIMATES
+   ESTIMATED STD DEV OF PARAMETERS
+   ESTIMATED RELATIVE STD DEV OF PARAMETERS
+
+
+        1          12          17          19          25
+    1.2782D-06  4.2514D-07  1.2018D-06  9.0597D-01  4.0556D+03
+    7.8191D+01  7.2905D-08  7.3779D-08  6.5167D-03  9.6974D+02
+    6.1174D+07  1.7149D-01  6.1388D-02  7.1930D-03  2.3911D-01
+
+
+      PDAV=    1.2235D+07      PDRMS=    2.7358D+07
+
+   ESTIMATED PARAMETER CORRELATION MATRIX
+     .1000D+01
+     .5569D+00   .1000D+01
+    -.5483D+00  -.9881D+00   .1000D+01
+    -.4555D+00  -.7977D+00   .7108D+00   .1000D+01
+     .4955D+00   .9024D+00  -.9237D+00  -.5573D+00   .1000D+01
+
+       AV ARR      SD WR       SD WI       SD WC       AV ARI     # IT
+     3.883D-01   6.581D+02   1.633D+02   4.477D+02   4.666D-01    0
+
+       AV RR      SD RR       SD RI       SD RC        SSE    # OPIT
+    -2.874D-01   5.528D-01   1.448D+00   1.023D+00   4.932D-01    0
+
+ **###**  END @DIRECT@ FWT ITERATION FIT   **###**
+
