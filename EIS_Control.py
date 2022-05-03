@@ -522,13 +522,10 @@ class MainWindow:
         df = pd.read_csv(phase_file, skiprows=1, names=('index', 'f', 'phase'))
         phases = df['phase'].to_numpy()
         
-        # Get |Z| and f from previous data set
-        Z     = self.ft[0].Z
-        freqs = self.ft[0].freqs
-        
+        # Get f from previous data set
         # Average Z over all frames
-        for i in self.ft:
-            Z = np.mean(np.array([Z, self.ft[i].Z]), axis=0)
+        Z     = np.mean([self.ft[i].Z for i in self.ft], axis=0)
+        freqs = self.ft[0].freqs
             
         amps = np.sqrt(np.absolute(Z))
         
