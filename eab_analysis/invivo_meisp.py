@@ -7,7 +7,7 @@ plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
-data_dir = 'C:/Users/BRoehrich/Desktop/2022-05-03/6 hr -330mV'
+data_dir = r'C:\Users\BRoehrich\Desktop\2022-05-11\rat 1 -330mV CPE'
 
 
 def createFolder(directory):
@@ -21,7 +21,7 @@ def createFolder(directory):
  
 def clean_folder(folder):
     for file in os.listdir(folder):
-        if file.endswith('_fit.txt'):
+        if not file.endswith('s.txt'):
             os.remove(os.path.join(folder,file))
             
             
@@ -52,7 +52,7 @@ def make_meisp_folders(data_dir):
             
             
             
-def extract_meisp_data(data_dir, folders):
+def extract_meisp_data(data_dir, folders, circuit_elements=None):
     
     time_file = data_dir + '/0000_time_list.txt'
     times = []
@@ -66,17 +66,14 @@ def extract_meisp_data(data_dir, folders):
     
     folders = [data_dir + f'/{str(folder)}' for folder in folders]
     
-    params = {'Rs': np.array([]),
-              'Rct': np.array([]),
-              'Cdl': np.array([]),
-              'Cad': np.array([])
-              }
     
-    devs = {'Rs': np.array([]),
-              'Rct': np.array([]),
-              'Cdl': np.array([]),
-              'Cad': np.array([])
-              }
+    if not circuit_elements:
+        circuit_elements = ['Rs', 'Rct', 'Cdl', 'Cad']
+    
+    params = {elem: np.array([]) for elem in circuit_elements}
+    devs   = {elem: np.array([]) for elem in circuit_elements}
+    
+    
     
     for path in folders:
         name = path.split('/')[-1]
@@ -84,19 +81,18 @@ def extract_meisp_data(data_dir, folders):
         par_file = os.path.join(path, f'{name}.par')
         dev_file = os.path.join(path, f'{name}.dev')
         
-        _, _, Rs, Rct, Cdl, Cad = np.loadtxt(par_file, unpack=True)
-        _, _, _, Rs_dev, Rct_dev, Cdl_dev, Cad_dev = np.loadtxt(dev_file, 
-                                                          unpack=True)
-                                                         
-        params['Rs'] = np.concatenate((params['Rs'], Rs))
-        params['Rct'] = np.concatenate((params['Rct'], Rct))
-        params['Cdl'] = np.concatenate((params['Cdl'], Cdl))
-        params['Cad'] = np.concatenate((params['Cad'], Cad))
-        devs['Rs'] = np.concatenate((devs['Rs'], Rs_dev))
-        devs['Rct'] = np.concatenate((devs['Rct'], Rct_dev))
-        devs['Cdl'] = np.concatenate((devs['Cdl'], Cdl_dev))
-        devs['Cad'] = np.concatenate((devs['Cad'], Cad_dev))
-    
+        
+        ps = pd.read_fwf(par_file, names=['ind', '_', *circuit_elements])
+        ds = pd.read_fwf(dev_file, names=['ind', '_', 's', *circuit_elements])
+               
+        
+        for param in circuit_elements:
+            params[param] = np.concatenate((params[param], 
+                                           np.array(ps[param])))
+            devs[param] = np.concatenate((devs[param], 
+                                         np.array(ds[param])))
+            
+             
     params['ket'] = 1/(2*params['Rct']*params['Cad'])    
     
     return times, params, devs
@@ -108,16 +104,9 @@ def save_as_excel(times, params, devs):
                    *[val for key, val in params.items()], 
                    *[val for key, val in devs.items()]])
     df = df.T
-    df = df.rename({0: 'time/s',
-           1: 'Rs',
-           2: 'Rct',
-           3: 'Cdl',
-           4: 'Cad',
-           5: 'ket',
-           6: 'Rs_dev',
-           7: 'Rct_dev',
-           8: 'Cdl_dev',
-           9: 'Cad_dev'}, axis=1)
+    names = ['time/s'] + list(params) + list(devs)
+    df = df.rename({i: names[i] for i in range(len(names))}, axis=1)
+            
     
     writer = pd.ExcelWriter(data_dir + '/meisp_fits.xlsx', engine='xlsxwriter')
     df.to_excel(writer, index=False, header=True, startcol=0)
@@ -131,9 +120,12 @@ def save_as_excel(times, params, devs):
 
 # folder_numbers = make_meisp_folders(data_dir)
 # print(folder_numbers)
-folder_numbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+folder_numbers = [0, 1, 2, 3, 4, 5, 6]
 
-times, params, devs = extract_meisp_data(data_dir, folder_numbers)
+# Pass list of circuit elements in the order they appear in MEISP
+circuit_elements = ['Rs', 'Rct', 'Cad', 'phi', 'Cdl']
+times, params, devs = extract_meisp_data(data_dir, folder_numbers,
+                                         circuit_elements = circuit_elements)
 
 output = save_as_excel(times, params, devs)
 
@@ -152,13 +144,17 @@ file = output
 df = pd.read_excel(file)
 
 
+# df = df[df['ket'] > 70]
+# df = df[df['Cad'] > 0]
+
+
 from scipy import signal
 fig, ax = plt.subplots()
 y = signal.savgol_filter(np.array(df['ket']), 21, 1, mode='nearest')
 ax.plot(df['time/s']/60, df['ket'], color = colors[0])
 # ax.plot(df['time/s']/60, y, color = colors[1])
 ax.set_xlabel('Time/ min')
-ax.set_xticks([0,30,60,90,120])
+ax.set_xticks([0,30,60,90])
 ax.set_ylabel('$k_{et}$/ $s^{-1}$')
 
 fig, ax = plt.subplots()
@@ -167,7 +163,7 @@ for param in ['Rs', 'Rct', 'Cdl', 'Cad']:
 
 ax.set_xlabel('Time/ min')
 ax.set_ylabel('Normalized parameter')
-ax.set_xticks([0,30,60,90, 120])
+ax.set_xticks([0,30,60,90])
 # ax.set_xlim(ax.get_xlim()[0], 250)
 ymin, ymax = ax.get_ylim()
 ax.set_ylim(0.3, ymax)
