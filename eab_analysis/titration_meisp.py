@@ -158,20 +158,7 @@ def extract_meisp_data(path, num, circuit_elements = None):
                                   devs=devs
                                   )
                           )
-            
-            # specs.append(Spectrum(float(file.strip('.txt')), 
-            #                       num, fs, res, ims,
-            #                       params={'Rs': Rs[i],
-            #                               'Rct': Rct[i],
-            #                               'Cdl': Cdl[i],
-            #                               'Cad': Cad[i]},
-            #                       devs={'Rs': Rs_dev[i],
-            #                               'Rct': Rct_dev[i],
-            #                               'Cdl': Cdl_dev[i],
-            #                               'Cad': Cad_dev[i]}
-            #                       )
-            #              )
-        
+         
             i += 1
     
     specs.sort(key=lambda s:s.conc)
@@ -274,12 +261,7 @@ def save_fits(d, data_dir):
              *[f'{elem}_dev' for elem in spec.devs]]
     
     df = pd.DataFrame(ls, columns = names)
-    print(df)
     
-    
-    
-    
-    # df = pd.DataFrame(array, columns=names)
     writer = pd.ExcelWriter(data_dir + '/fits.xlsx', engine='xlsxwriter')
     df.to_excel(writer, index=False, header=True, startcol=0)
     writer.save()
@@ -333,7 +315,6 @@ def hill_fit(fit_d):
 circuit_elements = ['Rs', 'Rct', 'Cad', 'phi', 'Cdl']
      
 d = extract_data(data_dir)
-# d = [1,2,3,4]
 fit_d = {}
 
 
@@ -343,10 +324,7 @@ for num in d:
     # plot_phase_maps(d[num], f'Electrode {num}')
 
 
-# for num in fit_d:
-#     fit_d[num] = fit_d[num][:-2]
-
-# plot_params(fit_d)
+plot_params(fit_d)
 save_fits(fit_d, meisp_dir)
 # popt, pcov = hill_fit(fit_d)
 
