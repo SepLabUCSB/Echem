@@ -7,8 +7,8 @@ import os
 plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-data_dir = r'Z:\Projects\Brian\5 - Plaxco collab\20220419 phenylalanine PBS-BSA titration\2022-04-19'
-meisp_dir = r'Z:\Projects\Brian\5 - Plaxco collab\20220419 phenylalanine PBS-BSA titration\2022-04-19-MEISP'
+data_dir = r'C:\Users\BRoehrich\Desktop\2022-05-10\2022-05-10'
+meisp_dir = r'C:\Users\BRoehrich\Desktop\2022-05-10\2022-05-10-MEISP'
 
 target = 'Phenylalanine'
 
@@ -36,14 +36,23 @@ def hill_equation(C, n, Keq, A, B):
 
 
 
+def createFolder(directory):
+        try:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+        except OSError:
+            print ('Error: Creating directory. ' +  directory)
+            
+
+
 def extract_data(path):
     
     d = {}
         
     for folder in os.listdir(path):
         
-        num, conc = folder.split('_')
-        num = int(num)
+        num, mv, conc = folder.split('_')
+        num  = num + '_' + mv
         conc = float(conc)
         
         f = []
@@ -80,9 +89,13 @@ def extract_data(path):
 
 
 def write_meisp_files(path, num, specs):
+    # Write averaged Z data to MEISP format .txt file
     #specs = list of spectra for an electrode
     
     save_path = os.path.join(path, str(num))
+    
+    if not os.path.isdir(save_path):
+        createFolder(save_path)
     
     for spec in specs:
     
@@ -100,16 +113,25 @@ def write_meisp_files(path, num, specs):
         
         
 
-def extract_meisp_data(path, num):
+def extract_meisp_data(path, num, circuit_elements = None):
+    # Read fit data from .par and .dev files
     
     path = os.path.join(path, str(num))
     
     par_file = os.path.join(path, f'{num}.par')
     dev_file = os.path.join(path, f'{num}.dev')
     
-    _, _, Rs, Rct, Cdl, Cad = np.loadtxt(par_file, unpack=True)
-    _, _, _, Rs_dev, Rct_dev, Cdl_dev, Cad_dev = np.loadtxt(dev_file, 
-                                                         unpack=True)
+    
+    if not circuit_elements:
+        circuit_elements = ['Rs', 'Rct', 'Cdl', 'Cad']
+    
+    
+    # _, _, Rs, Rct, Cdl, Cad = np.loadtxt(par_file, unpack=True)
+    # _, _, _, Rs_dev, Rct_dev, Cdl_dev, Cad_dev = np.loadtxt(dev_file, 
+    #                                                      unpack=True)
+    
+    ps = pd.read_fwf(par_file, names=['ind', '_', *circuit_elements])
+    ds = pd.read_fwf(dev_file, names=['ind', '_', 's', *circuit_elements])
     
     
     concs = []
@@ -119,24 +141,36 @@ def extract_meisp_data(path, num):
     i = 0
     for file in os.listdir(path):
         if file.endswith('.txt') and len(file) == 11:
-            # if file.endswith('_fit.txt'):
-            #     continue
+            
             concs.append(file)
             
             fs, res, ims = np.loadtxt(os.path.join(path,file), 
                                       unpack=True, skiprows=1)
+            
+            
+            params = {elem: ps[elem][i] for elem in circuit_elements}
+            devs   = {elem: ds[elem][i] for elem in circuit_elements}
+            
+            
             specs.append(Spectrum(float(file.strip('.txt')), 
                                   num, fs, res, ims,
-                                  params={'Rs': Rs[i],
-                                          'Rct': Rct[i],
-                                          'Cdl': Cdl[i],
-                                          'Cad': Cad[i]},
-                                  devs={'Rs': Rs_dev[i],
-                                          'Rct': Rct_dev[i],
-                                          'Cdl': Cdl_dev[i],
-                                          'Cad': Cad_dev[i]}
+                                  params=params,
+                                  devs=devs
                                   )
-                         )
+                          )
+            
+            # specs.append(Spectrum(float(file.strip('.txt')), 
+            #                       num, fs, res, ims,
+            #                       params={'Rs': Rs[i],
+            #                               'Rct': Rct[i],
+            #                               'Cdl': Cdl[i],
+            #                               'Cad': Cad[i]},
+            #                       devs={'Rs': Rs_dev[i],
+            #                               'Rct': Rct_dev[i],
+            #                               'Cdl': Cdl_dev[i],
+            #                               'Cad': Cad_dev[i]}
+            #                       )
+            #              )
         
             i += 1
     
@@ -144,6 +178,7 @@ def extract_meisp_data(path, num):
     
     for spec in specs:
         spec.ket = 1/(2*spec.params['Rct']*spec.params['Cad'])
+        spec.params['ket'] = spec.ket
     
     return specs
  
@@ -165,7 +200,7 @@ def plot_phase_maps(specs, name):
     ax.set_title(name)
             
 
-def plot_params(d):
+def plot_params(d, title=None):
     
     # plot normalized params vs concentration
     fig, ax = plt.subplots()
@@ -192,6 +227,8 @@ def plot_params(d):
     ax.set_xlabel(f'[{target}]/ M')
     ax.set_ylabel('Normalized Parameter')
     ax.set_xscale('log') 
+    if title:
+        ax.set_title(title)
     plt.legend()
         
     
@@ -213,42 +250,36 @@ def plot_params(d):
     ax.set_xlabel(f'[{target}]/ M')
     ax.set_ylabel('$k_{et}$/ $s^{-1}$')
     ax.set_xscale('log') 
+    if title:
+        ax.set_title(title)
     
 
 
-def save_fits(d, data_dir):
-    elec    = []
-    conc    = []
-    Rs      = [] 
-    Rct     = []
-    Cdl     = []
-    Cad     = []
-    Rs_dev  = []
-    Rct_dev = []
-    Cdl_dev = []
-    Cad_dev = []
+def save_fits(d, data_dir):  
     
+    ls = []
     for num in d:
         for spec in d[num]:
-            elec.append(spec.elec)
-            conc.append(spec.conc)
-            Rs.append(spec.params['Rs'])
-            Rct.append(spec.params['Rct'])
-            Cdl.append(spec.params['Cdl'])
-            Cad.append(spec.params['Cad'])
-            Rs_dev.append(spec.devs['Rs'])
-            Rct_dev.append(spec.devs['Rct'])
-            Cdl_dev.append(spec.devs['Cdl'])
-            Cad_dev.append(spec.devs['Cad'])
+            
+            l = [spec.elec,
+                 spec.conc,
+                 *[val for elem, val in spec.params.items()],
+                 *[dev for elem, dev in spec.devs.items()]
+                 ]
+            ls.append(l)
+    
+    names = ['elec',
+             'conc',
+             *[elem for elem in spec.params],
+             *[f'{elem}_dev' for elem in spec.devs]]
+    
+    df = pd.DataFrame(ls, columns = names)
+    print(df)
     
     
-    array = np.array([elec, conc, Rs, Rct, Cdl, Cad,
-                       Rs_dev, Rct_dev, Cdl_dev, Cad_dev]).T
-    names = np.array(('elec', 'conc', 'Rs', 'Rct', 'Cdl', 'Cad',
-                       'Rs_dev', 'Rct_dev', 'Cdl_dev', 'Cad_dev'))
     
     
-    df = pd.DataFrame(array, columns=names)
+    # df = pd.DataFrame(array, columns=names)
     writer = pd.ExcelWriter(data_dir + '/fits.xlsx', engine='xlsxwriter')
     df.to_excel(writer, index=False, header=True, startcol=0)
     writer.save()
@@ -296,25 +327,28 @@ def hill_fit(fit_d):
     
     return popt, pcov
 
-        
-        
-# d = extract_data(data_dir)
-d = [1,2,3,4]
+
+#%%  Run functions        
+   
+circuit_elements = ['Rs', 'Rct', 'Cad', 'phi', 'Cdl']
+     
+d = extract_data(data_dir)
+# d = [1,2,3,4]
 fit_d = {}
 
 
 for num in d:
     # write_meisp_files(meisp_dir, num, d[num])
-    fit_d[num] = extract_meisp_data(meisp_dir, num)
-    # plot_phase_maps(fit_d[num], f'Electrode {num}')
+    fit_d[num] = extract_meisp_data(meisp_dir, num, circuit_elements)
+    # plot_phase_maps(d[num], f'Electrode {num}')
 
 
 # for num in fit_d:
 #     fit_d[num] = fit_d[num][:-2]
 
 # plot_params(fit_d)
-# save_fits(fit_d, meisp_dir)
-popt, pcov = hill_fit(fit_d)
+save_fits(fit_d, meisp_dir)
+# popt, pcov = hill_fit(fit_d)
 
 
 
