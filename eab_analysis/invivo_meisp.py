@@ -7,7 +7,7 @@ plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
-data_dir = r'C:\Users\BRoehrich\Desktop\2022-05-11\rat 1 -330mV CPE'
+data_dir = r'C:\Users\BRoehrich\Desktop\EIS-EAB data\2022-04-27\6hr -330mV'
 
 
 def createFolder(directory):
@@ -104,7 +104,8 @@ def save_as_excel(times, params, devs):
                    *[val for key, val in params.items()], 
                    *[val for key, val in devs.items()]])
     df = df.T
-    names = ['time/s'] + list(params) + list(devs)
+
+    names = ['time/s'] + list(params) + [f'{dev}_dev' for dev in devs]
     df = df.rename({i: names[i] for i in range(len(names))}, axis=1)
             
     
@@ -120,12 +121,12 @@ def save_as_excel(times, params, devs):
 
 # folder_numbers = make_meisp_folders(data_dir)
 # print(folder_numbers)
-folder_numbers = [0, 1, 2, 3, 4, 5, 6]
+folder_numbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 # Pass list of circuit elements in the order they appear in MEISP
 circuit_elements = ['Rs', 'Rct', 'Cad', 'phi', 'Cdl']
 times, params, devs = extract_meisp_data(data_dir, folder_numbers,
-                                         circuit_elements = circuit_elements)
+                                          circuit_elements = circuit_elements)
 
 output = save_as_excel(times, params, devs)
 
