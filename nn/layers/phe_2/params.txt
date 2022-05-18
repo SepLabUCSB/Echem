@@ -1,0 +1,5 @@
+tanh,tanh_prime
+tanh,tanh_prime
+tanh,tanh_prime
+tanh,tanh_prime
+mse,mse_prime
