@@ -1158,6 +1158,7 @@ class MainWindow:
             
             
         
+        ### RECORDING MAIN LOOP ###
         
         # Record starting time
         start_time = time.time()
@@ -1253,9 +1254,10 @@ class MainWindow:
                 # Ask for concentration
                 conc = tk.simpledialog.askstring(title=None,
                                                  prompt='Concentration: ')
-            else: 
+            elif exp_type == 'invivo': 
                 conc = ''
-           
+                self.recording_time.delete('1.0', 'end')
+                self.recording_time.insert('1.0', '1.8')
             
             # Wait for autolab to create start file
             # ULTRA bad way of triggering recording...
@@ -1267,7 +1269,7 @@ class MainWindow:
                 
                 while os.path.exists(updatefile) == False:
                     # Wait for autolab to create start file
-                    self.root.after(100) #wait 100ms
+                    self.root.after(5) #wait 5 ms
                     
                 
                 print(f'Recording electrode {elec_numbers[i]}, {conc}')
