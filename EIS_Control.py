@@ -32,7 +32,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Averaging over multiple frames for fit
+Plot multiple Z vs t for multiplexed in-vivo
 
 '''
 
@@ -1158,6 +1158,7 @@ class MainWindow:
             
             
         
+        ### RECORDING MAIN LOOP ###
         
         # Record starting time
         start_time = time.time()
@@ -1205,6 +1206,19 @@ class MainWindow:
             print('Set recording time to 10 for multiplexing!')
             return
         
+        # Ask for titration/ invivo experiment
+        exp_type = tk.simpledialog.askstring(
+                        'Experiment type', 
+                        'Titration (0) or in-vivo (1)?') 
+        if exp_type == '0':
+            exp_type = 'titration'
+        elif exp_type == '1':
+            exp_type = 'invivo'
+        else:
+            print('Invalid entry')
+            return
+        
+        
         # Ask for number of multiplexed channels
         no_of_channels = tk.simpledialog.askstring(
                         'Number of channels', 'Number of channels:')    
@@ -1216,10 +1230,14 @@ class MainWindow:
                         initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
         elec_numbers = elec_numbers.split(',')
         
-        # Ask for number of concentrations
-        number_of_concs = tk.simpledialog.askstring(
-                        'Number of concentrations', 'Number of concentrations:')
-        number_of_concs = int(number_of_concs)
+        if exp_type == 'titration':
+            # Ask for number of concentrations
+            number_of_concs = tk.simpledialog.askstring(
+                            'Number of concentrations', 'Number of concentrations:')
+            number_of_concs = int(number_of_concs)
+        
+        if exp_type == 'invivo':
+            number_of_concs = int(1)
         
         # Path of triggering file
         updatefile = os.path.join(this_dir, 'update.txt')
@@ -1232,10 +1250,14 @@ class MainWindow:
         # Iterate through concentrations
         for _ in range(number_of_concs):
             
-            # Ask for concentration
-            conc = tk.simpledialog.askstring(title=None,
+            if exp_type == 'titration':
+                # Ask for concentration
+                conc = tk.simpledialog.askstring(title=None,
                                                  prompt='Concentration: ')
-           
+            elif exp_type == 'invivo': 
+                conc = ''
+                self.recording_time.delete('1.0', 'end')
+                self.recording_time.insert('1.0', '1.8')
             
             # Wait for autolab to create start file
             # ULTRA bad way of triggering recording...
@@ -1247,7 +1269,7 @@ class MainWindow:
                 
                 while os.path.exists(updatefile) == False:
                     # Wait for autolab to create start file
-                    self.root.after(100) #wait 100ms
+                    self.root.after(5) #wait 5 ms
                     
                 
                 print(f'Recording electrode {elec_numbers[i]}, {conc}')
