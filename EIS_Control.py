@@ -1201,17 +1201,16 @@ class MainWindow:
         
             
     def multiplex(self):
-                
-        if int(self.recording_time.get('1.0', 'end')) != 10:
-            print('Set recording time to 10 for multiplexing!')
-            return
-        
+                        
         # Ask for titration/ invivo experiment
         exp_type = tk.simpledialog.askstring(
                         'Experiment type', 
                         'Titration (0) or in-vivo (1)?') 
         if exp_type == '0':
             exp_type = 'titration'
+            if int(self.recording_time.get('1.0', 'end')) != 10:
+                print('Set recording time to 10 for multiplexing!')
+                return
         elif exp_type == '1':
             exp_type = 'invivo'
         else:
@@ -1237,7 +1236,9 @@ class MainWindow:
             number_of_concs = int(number_of_concs)
         
         if exp_type == 'invivo':
-            number_of_concs = int(1)
+            number_of_concs = self.recording_time.get('1.0', 'end')
+            number_of_concs = int(number_of_concs)/2 #2 s per spectrum
+            number_of_concs = int(number_of_concs)
         
         # Path of triggering file
         updatefile = os.path.join(this_dir, 'update.txt')
@@ -1257,7 +1258,7 @@ class MainWindow:
             elif exp_type == 'invivo': 
                 conc = ''
                 self.recording_time.delete('1.0', 'end')
-                self.recording_time.insert('1.0', '1.8')
+                self.recording_time.insert('1.0', '2')
             
             # Wait for autolab to create start file
             # ULTRA bad way of triggering recording...
