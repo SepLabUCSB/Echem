@@ -1255,35 +1255,41 @@ class MainWindow:
         
         
         # Iterate through concentrations
-        for _ in range(number_of_concs):
-            
-            if exp_type == 'titration':
+        if exp_type == 'titration':
+            for _ in range(number_of_concs):
+                
                 # Ask for concentration
                 conc = tk.simpledialog.askstring(title=None,
                                                  prompt='Concentration: ')
-            elif exp_type == 'invivo': 
-                conc = ''
-                self.recording_time.delete('1.0', 'end')
-                self.recording_time.insert('1.0', '2')
+                            
+                # Wait for autolab to create start file
+                # ULTRA bad way of triggering recording...
+                while os.path.exists(updatefile) == False:
+                    time.sleep(0.1)
+                
+                # Multiplex record and save
+                for i in range(no_of_channels):
+                    
+                    while os.path.exists(updatefile) == False:
+                        # Wait for autolab to create start file
+                        self.root.after(5) #wait 5 ms
+                        
+                    
+                    print(f'Recording electrode {elec_numbers[i]}, {conc}')
+                    self.record_signals(silent=True)
+                    self.save_last(name = f'{elec_numbers[i]}_{conc}')
+                    
+                    os.remove(updatefile)
+        
+        elif exp_type == 'invivo': 
+            conc = ''
+            self.recording_time.delete('1.0', 'end')
+            self.recording_time.insert('1.0', '2')
             
-            # Wait for autolab to create start file
-            # ULTRA bad way of triggering recording...
             while os.path.exists(updatefile) == False:
                 time.sleep(0.1)
+                
             
-            # Multiplex record and save
-            for i in range(no_of_channels):
-                
-                while os.path.exists(updatefile) == False:
-                    # Wait for autolab to create start file
-                    self.root.after(5) #wait 5 ms
-                    
-                
-                print(f'Recording electrode {elec_numbers[i]}, {conc}')
-                self.record_signals(silent=True)
-                self.save_last(name = f'{elec_numbers[i]}_{conc}')
-                
-                os.remove(updatefile)
                             
         
                 
