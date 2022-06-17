@@ -191,9 +191,9 @@ class MainWindow:
         self.canvas.get_tk_widget().grid(row=1, column=0)
         
         
-        # Time resolved fig
-        self.timefig = plt.Figure(figsize=(5,4), dpi=100)
-        self.timeax  = self.timefig.add_subplot(111)
+        # Time resolved fig        
+        self.timefig, self.timeax = plt.subplots(figsize=(5,4), dpi=100)
+        self.timeax.set_xlabel('Time/ s')
                         
         self.timecanvas = FigureCanvasTkAgg(self.timefig, master=root)
         self.timecanvas.get_tk_widget().grid(row=1, column=2)
@@ -417,8 +417,12 @@ class MainWindow:
         else:
             print("Loaded config file")
             with open(config_file, 'r') as f:
-                for line in f:
+                for line in f:              
                     key, val = line.split(':')
+                    
+                    if key == 'recording_time' and float(val) < 10:
+                        val = '10'
+                    
                     self.config[key] = val.strip('\n')
             
     
@@ -648,11 +652,25 @@ class MainWindow:
             pass
         
         self.update_config_file()
-        
     
-    def update_time_plot(self, t, freqs, Z, phase, params):
+    
+
+    # def init_time_plot(self, n_plots):
+                
+    #     self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), dpi=100)
+    #     self.timeax.set_xlabel('Time/ s')
+                        
+    #     self.timecanvas = FigureCanvasTkAgg(self.timefig, master=root)
+    #     self.timecanvas.get_tk_widget().grid(row=1, column=2)
+    
+    
+    
+    def update_time_plot(self, t, freqs, Z, phase, params, ax=None):
         # Plot the most recent point of whatever's selected
         # (self.time_plot_param) onto the ... vs t graph
+        
+        if not ax:
+            ax = self.timeax
         
         # Get the value
         if self.time_plot_param.get() == 'Phase':
@@ -680,9 +698,8 @@ class MainWindow:
         else:
             label = f'{self.time_plot_val.get()}'
         
-        self.timeax.plot(t, val, 'ok')
-        self.timeax.set_xlabel('Time/ s')
-        self.timeax.set_ylabel(label)
+        ax.plot(t, val, 'ok')
+        ax.set_ylabel(label)
         self.timefig.tight_layout()
         self.timefig.canvas.draw()
         self.timefig.canvas.flush_events()
@@ -735,7 +752,7 @@ class MainWindow:
 
 
     def record_signals(self, save=False, silent=True, append=False,
-                       axes = None):
+                       axes = None, update_time_plot=True, **kwargs):
         '''
         
 
@@ -1184,7 +1201,8 @@ class MainWindow:
         
         # Process the final frame
         t, freqs, Z, phase, fits = process_frame(frame-1)
-        self.update_time_plot(t, freqs, Z, phase, fits)
+        if update_time_plot:
+            self.update_time_plot(t, freqs, Z, phase, fits)
         
         try:
             if not silent:
@@ -1242,9 +1260,8 @@ class MainWindow:
             number_of_concs = int(number_of_concs)
         
         if exp_type == 'invivo':
-            number_of_concs = self.recording_time.get('1.0', 'end')
-            number_of_concs = int(number_of_concs)/2 #2 s per spectrum
-            number_of_concs = int(number_of_concs)
+            recording_time = self.recording_time.get('1.0', 'end')
+            recording_time = float(recording_time)
         
         # Path of triggering file
         updatefile = os.path.join(this_dir, 'update.txt')
@@ -1253,7 +1270,7 @@ class MainWindow:
         if os.path.exists(updatefile):
             os.remove(updatefile)
         
-        
+                
         # Iterate through concentrations
         if exp_type == 'titration':
             for _ in range(number_of_concs):
@@ -1281,13 +1298,33 @@ class MainWindow:
                     
                     os.remove(updatefile)
         
+        
         elif exp_type == 'invivo': 
             conc = ''
             self.recording_time.delete('1.0', 'end')
-            self.recording_time.insert('1.0', '2')
+            self.recording_time.insert('1.0', '1.5')
             
             while os.path.exists(updatefile) == False:
                 time.sleep(0.1)
+                
+            start_time = time.time()
+            s_t = time.strftime("%H%M%S", time.gmtime(time.time()))
+                        
+            while time.time() - start_time < recording_time:
+                # Multiplex
+                for i in range(no_of_channels):
+                    
+                    while os.path.exists(updatefile) == False:
+                        # Wait for autolab to create start file
+                        self.root.after(5)
+                    
+                    ftime = int(time.time() - start_time)
+                    self.record_signals(silent=True, update_time_plot=False,
+                                        savefig=False)
+                    self.save_last(name = f'{elec_numbers[i]}_{ftime}',
+                                   subpath = s_t, savefig=False)
+                    
+                    os.remove(updatefile)
                 
             
                             
@@ -1376,8 +1413,8 @@ class MainWindow:
         
         
         
-    def save_last(self, name = None):
-                
+    def save_last(self, name = None, savefig=True, subpath=''):
+               
         if self.ft:
             try:
                 if not name:
@@ -1389,7 +1426,7 @@ class MainWindow:
                 today = str(date.today())
                                     
                 folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
-                                           today, name)
+                                           today, subpath, name)
                 
                 createFolder(folder_path)
                 
@@ -1397,8 +1434,8 @@ class MainWindow:
                 
                 with open(time_file, 'w') as f:
                     for i, _ in self.ft.items():
-                        time = str(self.ft[i].time)
-                        f.write(time + '\n')
+                        ftime = str(self.ft[i].time)
+                        f.write(ftime + '\n')
                     
                 f.close()
                     
@@ -1415,13 +1452,16 @@ class MainWindow:
                 with open(meta_file, 'w') as f:
                     f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
                     f.write('Waveform: '+ str(self.waveform.get()))
+                    s_t = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time()))
+                    f.write('\nStart time: %s'%s_t)
                     avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
                     f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
                     
+                    
                 f.close()
                 
-                    
-                self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
+                if savefig:    
+                    self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
                 
                 print('Saved as ASCII:', folder_path, '\n')
                  
