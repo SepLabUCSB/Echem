@@ -11,6 +11,7 @@ from array import array
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
 from EIS_Fit import EIS_fit
+# from siglent_control import FourierTransformData
 default_stdout = sys.stdout
 default_stdin  = sys.stdin
 default_stderr = sys.stderr
@@ -70,6 +71,50 @@ class PrintLogger():
 
 
 
+def TKObject(obj:str, frame, pos:tuple,
+             variable=None, default=None, options=None,
+             command=None, text=None, columnspan=1,
+             size=None, returnselector=False):
+    # Wrapper function for creating TKinter objects
+    if obj == "Label":
+        tkobj = tk.Label(frame, text=text)
+        tkobj.grid(row=pos[0], column=pos[1], columnspan=columnspan)
+    
+    elif obj == 'StringVar':
+        if not default:
+            default = options[0]
+        variable = tk.StringVar(frame)
+        variable.set(default)
+        selector = tk.OptionMenu(frame, variable, *options, command=command)
+        selector.grid(row=pos[0], column=pos[1], columnspan=columnspan)
+        if returnselector:
+            return variable, selector
+        else:
+            return variable
+        
+    elif obj == 'Button':
+        tkobj = tk.Button(frame, text=text, command=command)
+        tkobj.grid(row=pos[0], column=pos[1], columnspan=columnspan)
+        
+    elif obj == 'IntVar':
+        variable = tk.IntVar(value=default)
+        option = tk.Checkbutton(frame, text=text,
+                                variable=variable)
+        option.grid(row=pos[0], column=pos[1], columnspan=columnspan)
+        return variable
+    
+    elif obj == 'Text':
+       variable = tk.Text(frame, height=size[0], width=size[1])
+       variable.insert('1.0', default)
+       variable.grid(row=pos[0], column=pos[1])
+       return variable
+   
+    else:
+        print(f'Unsupported obj: {obj}')
+
+
+
+
 ##### MainWindow class #####
 
 class MainWindow:
@@ -86,6 +131,28 @@ class MainWindow:
         self.ft = None
         self.config = {}
         self.load_config()
+        
+        
+        self.last_file_name = ''
+        self.test_mode = False
+        
+        
+        self.potentiostat   = None
+        self.waveform       = None
+        self.arb            = None
+        self.scope          = None
+        self.plot_Z         = None
+        self.plot_phase     = None
+        self.waveform_vpp   = None
+        self.recording_time = None
+        self.current_range  = None
+        self.DC_offset      = None
+        self.ref_corr_val   = None
+        self.ref_corr_var   = None
+        self.fit            = None
+        self.circuit        = None
+        self.time_plot_param= None
+        self.time_plot_val  = None
             
         
         # Initialize frames and canvas
@@ -132,143 +199,112 @@ class MainWindow:
         self.timecanvas.get_tk_widget().grid(row=1, column=2)
         
         
-        # Other vars to initialize
-        self.last_file_name = ''
-        self.test_mode = False
-        
-        
         
         #################################################
         ### FRAME 1: Instrument selection and control ###
         #################################################
         
         # Potentiostat selection
-        text = tk.Label(self.frame, text='Potentiostat:')
-        text.grid(row=1, column=1)
-        self.potentiostat = tk.StringVar(self.frame)
-        self.potentiostat.set(self.config['potentiostat'])
-        self.potentiostat_selector = tk.OptionMenu(self.frame, self.potentiostat,
-                                                   *['Gamry', 'Autolab'])
-        self.potentiostat_selector.grid(row=1, column=2)
         
+        TKObject('Label', self.frame,
+                 text='Potentiostat:', pos=(1,1))
+        self.potentiostat = TKObject('StringVar', self.frame,
+                                      variable=self.potentiostat,
+                                      default=self.config['potentiostat'],
+                                      options=['Gamry', 'Autolab'], pos=(1,2))
+                
         
         # Update config file button
-        self.update_config_button = tk.Button(self.frame, text='Update config', 
-                                                   command=self.update_config_file)
-        self.update_config_button.grid(row=1, column=3)
+        TKObject('Button', self.frame, text='Update config',
+                 command=self.update_config_file, pos=(1,3))
         
         
         
         # Waveform selection dropdown menu
-        text = tk.Label(self.frame, text='Waveform:')
-        text.grid(row=2, column=1)
         self.file_list = [file for file in os.listdir(rigol_waves) 
                           if file.endswith('freqs.csv')
                           if file.startswith('Rigol')]
+        TKObject('Label', self.frame,
+                  text='Waveform:', pos=(2,1))
         
-        self.waveform = tk.StringVar(self.frame)
-        self.waveform.set(self.config['waveform'])
-        self.waveform_selector = tk.OptionMenu(self.frame, self.waveform, 
-                                               *self.file_list, command=self.show_waveform)
-        self.waveform_selector.grid(row=2, column=2)
+        self.waveform = TKObject('StringVar', self.frame,
+                                  default=self.config['waveform'],
+                                  variable=self.waveform, options=self.file_list,
+                                  command=self.show_waveform, pos=(2,2))
+        
 
                 
         
         # VISA selection menu: Arb
         try:
-            text = tk.Label(self.frame, text='Arb:')
-            text.grid(row=3, column=1)
-            self.arb = tk.StringVar(self.frame)
-            
-            try:
-                # Look for Rigol arb, i.e.
-                # 'USB0::0x1AB1::0x0643::DG8A232302748::INSTR'
-                default_arb = [inst for inst in self.rm.list_resources() 
-                                if len(inst.split('::')) > 3 
-                                and inst.split('::')[3].startswith('DG')][0]
-            
-            except:
-                default_arb = ''
-            
-            self.arb.set(default_arb)
-            self.arb_selector = tk.OptionMenu(self.frame, self.arb, 
-                                                   *self.rm.list_resources())
-            self.arb_selector.grid(row=3, column=2)
-            self.apply_waveform_button = tk.Button(self.frame, text='Apply Wave', 
-                                                   command=self.apply_waveform)
-            self.apply_waveform_button.grid(row=2, column=3)
-            
+            # Look for Rigol arb, i.e.
+            # 'USB0::0x1AB1::0x0643::DG8A232302748::INSTR'
+            default_arb = [inst for inst in self.rm.list_resources() 
+                            if len(inst.split('::')) > 3 
+                            and inst.split('::')[3].startswith('DG')][0]
+        
         except:
-            # If no instrument connected, no button
+            default_arb = ''
+        
+        try:
+            TKObject('Label', self.frame, text='Arb:', pos=(3,1))
+            self.arb = TKObject('StringVar', self.frame, default=default_arb,
+                                      variable=self.arb, options=self.rm.list_resources(),
+                                      pos=(3,2))
+            TKObject('Button', self.frame, text='Apply Wave', command=self.apply_waveform, pos=(2,3))
+        except:
+             # If no instrument connected, no button
             self.test_mode = True
             pass
-        
+                
         
         
         # VISA selection menus: Scope
         try:
-            text = tk.Label(self.frame, text='Scope:')
-            text.grid(row=4, column=1)
-            self.scope = tk.StringVar(self.frame)
-            
-            try:
-                default_scope = [inst for inst in self.rm.list_resources() 
+            # Look for Siglent scope
+            default_scope = [inst for inst in self.rm.list_resources() 
                                 if len(inst.split('::')) > 3 
                                 and inst.split('::')[3].startswith('SDS')][0]
-            
-            except:
-                default_scope = ''
-            
-            self.scope.set(default_scope)
-            self.scope_selector = tk.OptionMenu(self.frame, self.scope, 
-                                                   *self.rm.list_resources())
-            self.scope_selector.grid(row=4, column=2)
+        
         except:
+            default_scope = ''
+        
+        try:
+            
+            TKObject('Label', self.frame, text='Scope:', pos=(4,1))
+            self.scope = TKObject('StringVar', self.frame, default=default_scope,
+                                      variable=self.scope, options=self.rm.list_resources(),
+                                      pos=(4,2))
+        except:
+             # If no instrument connected, no button
+            self.test_mode = True
             pass
+       
         
         
         
         # Record, save buttons
-        self.record_signals_button = tk.Button(self.frame, text='Record Signals', 
-                                               command=self.record_signals)
-        self.record_signals_button.grid(row=3, column=3)
+        TKObject('Button', self.frame, text='Record Signals', 
+                 command=self.record_signals, pos=(3,3))
+        TKObject('Button', self.frame, text='Record Reference', 
+                 command=self.record_reference, pos=(5,1))
+        TKObject('Button', self.frame, text='Save last measurement', 
+                 command=self.save_last, pos=(5,2))
+        TKObject('Button', self.frame, text='Multiplex', 
+                 command=self.multiplex, pos=(5,3))
+        TKObject('Button', self.frame, text='Record and save', 
+                 command=self.record_and_save, pos=(4,3))
+                
+        
+        self.plot_Z = TKObject('IntVar', self.frame, text='|Z|',
+                               default=self.config['plot_Z'],
+                               variable=self.plot_Z, pos=(6,1))
         
         
-        self.record_reference_button = tk.Button(self.frame, text='Record Reference', 
-                                               command=self.record_reference)
-        self.record_reference_button.grid(row=5, column=1)
-        
-        
-        self.save_button = tk.Button(self.frame, text='Save last measurement', 
-                                                   command=self.save_last)
-        self.save_button.grid(row=5, column=2, columnspan=1)
-        
-        
-        self.multiplex_button = tk.Button(self.frame, text='Multiplex', 
-                                                   command=self.multiplex)
-        self.multiplex_button.grid(row=5, column=3, columnspan=1)
-        
-        
-        self.record_save_button = tk.Button(self.frame, text='Record and save', 
-                                                   command=self.record_and_save)
-        self.record_save_button.grid(row=4, column=3, columnspan=1)
-        
-        
-        
-        # Plot Z, phase toggles
-        self.plot_Z = tk.IntVar(value=self.config['plot_Z'])
-        self.plot_Z_option = tk.Checkbutton(self.frame, text='|Z|', 
-                                                variable=self.plot_Z)
-        self.plot_Z_option.grid(row=6, column=1)
-        
-        
-        self.plot_phase = tk.IntVar(value=self.config['plot_phase'])
-        self.plot_phase_option = tk.Checkbutton(self.frame, text='Phase', 
-                                                variable=self.plot_phase)
-        self.plot_phase_option.grid(row=6, column=2)
-        
-        
-        
+        self.plot_phase = TKObject('IntVar', self.frame, text='Phase',
+                               default=self.config['plot_phase'],
+                               variable=self.plot_phase, pos=(6,2))
+                
         
         
         ########################################
@@ -277,111 +313,83 @@ class MainWindow:
         
 
         # Applied waveform amplitude
-        text = tk.Label(self.frame2, text='Waveform Vpp (mV):')
-        text.grid(row=0, column = 0)
-        self.waveform_vpp = tk.Text(self.frame2, height=1, width=7)
-        self.waveform_vpp.insert('1.0', self.config['waveform_vpp'])
-        self.waveform_vpp.grid(row=0, column=1)
-        
-        
+        TKObject('Label', self.frame2, text='Waveform Vpp (mV):', pos=(0,0))
+        self.waveform_vpp = TKObject('Text', self.frame2, size=(1,7), pos=(0,1),
+                                     default=self.config['waveform_vpp'])
+
         
         # Recording duration
-        text = tk.Label(self.frame2, text='Recording time (s):')
-        text.grid(row=1, column = 0)
-        self.recording_time = tk.Text(self.frame2, height=1, width=7)
-        self.recording_time.insert('1.0', self.config['recording_time'])
-        self.recording_time.grid(row=1, column=1)
-        
-        
+        TKObject('Label', self.frame2, text='Recording time (s):', pos=(1,0))
+        self.recording_time = TKObject('Text', self.frame2, size=(1,7), pos=(1,1),
+                                     default=self.config['recording_time'])
+
         
         # Potentiostat current range
-        text = tk.Label(self.frame2, text='Current range:')
-        text.grid(row=2, column = 0)
-        self.current_range = tk.Text(self.frame2, height=1, width=7)
-        self.current_range.insert('1.0', self.config['current_range'])
-        self.current_range.grid(row=2, column=1)
-        
-        
+        TKObject('Label', self.frame2, text='Current range:', pos=(2,0))
+        self.current_range = TKObject('Text', self.frame2, size=(1,7), pos=(2,1),
+                                     default=self.config['current_range'])
+
         
         # DC Voltage offset
-        text = tk.Label(self.frame2, text='DC Voltage (V):')
-        text.grid(row=3, column = 0)
-        self.DC_offset = tk.Text(self.frame2, height=1, width=7)
-        self.DC_offset.insert('1.0', self.config['DC_offset'])
-        self.DC_offset.grid(row=3, column=1)
-        
-        self.DC_offset_button = tk.Button(self.frame2, 
-                                              text='Apply offset', 
-                                              command=self.apply_offset)
-        self.DC_offset_button.grid(row=3, column=2)
+        TKObject('Label', self.frame2, text='DC Voltage (V):', pos=(3,0))
+        self.DC_offset = TKObject('Text', self.frame2, size=(1,7), pos=(3,1),
+                                     default=self.config['DC_offset'])
         
         
+        TKObject('Button', self.frame2, text='Apply offset', pos=(3,2),
+                 command = self.apply_offset)
+         
         
         # Apply calibration correction
-        text = tk.Label(self.frame2, text='Apply reference correction:')
-        text.grid(row=4, column = 0)
-        self.ref_corr_val = tk.Text(self.frame2, height=1, width=7)
-        self.ref_corr_val.insert('1.0', self.config['ref_corr_val'])
-        self.ref_corr_val.grid(row=4, column=1)
-        
-        self.ref_corr_var = tk.IntVar(value=self.config['ref_corr_var'])
-        self.ref_corr_option = tk.Checkbutton(self.frame2, 
-                                              variable=self.ref_corr_var)
-        self.ref_corr_option.grid(row=4, column=2)
-        
-        
+        TKObject('Label', self.frame2, text='Apply reference correction:', pos=(4,0))
+        self.ref_corr_val = TKObject('Text', self.frame2, size=(1,7), pos=(4,1),
+                                     default=self.config['ref_corr_val'])
+        self.ref_corr_var = TKObject('IntVar', self.frame2, pos=(4,2),
+                                     variable=self.ref_corr_var,
+                                     default=self.config['ref_corr_var'])
+                
         
         # Create waveform from result
-        self.make_waveform_button = tk.Button(self.frame2, 
-                                              text='Create waveform from last measurement', 
-                                              command=self.make_waveform)
-        self.make_waveform_button.grid(row=5, column=0, columnspan=2)
-        
-        
+        TKObject('Button', self.frame2, pos=(5,0), columnspan=2,
+                 text='Create waveform from last measurement', 
+                 command=self.make_waveform)       
         
         
         # Save options
+        self.fit = TKObject('IntVar', self.frame2, pos=(6,0), text='Fit',
+                                     variable=self.fit,
+                                     default=self.config['fit'])
+                
         
-        self.fit = tk.IntVar(value=self.config['fit'])
-        self.fit_option = tk.Checkbutton(self.frame2, text='Fit', 
-                                                variable=self.fit)
-        self.fit_option.grid(row=6, column=0)
-        
-        
-        
-        
-        self.circuit = tk.StringVar(self.frame2)
-        self.circuit.set(self.config['circuit'])
-        self.circuit_selector = tk.OptionMenu(self.frame2, self.circuit,
-                                                   *['RRC', 'Randles_adsorption'])
-        self.circuit_selector.grid(row=6, column=1, columnspan=2)
-        
+        self.circuit = TKObject('StringVar', self.frame2, variable=self.circuit,
+                                options=['RRC', 'Randles_adsorption'],
+                                pos=(6,1), columnspan=2)
+                
         
         ########################################
         ###      X VS TIME PLOTTING OPTIONS  ###
         ########################################
         
         
+        self.time_plot_param = TKObject('StringVar', self.frame4, pos=(0,2),
+                                        variable=self.time_plot_param,
+                                        default=self.config['time_plot_param'],
+                                        options=['Phase', '|Z|', 'Parameter'],
+                                        command=self.selector_changed)
         
-        self.time_plot_param = tk.StringVar(self.frame4)
-        self.time_plot_param.set(self.config['time_plot_param'])
-        self.time_plot_param_selector = tk.OptionMenu(self.frame4, self.time_plot_param,
-                                                      *['Phase', '|Z|', 'Parameter'],
-                                                      command=self.selector_changed)
-        self.time_plot_param_selector.grid(row=0, column=2)
+        self.time_plot_val, self.time_plot_val_selector = TKObject('StringVar', 
+                                      self.frame4, pos=(0,3),
+                                      variable=self.time_plot_val,
+                                      options=['-'], returnselector=True)
         
-        self.time_plot_val = tk.StringVar(self.frame4)
-        self.time_plot_val.set('-')
-        self.time_plot_val_selector = tk.OptionMenu(self.frame4, self.time_plot_val,
-                                                      ['-'])
-        self.time_plot_val_selector.grid(row=0, column=3)
         
         self.selector_changed()
         self.update_config_file()
         
+        ### END __INIT__ ###
+    
         
-        
-        
+    
         
     def load_config(self):
         if not os.path.isfile(config_file):
@@ -442,29 +450,11 @@ class MainWindow:
             
             f.close()
         return
-
-
-        
-    def get_units(self, n):    
-        if n >= 1e-6 and n < 1e-3:
-            return ('u', 1e-6)
-        
-        if n >= 1e-3 and n < 0:
-            return ('m', 1e-3)
-        
-        if n >= 0 and n <= 1000:
-            return ('', 1)
-        
-        if n > 1e3 and n <= 1e6:
-            return ('k', 1e3)
-        
-        if n > 1e6:
-            return ('M', 1e6)    
     
     
     
-    def selector_changed(self, _=None):
-                
+    def selector_changed(self):
+        # Reinitialize parameter to plot vs time        
         self.get_waveform()  # Initialize list of frequencies
         _, _, params = self.initialize_circuit() # Initialize list of circuit elements
         
@@ -472,11 +462,11 @@ class MainWindow:
         if self.time_plot_param.get() in ('Phase', '|Z|'):
             time_plot_val = self.freqs
             
+        
+        elif self.fit.get():
+            time_plot_val = params
         else:
-            if self.fit.get():
-                time_plot_val = params
-            else:
-                time_plot_val = ['-']
+            time_plot_val = ['-']
         
         menu = self.time_plot_val_selector['menu']
         menu.delete(0, 'end')
@@ -506,6 +496,48 @@ class MainWindow:
         self.freqs = applied_freqs.astype(int)
         self.update_config_file()
         return [s, applied_freqs]
+    
+    
+    
+    def get_correction_values(self):
+        # Path
+        ref_dir = os.path.join(this_dir, 'reference waveforms\\')
+        
+        # Resistance
+        R = self.ref_corr_val.get('1.0', 'end')
+        R = R[:-1]
+        
+        # Waveform
+        waveform = self.waveform.get()
+        
+        if waveform.split('_')[1] == 'opt':
+            # Use same correction factors for optimized waveform as
+            # for unoptimized
+            waveform = waveform.split('_')
+            del waveform[1]
+            waveform = '_'.join(waveform)
+        
+        
+        # Put it all together and get corrections
+        fname = 'REF_%s_%s'%(R, waveform)
+        file = os.path.join(ref_dir, fname)
+        
+        try:
+            corr_df = pd.read_csv(file, skiprows=1, names=('freqs', 
+                                                           'Z_corr', 
+                                                           'phase_corr')
+                                  )
+            
+            Z_corr = corr_df['Z_corr'].to_numpy()
+            phase_corr = corr_df['phase_corr'].to_numpy()
+            return Z_corr, phase_corr
+        
+        except:
+            print('Invalid reference file: ')
+            print(file)
+            print('Uncheck "Apply reference correction" or record a')
+            print('reference spectrum of a resistor.\n')
+            return 0
         
     
       
@@ -605,7 +637,7 @@ class MainWindow:
             inst = self.rm.open_resource(self.scope.get())
                  
             # Set scope parameters
-#            inst.write('C1:VDIV 5mV')
+            # inst.write('C1:VDIV 5mV')
             inst.write('C1:OFST %s' %self.DC_offset.get('1.0', 'end'))
             
             inst.write('TRMD AUTO')
@@ -702,7 +734,8 @@ class MainWindow:
         
 
 
-    def record_signals(self, save=False, silent=True):
+    def record_signals(self, save=False, silent=True, append=False,
+                       axes = None):
         '''
         
 
@@ -712,6 +745,8 @@ class MainWindow:
             Whether or not to save data as ASCII. The default is False.
         silent : Bool, optional
             If True, don't printout to console. The default is True.
+        append: Bool, optional
+            Append to current vs t plot or not
 
         Returns
         -------
@@ -741,7 +776,10 @@ class MainWindow:
         line4, = self.ax2.plot([],[], '-', color=colors[1])
         
         #line5: something vs time
-        line5, = self.timeax.plot([],[], 'o')
+        if append:
+            line5 = self.timeax.lines[0]
+        elif not append:
+            line5, = self.timeax.plot([],[], 'o')
                
         
         self.ax.set_xscale('log')
@@ -756,42 +794,11 @@ class MainWindow:
         
         # Get waveform correction factors
         if self.ref_corr_var.get():
-            # Path
-            ref_dir = os.path.join(this_dir, 'reference waveforms\\')
-            
-            # Resistance
-            R = self.ref_corr_val.get('1.0', 'end')
-            R = R[:-1]
-            
-            # Waveform
-            waveform = self.waveform.get()
-            
-            if waveform.split('_')[1] == 'opt':
-                # Use same correction factors for optimized waveform as
-                # for unoptimized
-                waveform = waveform.split('_')
-                del waveform[1]
-                waveform = '_'.join(waveform)
-            
-            
-            # Put it all together and get corrections
-            fname = 'REF_%s_%s'%(R, waveform)
-            file = os.path.join(ref_dir, fname)
-            
             try:
-                corr_df = pd.read_csv(file, skiprows=1, names=('freqs', 
-                                                               'Z_corr', 
-                                                               'phase_corr')
-                                      )
-                
-                Z_corr = corr_df['Z_corr'].to_numpy()
-                phase_corr = corr_df['phase_corr'].to_numpy()
-            
+                Z_corr, phase_corr = self.get_correction_values()
             except:
-                print('Invalid reference file: ')
-                print(file)
-                print('Uncheck "Apply reference correction" or record a')
-                print('reference spectrum of a resistor.\n')
+                # get_correction_values() returns 0 if 
+                # invalid reference file
                 return
                 
             
@@ -820,7 +827,6 @@ class MainWindow:
         inst.write('MSIZ 70K')
         inst.write('TDIV 100MS')
         inst.write('TRMD STOP')
-#        inst.write('C1:OFST %sV' %self.DC_offset)
         
         vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
         voffset1    = float(inst.query('C1:OFST?')[8:-2])
@@ -1176,7 +1182,7 @@ class MainWindow:
                 print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
         
-        # Process the last frame
+        # Process the final frame
         t, freqs, Z, phase, fits = process_frame(frame-1)
         self.update_time_plot(t, freqs, Z, phase, fits)
         
