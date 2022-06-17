@@ -190,14 +190,8 @@ class MainWindow:
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().grid(row=1, column=0)
         
-        
-        # Time resolved fig        
-        self.timefig, self.timeax = plt.subplots(figsize=(5,4), dpi=100)
-        self.timeax.set_xlabel('Time/ s')
-                        
-        self.timecanvas = FigureCanvasTkAgg(self.timefig, master=root)
-        self.timecanvas.get_tk_widget().grid(row=1, column=2)
-        
+        self.init_time_plot(1)
+                
         
         
         #################################################
@@ -655,13 +649,30 @@ class MainWindow:
     
     
 
-    # def init_time_plot(self, n_plots):
+    def init_time_plot(self, n_plots):
+        
+        if n_plots == 1:
+            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
+                                                     dpi=100)
+            self.timeax.plot([],[], 'ok')
+            self.timeax.set_xlabel('Time/ s')
+            
+        elif n_plots > 1:
+            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
+                                                     dpi=100, sharex='col')
+            self.timeax[-1].set_xlabel('Time/s')
+            for ax in self.timeax:
+                ax.plot([],[],'ok')
                 
-    #     self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), dpi=100)
-    #     self.timeax.set_xlabel('Time/ s')
+        
+        if hasattr(self, 'timecanvas'):
+            self.timecanvas.get_tk_widget().destroy()
                         
-    #     self.timecanvas = FigureCanvasTkAgg(self.timefig, master=root)
-    #     self.timecanvas.get_tk_widget().grid(row=1, column=2)
+        self.timecanvas = FigureCanvasTkAgg(self.timefig, master=root)
+        self.timecanvas.get_tk_widget().grid(row=1, column=2)
+        
+        self.timefig.tight_layout()
+        self.timecanvas.draw_idle()
     
     
     
@@ -751,8 +762,8 @@ class MainWindow:
         
 
 
-    def record_signals(self, save=False, silent=True, append=False,
-                       axes = None, update_time_plot=True, **kwargs):
+    def record_signals(self, save=False, silent=True, plot_time_plot=True,
+                       axes = None, new_time_plot=True, n_plots=1, **kwargs):
         '''
         
 
@@ -762,8 +773,6 @@ class MainWindow:
             Whether or not to save data as ASCII. The default is False.
         silent : Bool, optional
             If True, don't printout to console. The default is True.
-        append: Bool, optional
-            Append to current vs t plot or not
 
         Returns
         -------
@@ -781,7 +790,6 @@ class MainWindow:
         self.ax.clear()
         self.ax.set_xscale('linear')
         self.ax2.clear()
-        self.timeax.clear()
         
         # line1: Z data
         # line2: phase data
@@ -792,11 +800,12 @@ class MainWindow:
         line3, = self.ax.plot([],[], '-', color=colors[0])
         line4, = self.ax2.plot([],[], '-', color=colors[1])
         
-        #line5: something vs time
-        if append:
-            line5 = self.timeax.lines[0]
-        elif not append:
-            line5, = self.timeax.plot([],[], 'o')
+        # clear time plot
+        if new_time_plot:
+            self.init_time_plot(n_plots)
+            line5, = self.timeax.plot([],[], 'o', color='k')
+                    
+            
                
         
         self.ax.set_xscale('log')
@@ -804,8 +813,6 @@ class MainWindow:
         self.fig.tight_layout()
         self.canvas.draw_idle()
         
-        self.timefig.tight_layout()
-        self.timecanvas.draw_idle()
         
         
         
@@ -913,7 +920,8 @@ class MainWindow:
         
         def siglent_record_single(inst, start_time, frame_time, vdiv1, 
                                   voffset1, vdiv2, voffset2, sara, 
-                                  frame, sample_time=1):
+                                  frame, sample_time=1, 
+                                  plot_time_plot=plot_time_plot):
             # Sends command to scope to record a single frame
             # Returns siglent_control.FourierTransformData 
             # object which contains that frame's data
@@ -929,7 +937,8 @@ class MainWindow:
             # Process last frame while waiting
             if frame != 0:
                 t, freqs, Z, phase, params = process_frame(frame-1)
-                self.update_time_plot(t, freqs, Z, phase, params)
+                if plot_time_plot:
+                    self.update_time_plot(t, freqs, Z, phase, params)
                 # print(time.time() - frame_start_time)
             while time.time() - frame_start_time < 1.2*frame_time:
                 time.sleep(0.01)              
@@ -1201,7 +1210,7 @@ class MainWindow:
         
         # Process the final frame
         t, freqs, Z, phase, fits = process_frame(frame-1)
-        if update_time_plot:
+        if plot_time_plot:
             self.update_time_plot(t, freqs, Z, phase, fits)
         
         try:
@@ -1309,7 +1318,9 @@ class MainWindow:
                 
             start_time = time.time()
             s_t = time.strftime("%H%M%S", time.gmtime(time.time()))
-                        
+            
+            self.init_time_plot(no_of_channels)
+                
             while time.time() - start_time < recording_time:
                 # Multiplex
                 for i in range(no_of_channels):
@@ -1318,11 +1329,20 @@ class MainWindow:
                         # Wait for autolab to create start file
                         self.root.after(5)
                     
-                    ftime = int(time.time() - start_time)
-                    self.record_signals(silent=True, update_time_plot=False,
-                                        savefig=False)
-                    self.save_last(name = f'{elec_numbers[i]}_{ftime}',
+                    ftime = time.time() - start_time
+                    # Record and save the frame
+                    self.record_signals(silent=True, new_time_plot=False,
+                                        savefig=False, plot_time_plot=False)
+                    self.save_last(name = f'{elec_numbers[i]}_{int(ftime)}',
                                    subpath = s_t, savefig=False)
+                    
+                    # Plot frame to time plot
+                    freqs = self.ft[0].freqs
+                    Z     = self.ft[0].Z
+                    phase = self.ft[0].phase
+                    params= self.ft[0].params
+                    self.update_time_plot(ftime, freqs, Z, phase, params,
+                                          ax = self.timeax[i])
                     
                     os.remove(updatefile)
                 
