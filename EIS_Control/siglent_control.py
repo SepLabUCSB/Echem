@@ -22,6 +22,8 @@ class FourierTransformData:
         self.waveform = waveform
         self.Vpp = Vpp
         self.mean_I = mean_I
+        
+        self.params = None
 
 
 
