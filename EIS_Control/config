@@ -1,13 +1,13 @@
-last_file_name:test2
+last_file_name:+20mV test
 test_mode:False
 potentiostat:Autolab
 waveform:Rigol_opt_100k_5k_1_22freqs.csv
 plot_Z:1
 plot_phase:1
-waveform_vpp:10
+waveform_vpp:50
 recording_time:10
 current_range:1e-6
-DC_offset:-0.26
+DC_offset:0
 ref_corr_val:10k
 ref_corr_var:1
 fit:0
