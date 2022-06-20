@@ -20,6 +20,8 @@ class FourierTransformData:
         self.phase = phase
         self.waveform = waveform
         self.Vpp = Vpp
+        
+        self.params = None
 
 
 
