@@ -650,16 +650,23 @@ class MainWindow:
     
 
     def init_time_plot(self, n_plots):
-        
+               
         if n_plots == 1:
-            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
-                                                     dpi=100)
+            self.timefig = plt.Figure(figsize=(5,4), dpi=100)
+            self.timeax = self.timefig.add_subplot(111)
+#            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
+#                                                     dpi=100)
             self.timeax.plot([],[], 'ok')
             self.timeax.set_xlabel('Time/ s')
             
         elif n_plots > 1:
-            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
-                                                     dpi=100, sharex='col')
+            self.timefig = plt.Figure(figsize=(5,4), dpi=100)
+            self.timeax = []
+            for i in range(n_plots):
+                self.timeax.append(self.timefig.add_subplot(n_plots, 1, i+1))
+            
+#            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
+#                                                     dpi=100, sharex='col')
             self.timeax[-1].set_xlabel('Time/s')
             for ax in self.timeax:
                 ax.plot([],[],'ok')
@@ -672,7 +679,8 @@ class MainWindow:
         self.timecanvas.get_tk_widget().grid(row=1, column=2)
         
         self.timefig.tight_layout()
-        self.timecanvas.draw_idle()
+        self.timecanvas.draw()
+        self.timecanvas.flush_events()
     
     
     
@@ -1250,9 +1258,9 @@ class MainWindow:
                         'Titration (0) or in-vivo (1)?') 
         if exp_type == '0':
             exp_type = 'titration'
-            if int(self.recording_time.get('1.0', 'end')) != 10:
-                print('Set recording time to 10 for multiplexing!')
-                return
+#            if int(self.recording_time.get('1.0', 'end')) != 10:
+#                print('Set recording time to 10 for multiplexing!')
+#                return
         elif exp_type == '1':
             exp_type = 'invivo'
         else:
