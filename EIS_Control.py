@@ -911,6 +911,9 @@ class MainWindow:
             
             # Start fits file
             fits_file = os.path.join(save_path, '0000_fits.txt')
+            
+            # Start mean (DC) current file
+            DC_file = os.path.join(save_path, '0000_DC_currents.txt')
         
         
         
@@ -919,8 +922,8 @@ class MainWindow:
         ###################################
         
         def siglent_record_single(inst, start_time, frame_time, vdiv1, 
-                                  voffset1, vdiv2, voffset2, sara, 
-                                  frame, sample_time=1, 
+                                  voffset1, vdiv2, voffset2, sara,
+                                  frame, current_range, sample_time=1,
                                   plot_time_plot=plot_time_plot):
             # Sends command to scope to record a single frame
             # Returns siglent_control.FourierTransformData 
@@ -959,7 +962,7 @@ class MainWindow:
             # Convert to voltages
             volts1 = adc1*(vdiv1/25) - voffset1 
             volts2 = adc2*(vdiv2/25) - voffset2  
-            
+                        
             Vpp = max(volts1) - min(volts1)
             
             # Get time array
@@ -977,11 +980,14 @@ class MainWindow:
             ft1   =      np.fft.rfft(volts1[:end])[1:]
             ft2   =      np.fft.rfft(volts2[:end])[1:]
             
+            mean_I= np.mean(volts2) * current_range
+                        
             ft = siglent_control.FourierTransformData(time    = times[0],
                                       freqs   = freqs,
                                       CH1data = ft1,
                                       CH2data = ft2,
-                                      Vpp = Vpp)
+                                      Vpp     = Vpp,
+                                      mean_I  = mean_I)
             
             return ft
         
@@ -995,7 +1001,7 @@ class MainWindow:
             
             d = siglent_record_single(inst, start_time, frame_time, vdiv1, 
                                       voffset1, vdiv2, voffset2, sara, 
-                                      frame, sample_time=1)
+                                      frame, current_range, sample_time=1)
             
             # print(f'Frame %s: {d.time:.2f} s'%frame)
             
@@ -1112,6 +1118,9 @@ class MainWindow:
                 # Add frame time to time list
                 with open(time_file, 'a') as f:
                     f.write(str(d.time) + '\n')
+                    f.close()
+                with open(DC_file, 'a') as f:
+                    f.write(str(d.mean_I) + '\n')
                     f.close()
                 # Save frame as tab separated .txt
                 self.save_frame(frame, d.freqs, np.real(d.Z),
