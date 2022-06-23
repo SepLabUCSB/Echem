@@ -1467,24 +1467,15 @@ class MainWindow:
                 
                 createFolder(folder_path)
                 
+                meta_file = os.path.join(folder_path, '0000_Metadata.txt')
                 time_file = os.path.join(folder_path, '0000_time_list.txt')
+                DC_file = os.path.join(folder_path, '0000_DC_currents.txt')
+                
                 
                 with open(time_file, 'w') as f:
                     for i, _ in self.ft.items():
                         ftime = str(self.ft[i].time)
                         f.write(ftime + '\n')
-                    
-                f.close()
-                    
-                for i, _ in self.ft.items():
-                    re = np.real(self.ft[i].Z)
-                    im = np.imag(self.ft[i].Z)
-                    freqs = self.ft[i].freqs
-                    
-                    self.save_frame(i, freqs, re, im, folder_path)
-                    
-                                    
-                meta_file = os.path.join(folder_path, '0000_Metadata.txt')
                 
                 with open(meta_file, 'w') as f:
                     f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
@@ -1494,8 +1485,19 @@ class MainWindow:
                     avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
                     f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
                     
+                with open(DC_file, 'w') as f:
+                    for i, _ in self.ft.items():
+                        DC = self.ft[i].mean_I
+                        f.write(DC + '\n')    
+                  
                     
-                f.close()
+                for i, _ in self.ft.items():
+                    re = np.real(self.ft[i].Z)
+                    im = np.imag(self.ft[i].Z)
+                    freqs = self.ft[i].freqs
+                    
+                    self.save_frame(i, freqs, re, im, folder_path)
+                
                 
                 if savefig:    
                     self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
