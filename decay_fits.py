@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, signal
 import os
-plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
-data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
+plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
+data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
 
 
-correct_baselines = True
+correct_baselines = False
 start_after = 100 # cut off first (n) seconds
 delay = 10 # Points after "fast" spike to skip fitting on
 
@@ -16,7 +16,8 @@ apply_filter     = True
 filter_freq      = 25
 
 fit = 'monoexponential'
-#fit = 'biexponential'
+# fit = 'biexponential'
+# fit = 'linear'
 
 
 
@@ -40,6 +41,13 @@ elif fit == 'monoexponential':
     def exp_func(x, a,b,c):
         return a * np.exp(-b * x) + c
 
+
+elif fit == 'linear':
+    params = ['a/ A s-1', 
+              'b/ A']
+    
+    def exp_func(x, a, b):
+        return a*x + b
 
 
 
@@ -70,7 +78,11 @@ def main(folder, params):
                 d['Reduced Chi^2'].append(x)
             for x in points:
                 d['time/ s'].append(x)
+            
             d['File'].append(file)
+            d['File'].append(f'Fit: {fit}')
+            d['File'].append(f'Baseline correct: {correct_baselines}')
+            d['File'].append(f'Delay: {delay} pts')
             
             for key in d:
                 while len(d[key]) < max([len(d[key]) for key in d]):
@@ -192,14 +204,14 @@ def refine_peaks(y, signals):
     '''
     
     # Determine index of this peak and next peak
-    idxs = list(np.where(signals == -1)[0])
+    idxs = list(np.where(signals != 0)[0])
     
     # Remove double labelled spikes
-    # for idx in idxs:
-    #     for i in range(idx-10, idx+10):
-    #         if i in idxs and i != idx:
-    #             print(f'Removing {i} because of duplicate')
-    #             idxs.remove(i)
+    for idx in idxs:
+        for i in range(idx-10, idx+10):
+            if i in idxs and i != idx:
+                print(f'Removing {i} because of duplicate')
+                idxs.remove(i)
         
         
     # Refine peak location            
@@ -272,19 +284,19 @@ def integrate_spikes(t, y, idxs, avg):
         baseline_area = (1/2) * (y1 + y2) * dt
         
         total_area = np.trapz(y[bounds[0]:bounds[1]],
-                              x = t[bounds[0]:bounds[1]])
+                               x = t[bounds[0]:bounds[1]])
+                
         
         integral = total_area - baseline_area
         integrals.append(integral)
         
                 
         
-        # plt.figure()
+        # fig = plt.figure(figsize=(5,5), dpi=100)
         # plt.plot(t[idx-500:idx+500], y[idx-500:idx+500])
         # plt.plot(t[idx], y[idx], 'ro')
         # plt.plot(t[idx-500:idx+500], avg[idx-500:idx+500])
-        # plt.plot(t[left_bound], y[left_bound], 'o', color = 'orange')
-        # plt.plot(t[right_bound], y[right_bound], 'o', color = 'orange')
+        # plt.plot(t[bounds], y[bounds], 'o', color = 'orange')
                 
         # print(integral)
     
@@ -328,7 +340,7 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
     if app_filter:
         y = lowpass(y, t, filter_freq)
     
-    for i in range(len(idxs)):
+    for i, _ in enumerate(idxs):
         
         # Get this index, either use next index or + (delay) pts        
         this_idx = idxs[i] + delay
@@ -336,25 +348,23 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
             next_idx = min(idxs[i+1] - 2, this_idx + int(round(t_max/sara)))
         except: # Last point
             next_idx = min(len(y), this_idx + int(round(t_max/sara)))
-         
+        
             
         # Subtract out baseline
-        # Either use previous 500 pts, or last index's fit
+        # Either use previous 500 pts, or last index
         
         if i > 0:
-            last_idx = max(idxs[i-1], this_idx - 500)
+            last_idx = max(idxs[i-1] + delay, this_idx - 500)
         elif i == 0: # first spike
             last_idx = max(0, this_idx - 500)
         
-        # if last_idx == idxs[i-1] and baseline_correct:
-        #     # Can't confidently draw a baseline, don't fit this point
-        #     print(f"Can't draw baseline for spike at t = {t[this_idx]}")
-        #     fits.append(np.array([0,0,0]))
-        #     chi_sqs.append(0)
-        #     continue
+        if (this_idx-delay - last_idx) < 100:
+            print(f'Not enough points to fit baseline {t[this_idx-delay]} s.')
+            pops.append(this_idx - delay)
+            continue
         
-        m, b = np.polyfit(t[last_idx:this_idx-5], 
-                  y[last_idx:this_idx-5], deg=1)
+        m, b = np.polyfit(t[last_idx:this_idx-delay-5], 
+                  y[last_idx:this_idx-delay-5], deg=1)
         
         # Subtract the baseline
         if baseline_correct:
@@ -362,8 +372,8 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
         else:
             baseline = 0*t
         
-        if (next_idx - this_idx) < 5:
-            print(f'Not enough points to fit {this_idx - delay}')
+        if (next_idx - this_idx) < 50:
+            print(f'Not enough points to fit {t[this_idx - delay]} s.')
             pops.append(this_idx - delay)
             continue
             
@@ -423,7 +433,7 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
     
     # Make figure
     if 'inline' in matplotlib.get_backend():
-        fig, ax = plt.subplots(figsize=(5,5), dpi=600)
+        fig, ax = plt.subplots(figsize=(5,5), dpi=300)
     else:
         fig, ax = plt.subplots(figsize=(5,5), dpi=100)
     
@@ -449,6 +459,7 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
     # Calculate spike integrals
     integrals = integrate_spikes(t, i, idxs, avgFilter)
     
+    # Get time points
     points = t[idxs]
     
     # Transpose data for saving
