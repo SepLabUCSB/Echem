@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, signal
 import os
-plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
-data_folder = 'C:/Users/BRoehrich/Desktop/Miguel data'
+plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
+data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
 
 
-correct_baselines = False
+correct_baselines = True
 start_after = 100 # cut off first (n) seconds
 delay = 10 # Points after "fast" spike to skip fitting on
 
@@ -16,7 +16,7 @@ apply_filter     = True
 filter_freq      = 25
 
 fit = 'monoexponential'
-# fit = 'biexponential'
+#fit = 'biexponential'
 
 
 
@@ -48,6 +48,7 @@ def main(folder, params):
     d = {param: [] for param in params}
     d['integral/ C'] = []
     d['Reduced Chi^2'] = []
+    d['time/ s'] = []
     d['File'] = []
     
     
@@ -55,7 +56,7 @@ def main(folder, params):
         if file.endswith('.txt'):
             # fits = list of lists i.e. [[*param1], [*param2], ...]
             # integrals: spike areas. Unit: C
-            fits, integrals, chi_sqs = analyze_file(folder + '/' + file,
+            fits, integrals, chi_sqs, points = analyze_file(folder + '/' + file,
                                                     correct_baselines, 
                                                     apply_filter, delay,
                                                     start_after)
@@ -67,6 +68,8 @@ def main(folder, params):
                 d['integral/ C'].append(x)
             for x in chi_sqs:
                 d['Reduced Chi^2'].append(x)
+            for x in points:
+                d['time/ s'].append(x)
             d['File'].append(file)
             
             for key in d:
@@ -192,11 +195,11 @@ def refine_peaks(y, signals):
     idxs = list(np.where(signals == -1)[0])
     
     # Remove double labelled spikes
-    for idx in idxs:
-        for i in range(idx-10, idx+10):
-            if i in idxs and i != idx:
-                print(f'Removing {i} because of duplicate')
-                idxs.remove(i)
+    # for idx in idxs:
+    #     for i in range(idx-10, idx+10):
+    #         if i in idxs and i != idx:
+    #             print(f'Removing {i} because of duplicate')
+    #             idxs.remove(i)
         
         
     # Refine peak location            
@@ -343,12 +346,12 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
         elif i == 0: # first spike
             last_idx = max(0, this_idx - 500)
         
-        if last_idx == idxs[i-1] and baseline_correct:
-            # Can't confidently draw a baseline, don't fit this point
-            print(f"Can't draw baseline for spike at t = {t[this_idx]}")
-            fits.append(np.array([0,0,0]))
-            chi_sqs.append(0)
-            continue
+        # if last_idx == idxs[i-1] and baseline_correct:
+        #     # Can't confidently draw a baseline, don't fit this point
+        #     print(f"Can't draw baseline for spike at t = {t[this_idx]}")
+        #     fits.append(np.array([0,0,0]))
+        #     chi_sqs.append(0)
+        #     continue
         
         m, b = np.polyfit(t[last_idx:this_idx-5], 
                   y[last_idx:this_idx-5], deg=1)
@@ -367,10 +370,15 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
         ts = t[this_idx:next_idx] - t[this_idx]
         data = y[this_idx:next_idx] - baseline[this_idx:next_idx]
         
-        
+        if fit == 'biexponential':
+            bounds=(-np.inf, [1., np.inf, np.inf, np.inf, np.inf])
+        elif fit == 'monoexponential':
+            bounds=(-np.inf, [1., np.inf, np.inf])
+            
         popt, pcov = optimize.curve_fit(exp_func, ts, data, 
-                            maxfev=100000)
-        
+                            maxfev=100000,
+                            # bounds=bounds
+                            )
         
         print(popt)        
         fits.append(popt)
@@ -412,6 +420,7 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
     # Refine peak locations
     idxs = refine_peaks(i, signals)
     
+    
     # Make figure
     if 'inline' in matplotlib.get_backend():
         fig, ax = plt.subplots(figsize=(5,5), dpi=600)
@@ -427,6 +436,7 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
     ax.set_ylabel('Current/ A')
     plt.tight_layout()
     
+    
     # Fit peaks. Optionally plot fits onto same ax    
     fits, chi_sqs, pops = fit_peaks(t, i, idxs, sara, ax, 
                               baseline_correct=baseline_correct,
@@ -439,12 +449,14 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
     # Calculate spike integrals
     integrals = integrate_spikes(t, i, idxs, avgFilter)
     
+    points = t[idxs]
+    
     # Transpose data for saving
     fits = np.array(fits).T
     a, b, c = fits[0], fits[1], fits[2]
     
     
-    return fits, integrals, chi_sqs
+    return fits, integrals, chi_sqs, points
 
 
 
