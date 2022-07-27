@@ -654,19 +654,19 @@ class MainWindow:
         if n_plots == 1:
             self.timefig = plt.Figure(figsize=(5,4), dpi=100)
             self.timeax = self.timefig.add_subplot(111)
-#            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
-#                                                     dpi=100)
+            
             self.timeax.plot([],[], 'ok')
             self.timeax.set_xlabel('Time/ s')
             
         elif n_plots > 1:
+            # Calling plt.subplots() directly makes figures print to
+            # console when GUI is closed for some reason... this way doesn't
             self.timefig = plt.Figure(figsize=(5,4), dpi=100)
             self.timeax = []
             for i in range(n_plots):
                 self.timeax.append(self.timefig.add_subplot(n_plots, 1, i+1))
+            self.timeax = np.array(self.timeax)
             
-#            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
-#                                                     dpi=100, sharex='col')
             self.timeax[-1].set_xlabel('Time/s')
             for ax in self.timeax:
                 ax.plot([],[],'ok')
@@ -953,7 +953,8 @@ class MainWindow:
                 # print(time.time() - frame_start_time)
             while time.time() - frame_start_time < 1.2*frame_time:
                 time.sleep(0.01)              
-                            
+            
+            inst.write('TRMD STOP')                
             
             # Get CH 1 data
             inst.write('C1:WF? DAT2')
@@ -969,8 +970,7 @@ class MainWindow:
             
             # Convert to voltages
             volts1 = adc1*(vdiv1/25) - voffset1 
-            volts2 = adc2*(vdiv2/25) - voffset2  
-                        
+            volts2 = adc2*(vdiv2/25) - voffset2           
             Vpp = max(volts1) - min(volts1)
             
             # Get time array
@@ -1225,6 +1225,8 @@ class MainWindow:
                 print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
         
+        inst.write('TRMD AUTO')
+        
         # Process the final frame
         t, freqs, Z, phase, fits = process_frame(frame-1)
         if plot_time_plot:
@@ -1330,21 +1332,21 @@ class MainWindow:
             self.recording_time.delete('1.0', 'end')
             self.recording_time.insert('1.0', '1.5')
             
+            self.init_time_plot(no_of_channels)
+            
             while os.path.exists(updatefile) == False:
-                time.sleep(0.1)
+                self.root.after(5)
                 
             start_time = time.time()
             s_t = time.strftime("%H%M%S", time.gmtime(time.time()))
-            
-            self.init_time_plot(no_of_channels)
-                
+                            
             while time.time() - start_time < recording_time:
                 # Multiplex
                 for i in range(no_of_channels):
                     
                     while os.path.exists(updatefile) == False:
                         # Wait for autolab to create start file
-                        self.root.after(5)
+                        self.root.after(1)
                     
                     ftime = time.time() - start_time
                     # Record and save the frame
@@ -1362,6 +1364,8 @@ class MainWindow:
                                           ax = self.timeax[i])
                     
                     os.remove(updatefile)
+                    
+            self.recording_time.insert('1.0', str(recording_time))
                 
             
                             
