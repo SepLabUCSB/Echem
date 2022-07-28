@@ -650,16 +650,23 @@ class MainWindow:
     
 
     def init_time_plot(self, n_plots):
-        
+               
         if n_plots == 1:
-            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
-                                                     dpi=100)
+            self.timefig = plt.Figure(figsize=(5,4), dpi=100)
+            self.timeax = self.timefig.add_subplot(111)
+            
             self.timeax.plot([],[], 'ok')
             self.timeax.set_xlabel('Time/ s')
             
         elif n_plots > 1:
-            self.timefig, self.timeax = plt.subplots(n_plots, figsize=(5,4), 
-                                                     dpi=100, sharex='col')
+            # Calling plt.subplots() directly makes figures print to
+            # console when GUI is closed for some reason... this way doesn't
+            self.timefig = plt.Figure(figsize=(5,4), dpi=100)
+            self.timeax = []
+            for i in range(n_plots):
+                self.timeax.append(self.timefig.add_subplot(n_plots, 1, i+1))
+            self.timeax = np.array(self.timeax)
+            
             self.timeax[-1].set_xlabel('Time/s')
             for ax in self.timeax:
                 ax.plot([],[],'ok')
@@ -672,7 +679,8 @@ class MainWindow:
         self.timecanvas.get_tk_widget().grid(row=1, column=2)
         
         self.timefig.tight_layout()
-        self.timecanvas.draw_idle()
+        self.timecanvas.draw()
+        self.timecanvas.flush_events()
     
     
     
@@ -911,6 +919,9 @@ class MainWindow:
             
             # Start fits file
             fits_file = os.path.join(save_path, '0000_fits.txt')
+            
+            # Start mean (DC) current file
+            DC_file = os.path.join(save_path, '0000_DC_currents.txt')
         
         
         
@@ -919,8 +930,8 @@ class MainWindow:
         ###################################
         
         def siglent_record_single(inst, start_time, frame_time, vdiv1, 
-                                  voffset1, vdiv2, voffset2, sara, 
-                                  frame, sample_time=1, 
+                                  voffset1, vdiv2, voffset2, sara,
+                                  frame, current_range, sample_time=1,
                                   plot_time_plot=plot_time_plot):
             # Sends command to scope to record a single frame
             # Returns siglent_control.FourierTransformData 
@@ -942,7 +953,8 @@ class MainWindow:
                 # print(time.time() - frame_start_time)
             while time.time() - frame_start_time < 1.2*frame_time:
                 time.sleep(0.01)              
-                            
+            
+            inst.write('TRMD STOP')                
             
             # Get CH 1 data
             inst.write('C1:WF? DAT2')
@@ -958,8 +970,7 @@ class MainWindow:
             
             # Convert to voltages
             volts1 = adc1*(vdiv1/25) - voffset1 
-            volts2 = adc2*(vdiv2/25) - voffset2  
-            
+            volts2 = adc2*(vdiv2/25) - voffset2           
             Vpp = max(volts1) - min(volts1)
             
             # Get time array
@@ -977,11 +988,14 @@ class MainWindow:
             ft1   =      np.fft.rfft(volts1[:end])[1:]
             ft2   =      np.fft.rfft(volts2[:end])[1:]
             
+            mean_I= np.mean(volts2) * current_range
+                        
             ft = siglent_control.FourierTransformData(time    = times[0],
                                       freqs   = freqs,
                                       CH1data = ft1,
                                       CH2data = ft2,
-                                      Vpp = Vpp)
+                                      Vpp     = Vpp,
+                                      mean_I  = mean_I)
             
             return ft
         
@@ -995,7 +1009,7 @@ class MainWindow:
             
             d = siglent_record_single(inst, start_time, frame_time, vdiv1, 
                                       voffset1, vdiv2, voffset2, sara, 
-                                      frame, sample_time=1)
+                                      frame, current_range, sample_time=1)
             
             # print(f'Frame %s: {d.time:.2f} s'%frame)
             
@@ -1113,6 +1127,9 @@ class MainWindow:
                 with open(time_file, 'a') as f:
                     f.write(str(d.time) + '\n')
                     f.close()
+                with open(DC_file, 'a') as f:
+                    f.write(str(d.mean_I) + '\n')
+                    f.close()
                 # Save frame as tab separated .txt
                 self.save_frame(frame, d.freqs, np.real(d.Z),
                                 np.imag(d.Z), save_path)
@@ -1208,6 +1225,8 @@ class MainWindow:
                 print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
         
+        inst.write('TRMD AUTO')
+        
         # Process the final frame
         t, freqs, Z, phase, fits = process_frame(frame-1)
         if plot_time_plot:
@@ -1241,9 +1260,9 @@ class MainWindow:
                         'Titration (0) or in-vivo (1)?') 
         if exp_type == '0':
             exp_type = 'titration'
-            if int(self.recording_time.get('1.0', 'end')) != 10:
-                print('Set recording time to 10 for multiplexing!')
-                return
+#            if int(self.recording_time.get('1.0', 'end')) != 10:
+#                print('Set recording time to 10 for multiplexing!')
+#                return
         elif exp_type == '1':
             exp_type = 'invivo'
         else:
@@ -1313,21 +1332,21 @@ class MainWindow:
             self.recording_time.delete('1.0', 'end')
             self.recording_time.insert('1.0', '1.5')
             
+            self.init_time_plot(no_of_channels)
+            
             while os.path.exists(updatefile) == False:
-                time.sleep(0.1)
+                self.root.after(5)
                 
             start_time = time.time()
             s_t = time.strftime("%H%M%S", time.gmtime(time.time()))
-            
-            self.init_time_plot(no_of_channels)
-                
+                            
             while time.time() - start_time < recording_time:
                 # Multiplex
                 for i in range(no_of_channels):
                     
                     while os.path.exists(updatefile) == False:
                         # Wait for autolab to create start file
-                        self.root.after(5)
+                        self.root.after(1)
                     
                     ftime = time.time() - start_time
                     # Record and save the frame
@@ -1345,6 +1364,8 @@ class MainWindow:
                                           ax = self.timeax[i])
                     
                     os.remove(updatefile)
+                    
+            self.recording_time.insert('1.0', str(recording_time))
                 
             
                             
@@ -1450,14 +1471,29 @@ class MainWindow:
                 
                 createFolder(folder_path)
                 
+                meta_file = os.path.join(folder_path, '0000_Metadata.txt')
                 time_file = os.path.join(folder_path, '0000_time_list.txt')
+                DC_file = os.path.join(folder_path, '0000_DC_currents.txt')
+                
                 
                 with open(time_file, 'w') as f:
                     for i, _ in self.ft.items():
                         ftime = str(self.ft[i].time)
                         f.write(ftime + '\n')
+                
+                with open(meta_file, 'w') as f:
+                    f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                    f.write('Waveform: '+ str(self.waveform.get()))
+                    s_t = datetime.now().strftime("%H:%M:%S.%f")
+                    f.write('\nStart time: %s'%s_t)
+                    avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
+                    f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
                     
-                f.close()
+                with open(DC_file, 'w') as f:
+                    for i, _ in self.ft.items():
+                        DC = self.ft[i].mean_I
+                        f.write(DC + '\n')    
+                  
                     
                 for i, _ in self.ft.items():
                     re = np.real(self.ft[i].Z)
@@ -1465,20 +1501,7 @@ class MainWindow:
                     freqs = self.ft[i].freqs
                     
                     self.save_frame(i, freqs, re, im, folder_path)
-                    
-                                    
-                meta_file = os.path.join(folder_path, '0000_Metadata.txt')
                 
-                with open(meta_file, 'w') as f:
-                    f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                    f.write('Waveform: '+ str(self.waveform.get()))
-                    s_t = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time()))
-                    f.write('\nStart time: %s'%s_t)
-                    avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
-                    f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
-                    
-                    
-                f.close()
                 
                 if savefig:    
                     self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
