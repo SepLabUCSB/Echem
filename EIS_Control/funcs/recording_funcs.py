@@ -8,7 +8,7 @@ import pandas as pd
 
 def record_frame(Rec, inst, frame_time, recording_params,
                  start_time, recording_files, frame, 
-                 save, process_last=True, **kwargs):
+                 save, process_last=True, ax=None, **kwargs):
     
     frame_start_time = time.time()
     
@@ -16,7 +16,7 @@ def record_frame(Rec, inst, frame_time, recording_params,
     inst.write('TRMD AUTO')
     
     if (process_last and frame != 0):
-        process_frame(Rec, frame - 1, update_time_plot=True)
+        process_frame(Rec, frame - 1, update_time_plot=True, ax=ax)
         if save:
             save_frame(Rec, frame-1, Rec.ft[frame-1], recording_files, **kwargs)
         
@@ -136,7 +136,7 @@ def transform_data(volts1, volts2, recording_params,
     
 
 
-def process_frame(Rec, frame, update_time_plot):
+def process_frame(Rec, frame, update_time_plot, ax=None, **kwargs):
     
     params = None
     
@@ -209,7 +209,7 @@ def process_frame(Rec, frame, update_time_plot):
     
     if update_time_plot:
         Rec.update_time_plot(d.time, d.freqs, d.Z, d.phase, params,
-                             ax=None)
+                             ax=ax)
 
     return d.time, d.freqs, Z, phase, params
 
