@@ -1011,15 +1011,23 @@ class Recorder:
             recording_params = init_recording(self, new_time_plot=True,
                                               n_plots=no_of_channels, save=True)
             
+            
+            
             while os.path.exists(updatefile) == False:
                 self.root.after(5)
             
             # Start recording when Autolab makes update file
-            start_time = time.time()
             s_t = time.strftime("%H%M%S", time.gmtime(time.time()))
-
+            
+            today = str(date.today())
+            save_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                       today, s_t)
+            
+            recording_files = init_save(self, save_path)
             frame = 0            
-                
+              
+            
+            start_time = time.time()
             while time.time() - start_time < recording_time:
                 # Multiplex
                 for i in range(no_of_channels):
@@ -1031,8 +1039,11 @@ class Recorder:
                     
                     ftime = time.time() - start_time
                     ft = record_frame(self, inst, 1.4*1.2, recording_params,
-                                      ftime, frame, save=True, process_last=True,
-                                      ax=self.timeax[i])
+                                      ftime, recording_files,frame, 
+                                      save=True, process_last=True,
+                                      ax=self.timeax[i], 
+                                      multiplex_fname=f'{elec_numbers[i]}_{frame}')
+                                    
                     
                     self.ft[frame] = ft
                     
@@ -1142,7 +1153,11 @@ class Recorder:
         if num is None:
             num = 0
         
-        fname = save_path + f'\\{num:04}s.txt'
+        try:
+            fname = save_path + f'\\{num:04}s.txt'
+        except:
+            # Passing string as save name instead
+            fname = save_path + f'\\{num}.txt'
     
         d.to_csv(fname, columns = ['f', 're', 'im'],
                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 

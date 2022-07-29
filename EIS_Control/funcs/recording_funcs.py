@@ -18,7 +18,7 @@ def record_frame(Rec, inst, frame_time, recording_params,
     if (process_last and frame != 0):
         process_frame(Rec, frame - 1, update_time_plot=True)
         if save:
-            save_frame(Rec, frame-1, Rec.ft[frame-1], recording_files)
+            save_frame(Rec, frame-1, Rec.ft[frame-1], recording_files, **kwargs)
         
     while time.time() - frame_start_time < frame_time:
         Rec.root.after(1)
@@ -215,7 +215,7 @@ def process_frame(Rec, frame, update_time_plot):
 
 
 
-def save_frame(Rec, frame, ft, recording_files):
+def save_frame(Rec, frame, ft, recording_files, multiplex_fname=None):
     # Add frame time to time list
     time_file = recording_files['time_file']
     DC_file   = recording_files['DC_file']
@@ -228,6 +228,8 @@ def save_frame(Rec, frame, ft, recording_files):
         f.write(str(ft.mean_I) + '\n')
         f.close()
     # Save frame as tab separated .txt
+    if multiplex_fname:
+        frame = multiplex_fname
     Rec.save_frame(frame, ft.freqs, np.real(ft.Z),
                 np.imag(ft.Z), save_path)
     
