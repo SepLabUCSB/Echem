@@ -10,8 +10,8 @@ from datetime import date, datetime
 from array import array
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
-from EIS_Control.recording_inits import init_recording, init_save
-from EIS_Control.recording_funcs import FourierTransformData, record_frame, process_frame
+from EIS_Control.funcs.recording_inits import init_recording, init_save
+from EIS_Control.funcs.recording_funcs import FourierTransformData, record_frame, process_frame
 from EIS_Fit import EIS_fit
 # from siglent_control import FourierTransformData
 default_stdout = sys.stdout
@@ -827,7 +827,7 @@ class Recorder:
         inst = self.rm.open_resource(self.scope.get())
         
         # Initialize recording
-        recording_params = init_recording(self, inst, new_time_plot, 
+        recording_params = init_recording(self, new_time_plot, 
                                           n_plots, save)
             
         # Get recording time
@@ -860,8 +860,15 @@ class Recorder:
             
             time_file, meta_file, fits_file, DC_file = init_save(self, 
                                                                  save_path)
+        
+        else:
+            time_file, meta_file, fits_file, DC_file, save_path = '','','','', ''
             
-                  
+        recording_files = {'time_file':time_file,
+                           'meta_file':meta_file,
+                           'fits_file':fits_file,
+                           'DC_file':DC_file,
+                           'save_path':save_path}          
         
         ### RECORDING MAIN LOOP ###
         
@@ -877,7 +884,7 @@ class Recorder:
         frame = 0
         while time.time() - start_time < t:
             self.ft[frame] = record_frame(self, inst, 1.4*1.2, recording_params,
-                                          time.time() - start_time,
+                                          time.time() - start_time, recording_files,
                                           frame, save=save)   
             if not silent:
                 print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
@@ -886,7 +893,9 @@ class Recorder:
         inst.write('TRMD AUTO')
         
         # Process the final frame
-        t, freqs, Z, phase, fits = process_frame(frame-1)
+        t, freqs, Z, phase, fits = process_frame(self, frame-1, save,
+                                                 recording_files, 
+                                                 update_time_plot=True)
         # if plot_time_plot:
         #     self.update_time_plot(t, freqs, Z, phase, fits)
         

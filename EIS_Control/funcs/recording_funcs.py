@@ -7,15 +7,17 @@ import pandas as pd
         
 
 def record_frame(Rec, inst, frame_time, recording_params,
-                 start_time, frame, save, process_last=True):
+                 start_time, recording_files, frame, 
+                 save, process_last=True, **kwargs):
     
     frame_start_time = time.time()
     
     # Starts recording
     inst.write('TRMD AUTO')
     
-    if process_last:
-        process_frame(Rec, frame - 1, save)
+    if (process_last and frame != 0):
+        process_frame(Rec, frame - 1, save, recording_files,
+                      update_time_plot=True)
         
     while time.time() - frame_start_time < frame_time:
         Rec.root.after(1)
@@ -25,7 +27,7 @@ def record_frame(Rec, inst, frame_time, recording_params,
     volts1, volts2 = read_data(inst, recording_params)
     
     ft = transform_data(volts1, volts2, recording_params, 
-                        frame_start_time)
+                        start_time)
     
     # Calculate Z
     V = ft.CH1data
@@ -48,8 +50,11 @@ def record_frame(Rec, inst, frame_time, recording_params,
     if Rec.ref_corr_var.get():
         Z_corr, phase_corr = Rec.get_correction_values()
         
-        if Z_corr == 0:
-            return
+        try:
+            len(Z_corr)
+        except:
+            # Z_corr == 0 instead of array, no correction values
+            pass
         
         df['Z']     = df['Z'] / Z_corr
         df['phase'] = df['phase'] - phase_corr
@@ -124,8 +129,7 @@ def transform_data(volts1, volts2, recording_params,
     
 
 
-def process_frame(Rec, frame, save, save_path,
-                  DC_file, time_file, update_time_plot):
+def process_frame(Rec, frame, save, recording_files, update_time_plot):
     
     params = None
     
@@ -202,6 +206,11 @@ def process_frame(Rec, frame, save, save_path,
     
     if save:
         # Add frame time to time list
+        
+        time_file = recording_files['time_file']
+        DC_file   = recording_files['DC_file']
+        save_path = recording_files['save_path']
+        
         with open(time_file, 'a') as f:
             f.write(str(d.time) + '\n')
             f.close()
