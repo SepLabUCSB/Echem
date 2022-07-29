@@ -50,7 +50,7 @@ def init_plots(Rec, new_time_plot, n_plots):
     # clear time plot
     if new_time_plot:
         Rec.init_time_plot(n_plots)
-        Rec.line5, = Rec.timeax.plot([],[], 'o', color='k')
+#        Rec.line5, = Rec.timeax.plot([],[], 'o', color='k')
                   
     
     Rec.ax.set_xscale('log')

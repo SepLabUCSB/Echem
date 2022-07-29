@@ -16,8 +16,9 @@ def record_frame(Rec, inst, frame_time, recording_params,
     inst.write('TRMD AUTO')
     
     if (process_last and frame != 0):
-        process_frame(Rec, frame - 1, save, recording_files,
-                      update_time_plot=True)
+        process_frame(Rec, frame - 1, update_time_plot=True)
+        if save:
+            save_frame(Rec, frame-1, Rec.ft[frame-1], recording_files)
         
     while time.time() - frame_start_time < frame_time:
         Rec.root.after(1)
@@ -56,14 +57,20 @@ def record_frame(Rec, inst, frame_time, recording_params,
             # Z_corr == 0 instead of array, no correction values
             pass
         
+        df['Z'] = np.absolute(df['Z'])
+        
         df['Z']     = df['Z'] / Z_corr
         df['phase'] = df['phase'] - phase_corr
+        
+        df['Z'] = df['Z'] * np.exp(-1j*df['phase']*np.pi/180)
+        
     
     # Save to FTData object
     ft.freqs    = df['freqs'].to_numpy()
     ft.Z        = df['Z'].to_numpy()
     ft.phase    = df['phase'].to_numpy()
     ft.waveform = Rec.waveform.get()
+    ft.time     = start_time 
     
     
     return ft
@@ -129,7 +136,7 @@ def transform_data(volts1, volts2, recording_params,
     
 
 
-def process_frame(Rec, frame, save, recording_files, update_time_plot):
+def process_frame(Rec, frame, update_time_plot):
     
     params = None
     
@@ -203,28 +210,27 @@ def process_frame(Rec, frame, save, recording_files, update_time_plot):
     if update_time_plot:
         Rec.update_time_plot(d.time, d.freqs, d.Z, d.phase, params,
                              ax=None)
-    
-    if save:
-        # Add frame time to time list
-        
-        time_file = recording_files['time_file']
-        DC_file   = recording_files['DC_file']
-        save_path = recording_files['save_path']
-        
-        with open(time_file, 'a') as f:
-            f.write(str(d.time) + '\n')
-            f.close()
-        with open(DC_file, 'a') as f:
-            f.write(str(d.mean_I) + '\n')
-            f.close()
-        # Save frame as tab separated .txt
-        Rec.save_frame(frame, d.freqs, np.real(d.Z),
-                    np.imag(d.Z), save_path)
-        
-    
-    
+
     return d.time, d.freqs, Z, phase, params
 
+
+
+def save_frame(Rec, frame, ft, recording_files):
+    # Add frame time to time list
+    time_file = recording_files['time_file']
+    DC_file   = recording_files['DC_file']
+    save_path = recording_files['save_path']
+    
+    with open(time_file, 'a') as f:
+        f.write(str(ft.time) + '\n')
+        f.close()
+    with open(DC_file, 'a') as f:
+        f.write(str(ft.mean_I) + '\n')
+        f.close()
+    # Save frame as tab separated .txt
+    Rec.save_frame(frame, ft.freqs, np.real(ft.Z),
+                np.imag(ft.Z), save_path)
+    
 
 
 def fit_frame(Rec, frame, average=1, n_iter=25,

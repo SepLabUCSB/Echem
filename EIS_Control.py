@@ -11,7 +11,7 @@ from array import array
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
 from EIS_Control.funcs.recording_inits import init_recording, init_save
-from EIS_Control.funcs.recording_funcs import FourierTransformData, record_frame, process_frame
+from EIS_Control.funcs.recording_funcs import FourierTransformData, record_frame, process_frame, save_frame
 from EIS_Fit import EIS_fit
 # from siglent_control import FourierTransformData
 default_stdout = sys.stdout
@@ -893,9 +893,9 @@ class Recorder:
         inst.write('TRMD AUTO')
         
         # Process the final frame
-        t, freqs, Z, phase, fits = process_frame(self, frame-1, save,
-                                                 recording_files, 
+        t, freqs, Z, phase, fits = process_frame(self, frame-1, 
                                                  update_time_plot=True)
+           
         # if plot_time_plot:
         #     self.update_time_plot(t, freqs, Z, phase, fits)
         
@@ -908,6 +908,10 @@ class Recorder:
         print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
         
         if save:
+            # Save last frame
+            save_frame(self, frame-1, self.ft[frame-1], recording_files)
+            
+            # Save metadata
             self.fig.savefig(save_path+'\\0000_fig', dpi=100)
             
             with open(meta_file, 'a') as f:
@@ -1004,7 +1008,7 @@ class Recorder:
             
             # self.init_time_plot(no_of_channels)
             
-            recording_params = init_recording(self, inst, new_time_plot=True,
+            recording_params = init_recording(self, new_time_plot=True,
                                               n_plots=no_of_channels, save=True)
             
             while os.path.exists(updatefile) == False:
@@ -1134,6 +1138,9 @@ class Recorder:
             're': re,
             'im': im}
             )
+        
+        if num is None:
+            num = 0
         
         fname = save_path + f'\\{num:04}s.txt'
     
