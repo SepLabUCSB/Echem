@@ -6,6 +6,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import sys
 import time
+import cmath
 from datetime import date, datetime
 from array import array
 import pyvisa
@@ -1037,8 +1038,17 @@ class MainWindow:
             
             # Apply calibration correction
             if self.ref_corr_var.get():
+                
+                df['Z'] = np.absolute(df['Z'])
+                
                 df['Z'] = df['Z'] / Z_corr
                 df['phase'] = df['phase'] - phase_corr
+                
+                # Recalculate complex impedance
+                def P2R(radii, angles):
+                    return radii * np.exp(1j*angles*np.pi/180)
+                
+                df['Z'] = P2R(df['Z'], df['phase'])
             
             
             d.freqs = df['freqs'].to_numpy()
