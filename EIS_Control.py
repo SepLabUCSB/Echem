@@ -858,17 +858,16 @@ class Recorder:
                 # User hits cancel
                 return
             
-            time_file, meta_file, fits_file, DC_file = init_save(self, 
-                                                                 save_path)
+            recording_files = init_save(self, save_path)
         
         else:
-            time_file, meta_file, fits_file, DC_file, save_path = '','','','', ''
+            recording_files = {}
             
-        recording_files = {'time_file':time_file,
-                           'meta_file':meta_file,
-                           'fits_file':fits_file,
-                           'DC_file':DC_file,
-                           'save_path':save_path}          
+#        recording_files = {'time_file':time_file,
+#                           'meta_file':meta_file,
+#                           'fits_file':fits_file,
+#                           'DC_file':DC_file,
+#                           'save_path':save_path}          
         
         ### RECORDING MAIN LOOP ###
         
@@ -914,7 +913,7 @@ class Recorder:
             # Save metadata
             self.fig.savefig(save_path+'\\0000_fig', dpi=100)
             
-            with open(meta_file, 'a') as f:
+            with open(recording_files['meta_file'], 'a') as f:
                 avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
                 f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
             
@@ -999,6 +998,11 @@ class Recorder:
         
         
         elif exp_type == 'invivo': 
+            
+            name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                                                 initialvalue = self.last_file_name)
+            self.last_file_name = name
+            
             conc = ''
             
             inst = self.rm.open_resource(self.scope.get())
@@ -1021,16 +1025,21 @@ class Recorder:
             
             today = str(date.today())
             save_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
-                                       today, s_t)
+                                       today, name)
+            createFolder(save_path)
             
             recording_files = init_save(self, save_path)
             frame = 0            
               
             
             start_time = time.time()
+            self.ft = {}
             while time.time() - start_time < recording_time:
                 # Multiplex
+#                i = 0
+#                while i <= (no_of_channels - 1):
                 for i in range(no_of_channels):
+                    
                     
                     while os.path.exists(updatefile) == False:
                         # Wait for autolab to create start file
@@ -1039,7 +1048,7 @@ class Recorder:
                     
                     ftime = time.time() - start_time
                     ft = record_frame(self, inst, 1.4*1.2, recording_params,
-                                      ftime, recording_files,frame, 
+                                      ftime, recording_files, frame, 
                                       save=True, process_last=True,
                                       ax=self.timeax[i], 
                                       multiplex_fname=f'{elec_numbers[i]}_{frame}')
@@ -1048,6 +1057,7 @@ class Recorder:
                     self.ft[frame] = ft
                     
                     frame += 1
+#                    i += 1
                     
                     
                     
@@ -1068,7 +1078,13 @@ class Recorder:
                     #                       ax = self.timeax[i])
                     
                     os.remove(updatefile)
-                    
+            
+            # Process and save the last frame
+            process_frame(self, frame - 1, update_time_plot=True, 
+                          ax=self.ft[frame-1].ax)
+            save_frame(self, frame-1, self.ft[frame-1], recording_files,
+                       multiplex_fname= self.ft[frame-1].name)
+            
             self.recording_time.insert('1.0', str(recording_time))
                 
             
