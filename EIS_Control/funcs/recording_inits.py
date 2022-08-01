@@ -86,7 +86,7 @@ def read_scope_params(Rec):
 def init_save(Rec, save_path):
     # Create metadata file
     meta_file = os.path.join(save_path, '0000_Metadata.txt')
-    print(meta_file)
+    
     with open(meta_file, 'w') as f:
         f.write('Waveform Vpp (mV): '+ str(Rec.waveform_vpp.get('1.0', 'end')))
         f.write('Waveform: '+ str(Rec.waveform.get())) 

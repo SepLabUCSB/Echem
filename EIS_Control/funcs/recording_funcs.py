@@ -1,16 +1,30 @@
 import time
+import os
+from datetime import datetime
 from array import array
 import numpy as np
 import pandas as pd
 
 
-        
+LOGGING = True
+
+log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
+
+def log(text):
+    global log_file
+    if text != '\n' and text != '' and LOGGING:
+        with open(log_file, 'a') as f:
+            t = str(datetime.now().time())
+            f.write(t + '\t' + text + '\n')
+            f.close()
+      
 
 def record_frame(Rec, inst, frame_time, recording_params,
                  start_time, recording_files, frame, 
                  save, process_last=True, ax=None, 
                  multiplex_fname = None, **kwargs):
         
+    
     frame_start_time = time.time()
     
     # Starts recording
@@ -21,12 +35,16 @@ def record_frame(Rec, inst, frame_time, recording_params,
         if save:
             save_frame(Rec, frame-1, Rec.ft[frame-1], recording_files, 
                        multiplex_fname = Rec.ft[frame-1].name)
+    
+    log(f'Done processing frame {frame-1}')
         
     while time.time() - frame_start_time < frame_time:
         Rec.root.after(1)
     
     inst.write('TRMD STOP')
-            
+
+    log('Stopped scope')    
+        
     volts1, volts2 = read_data(inst, recording_params)
     
     ft = transform_data(volts1, volts2, recording_params, 

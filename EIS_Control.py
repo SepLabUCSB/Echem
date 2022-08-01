@@ -44,13 +44,14 @@ Plot multiple Z vs t for multiplexed in-vivo
 
 ##### Create log file #####
 
-LOGGING = False
+LOGGING = True
 
-log_file = 'C:/Users/BRoehrich/Desktop/log.txt'
+log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
 
-def log(file, text):
+def log(text):
+    global log_file
     if text != '\n' and text != '' and LOGGING:
-        with open(file, 'a') as f:
+        with open(log_file, 'a') as f:
             t = str(datetime.now().time())
             f.write(t + '\t' + text + '\n')
             f.close()
@@ -65,7 +66,7 @@ class PrintLogger():
         self.textbox = textbox # keep ref
 
     def write(self, text):
-        log(log_file, text)
+        log(text)
         self.textbox.insert(tk.END, text) # write text to textbox
         self.textbox.see('end') # scroll to end
 
@@ -1034,10 +1035,9 @@ class Recorder:
             
             start_time = time.time()
             self.ft = {}
+            log('Experiment starting')
             while time.time() - start_time < recording_time:
                 # Multiplex
-#                i = 0
-#                while i <= (no_of_channels - 1):
                 for i in range(no_of_channels):
                     
                     
@@ -1045,7 +1045,7 @@ class Recorder:
                         # Wait for autolab to create start file
                         self.root.after(1)
                     
-                    
+                    log(f'Starting electrode {elec_numbers[i]}, frame {frame}')
                     ftime = time.time() - start_time
                     ft = record_frame(self, inst, 1.4*1.2, recording_params,
                                       ftime, recording_files, frame, 
@@ -1084,8 +1084,8 @@ class Recorder:
                           ax=self.ft[frame-1].ax)
             save_frame(self, frame-1, self.ft[frame-1], recording_files,
                        multiplex_fname= self.ft[frame-1].name)
-            
-            self.recording_time.insert('1.0', str(recording_time))
+            print('Experiment finished')
+#            self.recording_time.insert('1.0', str(recording_time))
                 
             
                             
