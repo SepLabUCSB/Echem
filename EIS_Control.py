@@ -62,11 +62,12 @@ def log(text):
 
 class PrintLogger(): 
     # Class to print console output into Tkinter window
-    def __init__(self, textbox): # pass reference to text widget
+    def __init__(self, Rec, textbox): # pass reference to text widget
+        self.Rec = Rec
         self.textbox = textbox # keep ref
 
     def write(self, text):
-        log(text)
+        self.Rec.log(text)
         self.textbox.insert(tk.END, text) # write text to textbox
         self.textbox.see('end') # scroll to end
 
@@ -182,7 +183,7 @@ class Recorder:
         # console printout to frame3
         self.console = tk.Text(self.frame3, width=50, height=25)
         self.console.grid(row=0, column=0)
-        pl = PrintLogger(self.console)
+        pl = PrintLogger(self, self.console)
         sys.stdout = pl
        
         # fig: lower left
@@ -386,7 +387,13 @@ class Recorder:
         
         ### END __INIT__ ###
     
-        
+    def log(self, text):
+        global log_file
+        if text != '\n' and text != '' and LOGGING:
+            with open(log_file, 'a') as f:
+                t = str(datetime.now().time())
+                f.write(t + '\t' + text + '\n')
+                f.close()    
     
         
     def load_config(self):
@@ -739,9 +746,9 @@ class Recorder:
         
         ax.plot(t, val, 'ok')
         ax.set_ylabel(label)
-        self.timefig.tight_layout()
-        self.timefig.canvas.draw()
-        self.timefig.canvas.flush_events()
+#        self.timefig.tight_layout()
+        self.timefig.canvas.draw_idle()
+#        self.timefig.canvas.flush_events()
             
             
     
@@ -1035,7 +1042,7 @@ class Recorder:
             
             start_time = time.time()
             self.ft = {}
-            log('Experiment starting')
+            self.log('Experiment starting')
             while time.time() - start_time < recording_time:
                 # Multiplex
                 for i in range(no_of_channels):
@@ -1045,7 +1052,7 @@ class Recorder:
                         # Wait for autolab to create start file
                         self.root.after(1)
                     
-                    log(f'Starting electrode {elec_numbers[i]}, frame {frame}')
+                    self.log(f'Starting electrode {elec_numbers[i]}, frame {frame}')
                     ftime = time.time() - start_time
                     ft = record_frame(self, inst, 1.4*1.2, recording_params,
                                       ftime, recording_files, frame, 

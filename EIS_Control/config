@@ -1,4 +1,4 @@
-last_file_name:2 hr multiplex test
+last_file_name:repeat 2 hr multiplex
 test_mode:False
 potentiostat:Autolab
 waveform:Rigol_opt_100k_5k_1_29freqs.csv
