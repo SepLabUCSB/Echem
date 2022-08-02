@@ -36,6 +36,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
+Plot multiple Z vs t for multiplexed in-vivo
 
 '''
 
@@ -47,13 +48,13 @@ LOGGING = True
 
 log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
 
-#def log(text):
-#    global log_file
-#    if text != '\n' and text != '' and LOGGING:
-#        with open(log_file, 'a') as f:
-#            t = str(datetime.now().time())
-#            f.write(t + '\t' + text + '\n')
-#            f.close()
+def log(text):
+    global log_file
+    if text != '\n' and text != '' and LOGGING:
+        with open(log_file, 'a') as f:
+            t = str(datetime.now().time())
+            f.write(t + '\t' + text + '\n')
+            f.close()
 
             
             
@@ -66,7 +67,6 @@ class PrintLogger():
         self.textbox = textbox # keep ref
 
     def write(self, text):
-        # use Recorder.log() to log console output
         self.Rec.log(text)
         self.textbox.insert(tk.END, text) # write text to textbox
         self.textbox.see('end') # scroll to end
