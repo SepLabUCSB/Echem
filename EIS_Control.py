@@ -6,15 +6,19 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import sys
 import time
+import cmath
 from datetime import date, datetime
 from array import array
 import pyvisa
 from EIS_Control import rigol_control, siglent_control, create_waveform
+from EIS_Control.funcs.recording_inits import init_recording, init_save
+from EIS_Control.funcs.recording_funcs import FourierTransformData, record_frame, process_frame, save_frame
 from EIS_Fit import EIS_fit
 # from siglent_control import FourierTransformData
 default_stdout = sys.stdout
 default_stdin  = sys.stdin
 default_stderr = sys.stderr
+
 
 
 this_dir = rigol_control.__file__[:-16]
@@ -33,7 +37,6 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Plot multiple Z vs t for multiplexed in-vivo
 
 '''
 
@@ -41,16 +44,17 @@ Plot multiple Z vs t for multiplexed in-vivo
 
 ##### Create log file #####
 
-LOGGING = False
+LOGGING = True
 
-log_file = 'C:/Users/BRoehrich/Desktop/log.txt'
+log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
 
-def log(file, text):
-    if text != '\n' and text != '' and LOGGING:
-        with open(file, 'a') as f:
-            t = str(datetime.now().time())
-            f.write(t + '\t' + text + '\n')
-            f.close()
+#def log(text):
+#    global log_file
+#    if text != '\n' and text != '' and LOGGING:
+#        with open(log_file, 'a') as f:
+#            t = str(datetime.now().time())
+#            f.write(t + '\t' + text + '\n')
+#            f.close()
 
             
             
@@ -58,11 +62,13 @@ def log(file, text):
 
 class PrintLogger(): 
     # Class to print console output into Tkinter window
-    def __init__(self, textbox): # pass reference to text widget
+    def __init__(self, Rec, textbox): # pass reference to text widget
+        self.Rec = Rec
         self.textbox = textbox # keep ref
 
     def write(self, text):
-        log(log_file, text)
+        # use Recorder.log() to log console output
+        self.Rec.log(text)
         self.textbox.insert(tk.END, text) # write text to textbox
         self.textbox.see('end') # scroll to end
 
@@ -115,9 +121,9 @@ def TKObject(obj:str, frame, pos:tuple,
 
 
 
-##### MainWindow class #####
+##### Recorder class #####
 
-class MainWindow:
+class Recorder:
     
     global this_dir, rigol_waves
     
@@ -178,7 +184,7 @@ class MainWindow:
         # console printout to frame3
         self.console = tk.Text(self.frame3, width=50, height=25)
         self.console.grid(row=0, column=0)
-        pl = PrintLogger(self.console)
+        pl = PrintLogger(self, self.console)
         sys.stdout = pl
        
         # fig: lower left
@@ -382,7 +388,13 @@ class MainWindow:
         
         ### END __INIT__ ###
     
-        
+    def log(self, text):
+        global log_file
+        if text != '\n' and text != '' and LOGGING:
+            with open(log_file, 'a') as f:
+                t = str(datetime.now().time())
+                f.write(t + '\t' + text + '\n')
+                f.close()    
     
         
     def load_config(self):
@@ -496,6 +508,22 @@ class MainWindow:
         return [s, applied_freqs]
     
     
+    def get_freqs(self):
+        # Get applied frequencies
+        file  = os.path.join(rigol_waves, self.waveform.get())    
+        df    = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
+        
+        freqs = 100000*np.fft.rfftfreq(len(df))
+        V     = np.fft.rfft(df['V'])
+        ftdf  = pd.DataFrame({
+                'freqs': freqs,
+                'V': V})
+        
+        ftdf  = ftdf[np.abs(ftdf['V']) > 100]
+        applied_freqs = ftdf['freqs'].to_numpy()
+        
+        return applied_freqs
+    
     
     def get_correction_values(self):
         # Path
@@ -535,7 +563,7 @@ class MainWindow:
             print(file)
             print('Uncheck "Apply reference correction" or record a')
             print('reference spectrum of a resistor.\n')
-            return 0
+            return 0, 0
         
     
       
@@ -719,9 +747,9 @@ class MainWindow:
         
         ax.plot(t, val, 'ok')
         ax.set_ylabel(label)
-        self.timefig.tight_layout()
-        self.timefig.canvas.draw()
-        self.timefig.canvas.flush_events()
+#        self.timefig.tight_layout()
+        self.timefig.canvas.draw_idle()
+#        self.timefig.canvas.flush_events()
             
             
     
@@ -773,7 +801,8 @@ class MainWindow:
     def record_signals(self, save=False, silent=True, plot_time_plot=True,
                        axes = None, new_time_plot=True, n_plots=1, **kwargs):
         '''
-        
+        Record impedance for one, non-multiplexed electrode for the set
+        amount of time.
 
         Parameters
         ----------
@@ -790,38 +819,8 @@ class MainWindow:
         
         self.update_config_file()
         
-        # Initialize plots
         plot_Z     = self.plot_Z.get()
         plot_phase = self.plot_phase.get()
-        
-        self.ax.set_xscale('linear')
-        self.ax.clear()
-        self.ax.set_xscale('linear')
-        self.ax2.clear()
-        
-        # line1: Z data
-        # line2: phase data
-        # line3: Z fit
-        # line4: phase fit
-        line1, = self.ax.plot([],[], 'o', color=colors[0])
-        line2, = self.ax2.plot([],[], 'x', color=colors[1])
-        line3, = self.ax.plot([],[], '-', color=colors[0])
-        line4, = self.ax2.plot([],[], '-', color=colors[1])
-        
-        # clear time plot
-        if new_time_plot:
-            self.init_time_plot(n_plots)
-            line5, = self.timeax.plot([],[], 'o', color='k')
-                    
-            
-               
-        
-        self.ax.set_xscale('log')
-        self.ax.set_xlabel('Frequency/ Hz')
-        self.fig.tight_layout()
-        self.canvas.draw_idle()
-        
-        
         
         
         # Get waveform correction factors
@@ -833,13 +832,15 @@ class MainWindow:
                 # invalid reference file
                 return
                 
-            
+        # Connect to scope
+        inst = self.rm.open_resource(self.scope.get())
+        
+        # Initialize recording
+        recording_params = init_recording(self, new_time_plot, 
+                                          n_plots, save)
             
         # Get recording time
-        t = self.recording_time.get('1.0', 'end')
-        current_range = self.current_range.get('1.0', 'end')
-        current_range = float(current_range)
-             
+        t = self.recording_time.get('1.0', 'end')             
         
         try:
             t = float(t)
@@ -850,42 +851,8 @@ class MainWindow:
         
         
         
-        # Connect to scope
-        inst = self.rm.open_resource(self.scope.get())
-             
-        
-        # Set and record some scope parameters
-        inst.write('TRMD AUTO')
-        inst.write('MSIZ 70K')
-        inst.write('TDIV 100MS')
-        inst.write('TRMD STOP')
-        
-        vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
-        voffset1    = float(inst.query('C1:OFST?')[8:-2])
-        vdiv2       = float(inst.query('C2:VDIV?')[8:-2])
-        voffset2    = float(inst.query('C2:OFST?')[8:-2])
-        sara        = float(inst.query('SARA?')[5:-5])
-        tdiv        = float(inst.query('TDIV?')[5:-2])
-        frame_time  = 14*tdiv
-        
-        
-        # Get applied frequencies
-        file  = os.path.join(rigol_waves, self.waveform.get())    
-        df    = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
-        
-        freqs = 100000*np.fft.rfftfreq(len(df))
-        V     = np.fft.rfft(df['V'])
-        ftdf  = pd.DataFrame({
-                'freqs': freqs,
-                'V': V})
-        
-        ftdf  = ftdf[np.abs(ftdf['V']) > 100]
-        applied_freqs = ftdf['freqs'].to_numpy()
-            
-        
         # Initialize save files
         if save:
-            
             # Make save folder
             try:
                 name = tk.simpledialog.askstring('Save name', 'Input save name:',
@@ -893,319 +860,24 @@ class MainWindow:
                 today = str(date.today())
                 save_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
                                        today, name)
+                createFolder(save_path)
+                self.last_file_name = name
             
             except:
                 # User hits cancel
                 return
             
-            # Reinitialize last file name
-            self.last_file_name = name
-                        
-            createFolder(save_path)
-            
-            # Create metadata file
-            meta_file = os.path.join(save_path, '0000_Metadata.txt')
-                
-            with open(meta_file, 'w') as f:
-                f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                f.write('Waveform: '+ str(self.waveform.get())) 
-                s_t = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time()))
-                f.write('\nStart time: %s'%s_t)
-                
-            f.close()
-            
-            # Start time list file
-            time_file = os.path.join(save_path, '0000_time_list.txt')
-            
-            # Start fits file
-            fits_file = os.path.join(save_path, '0000_fits.txt')
-            
-            # Start mean (DC) current file
-            DC_file = os.path.join(save_path, '0000_DC_currents.txt')
+
+            recording_files = init_save(self, save_path)
         
-        
-        
-        ###################################
-        ###  RECORDING HELPER FUNCTIONS ###
-        ###################################
-        
-        def siglent_record_single(inst, start_time, frame_time, vdiv1, 
-                                  voffset1, vdiv2, voffset2, sara,
-                                  frame, current_range, sample_time=1,
-                                  plot_time_plot=plot_time_plot):
-            # Sends command to scope to record a single frame
-            # Returns siglent_control.FourierTransformData 
-            # object which contains that frame's data
+        else:
+            recording_files = {}
             
-                        
-            # Determine t=0 for frame
-            frame_start_time = time.time()
-           
-            # Record frame
-            inst.write('TRMD AUTO')
-            
-            
-            # Process last frame while waiting
-            if frame != 0:
-                t, freqs, Z, phase, params = process_frame(frame-1)
-                if plot_time_plot:
-                    self.update_time_plot(t, freqs, Z, phase, params)
-                # print(time.time() - frame_start_time)
-            while time.time() - frame_start_time < 1.2*frame_time:
-                time.sleep(0.01)              
-            
-            inst.write('TRMD STOP')                
-            
-            # Get CH 1 data
-            inst.write('C1:WF? DAT2')
-            trace1 = inst.read_raw()
-            wave1 = trace1[22:-2]
-            adc1 = np.array(array('b', wave1))
-            
-            # Get CH 2 data
-            inst.write('C2:WF? DAT2')
-            trace2 = inst.read_raw()
-            wave2 = trace2[22:-2]
-            adc2 = np.array(array('b', wave2))
-            
-            # Convert to voltages
-            volts1 = adc1*(vdiv1/25) - voffset1 
-            volts2 = adc2*(vdiv2/25) - voffset2           
-            Vpp = max(volts1) - min(volts1)
-            
-            # Get time array
-            times = np.zeros(len(volts1))
-            for i in range(len(volts1)):
-                times[i] = frame_start_time + (1/sara)*i - start_time
-                   
-            # Only Fourier transform first sample_time s
-            if sample_time:
-                end = np.where(times == times[0] + sample_time)[0][0]
-            else:
-                end = None
-            
-            freqs = sara*np.fft.rfftfreq(len(volts1[:end]))[1:]
-            ft1   =      np.fft.rfft(volts1[:end])[1:]
-            ft2   =      np.fft.rfft(volts2[:end])[1:]
-            
-            mean_I= np.mean(volts2) * current_range
-                        
-            ft = siglent_control.FourierTransformData(time    = times[0],
-                                      freqs   = freqs,
-                                      CH1data = ft1,
-                                      CH2data = ft2,
-                                      Vpp     = Vpp,
-                                      mean_I  = mean_I)
-            
-            return ft
-        
-        
-        
-        
-        def record_frame(frame):
-            # Wrapper function for siglent_record_single. Records a 
-            # single frame, transforms it to Z, and saves to dict self.ft
-            
-            
-            d = siglent_record_single(inst, start_time, frame_time, vdiv1, 
-                                      voffset1, vdiv2, voffset2, sara, 
-                                      frame, current_range, sample_time=1)
-            
-            # print(f'Frame %s: {d.time:.2f} s'%frame)
-            
-            V = d.CH1data
-            
-            if self.potentiostat.get() == 'Autolab':
-                # Autolab BNC out inverts current signal
-                I = -d.CH2data * current_range
-            elif self.potentiostat.get() == 'Gamry':
-                I = d.CH2data * current_range
-            
-            Z = V/I
-            phase = np.angle(V/I, deg=True)
-            
-            # Eliminate unwanted freqs using a DataFrame
-            df = pd.DataFrame(
-                    {
-                    'freqs': d.freqs,
-                    'Z': Z,
-                    'phase': phase
-                    }
-            )
-            
-            df = df[df['freqs'].isin(applied_freqs)]
-            
-            # Apply calibration correction
-            if self.ref_corr_var.get():
-                df['Z'] = df['Z'] / Z_corr
-                df['phase'] = df['phase'] - phase_corr
-            
-            
-            d.freqs = df['freqs'].to_numpy()
-            d.Z = df['Z'].to_numpy()
-            d.phase = df['phase'].to_numpy()
-            d.waveform = self.waveform.get()
-            
-            self.ft[frame] = d
-            
-            
-        
-        def process_frame(frame):
-            # Called during siglent_record_single to process the last frame
-            #
-            # Fits and/or plots data in a frame
-            # frame: int, frame number
-            # Data is pulled from self.ft[frame]
-            
-            # Fit, if the option is checked
-            if self.fit.get():
-                fit_frame(frame)
-                if self.circuit.get() == 'Randles_adsorption':
-                    Rct = self.ft[frame].params["R2"]
-                    Cad = self.ft[frame].params["Q2"]
-                    ket = 1/(2*Rct*Cad)
-                    print(f'Rct: {Rct}, Cad: {Cad}, ket: {ket}')
-                
-                
-            # Plot this result to figure canvas
-            d = self.ft[frame]
-            Z = np.abs(d.Z)
-            phase = d.phase
-            
-            # Determine which plot to make
-            if plot_Z:
-                if not plot_phase:
-                    line1.set_xdata(d.freqs)          
-                    line1.set_ydata(Z)
-                    if hasattr(self.ft[frame], 'fits'):
-                        line3.set_xdata(d.freqs)
-                        line3.set_ydata(np.abs(self.ft[frame].fits))
-                    self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                    self.ax.set_ylabel('|Z|/ $\Omega$')
-                    self.ax2.set_yticks([])
-            
-            if plot_phase:
-                if not plot_Z:
-                    line2.set_xdata(d.freqs)
-                    line2.set_ydata(phase)
-                    if hasattr(self.ft[frame], 'fits'):
-                        line4.set_xdata(d.freqs)
-                        line4.set_ydata(np.angle(self.ft[frame].fits))
-                    self.ax2.set_ylim(min(phase)-10, max(phase)+10)
-                    self.ax2.set_ylabel('Phase/ $\degree$')
-                    self.ax2.set_yticks([])
-                
-            if plot_Z and plot_phase:
-                line1.set_xdata(d.freqs)
-                line2.set_xdata(d.freqs)
-                line1.set_ydata(Z)
-                line2.set_ydata(phase)
-                if hasattr(self.ft[frame], 'fits'):
-                    line3.set_xdata(d.freqs)
-                    line4.set_xdata(d.freqs)
-                    line3.set_ydata(np.abs(self.ft[frame].fits))
-                    line4.set_ydata(np.angle(self.ft[frame].fits, deg=True))
-                self.ax.set_ylim(min(Z)-1.05*min(Z), 1.05*max(Z))
-                self.ax2.set_ylim(min(phase)-10, max(phase)+10)
-                self.ax.set_ylabel('|Z|/ $\Omega$')
-                self.ax2.set_ylabel('Phase/ $\degree$')
-                
-                
-            # Draw the plot
-            self.fig.tight_layout()
-            self.ax.set_xticks([1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])
-            self.ax.set_xlim(0.7*min(d.freqs), 1.5*max(d.freqs))
-            self.fig.canvas.draw()
-            self.fig.canvas.flush_events()
-            
-            
-            
-            
-                            
-            if save:
-                # Add frame time to time list
-                with open(time_file, 'a') as f:
-                    f.write(str(d.time) + '\n')
-                    f.close()
-                with open(DC_file, 'a') as f:
-                    f.write(str(d.mean_I) + '\n')
-                    f.close()
-                # Save frame as tab separated .txt
-                self.save_frame(frame, d.freqs, np.real(d.Z),
-                                np.imag(d.Z), save_path)
-            
-            params = None
-            
-            if self.fit.get():
-                params = self.ft[frame].params
-            
-            return d.time, d.freqs, Z, phase, params
-            
-            
-        
-        def fit_frame(frame, average = 1, n_iter = 25, starting_guess = None,
-                      **kwargs):
-            
-            # Called in process_frame() to fit the last frame
-            
-            if average < 0:
-                print('Average must be greater than 0 frames!')
-                return
-            
-            
-            if frame == 0:
-                bounds, starting_guess, params = self.initialize_circuit()
-                        
-            elif frame > 0:
-                starting_guess = self.ft[frame-1].params
-                bounds = {param:[val/2, val*2] for param, val in
-                          self.ft[frame-1].params.items()}
-            
-            
-            if average == 1:
-                Z     = self.ft[frame].Z
-                freqs = self.ft[frame].freqs
-                
-            elif average > 1:
-                x = frame - average
-                y = frame + 1
-                Z     = np.mean(self.ft[x:y].Z, axis=0)
-                freqs = np.mean(self.ft[x:y].freqs, axis=0)
-            
-            
-            # Perform fit
-            DataFile = EIS_fit.DataFile(file='', circuit=self.circuit.get(), 
-                                Z=Z, freqs=freqs, bounds=bounds)
-    
-            DataFile.ga_fit(n_iter = n_iter, starting_guess = starting_guess, **kwargs)
-            DataFile.LEVM_fit(timeout = 0.4) # Needs short timeout
-                                             # to not interfere with data
-                                             # collection
-            
-            # Save fit parameters, if fit was successful
-            try:
-                self.ft[frame].params = DataFile.params # R, C parameters
-                self.ft[frame].fits   = DataFile.fits   # Fitted Z vs freq
-                
-                if save:
-                    with open(fits_file, 'a') as f:
-                        if frame == 0:
-                            f.write('time,')
-                            for key, _ in self.ft[frame].params.items():
-                                f.write(key + ',')
-                            f.write('\n')
-                        
-                        f.write(str(self.ft[frame].time) + ',')
-                        for key, val in self.ft[frame].params.items():
-                            f.write(str(val) + ',')
-                        f.write('\n')
-                        f.close()
-            
-            except:
-                pass
-            
-            
-            
+#        recording_files = {'time_file':time_file,
+#                           'meta_file':meta_file,
+#                           'fits_file':fits_file,
+#                           'DC_file':DC_file,
+#                           'save_path':save_path}          
         
         ### RECORDING MAIN LOOP ###
         
@@ -1220,7 +892,9 @@ class MainWindow:
             
         frame = 0
         while time.time() - start_time < t:
-            record_frame(frame)   
+            self.ft[frame] = record_frame(self, inst, 1.4*1.2, recording_params,
+                                          time.time() - start_time, recording_files,
+                                          frame, save=save)   
             if not silent:
                 print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
@@ -1228,9 +902,11 @@ class MainWindow:
         inst.write('TRMD AUTO')
         
         # Process the final frame
-        t, freqs, Z, phase, fits = process_frame(frame-1)
-        if plot_time_plot:
-            self.update_time_plot(t, freqs, Z, phase, fits)
+        t, freqs, Z, phase, fits = process_frame(self, frame-1, 
+                                                 update_time_plot=True)
+           
+        # if plot_time_plot:
+        #     self.update_time_plot(t, freqs, Z, phase, fits)
         
         try:
             if not silent:
@@ -1241,9 +917,13 @@ class MainWindow:
         print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
         
         if save:
+            # Save last frame
+            save_frame(self, frame-1, self.ft[frame-1], recording_files)
+            
+            # Save metadata
             self.fig.savefig(save_path+'\\0000_fig', dpi=100)
             
-            with open(meta_file, 'a') as f:
+            with open(recording_files['meta_file'], 'a') as f:
                 avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
                 f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
             
@@ -1328,44 +1008,93 @@ class MainWindow:
         
         
         elif exp_type == 'invivo': 
-            conc = ''
-            self.recording_time.delete('1.0', 'end')
-            self.recording_time.insert('1.0', '1.5')
             
-            self.init_time_plot(no_of_channels)
+            name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                                                 initialvalue = self.last_file_name)
+            self.last_file_name = name
+            
+            conc = ''
+            
+            inst = self.rm.open_resource(self.scope.get())
+            
+            # self.recording_time.delete('1.0', 'end')
+            # self.recording_time.insert('1.0', '1.5')
+            
+            # self.init_time_plot(no_of_channels)
+            
+            recording_params = init_recording(self, new_time_plot=True,
+                                              n_plots=no_of_channels, save=True)
+            
+            
             
             while os.path.exists(updatefile) == False:
                 self.root.after(5)
-                
-            start_time = time.time()
+            
+            # Start recording when Autolab makes update file
             s_t = time.strftime("%H%M%S", time.gmtime(time.time()))
-                            
+            
+            today = str(date.today())
+            save_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                       today, name)
+            createFolder(save_path)
+            
+            recording_files = init_save(self, save_path)
+            frame = 0            
+              
+            
+            start_time = time.time()
+            self.ft = {}
+            self.log('Experiment starting')
             while time.time() - start_time < recording_time:
                 # Multiplex
                 for i in range(no_of_channels):
+                    
                     
                     while os.path.exists(updatefile) == False:
                         # Wait for autolab to create start file
                         self.root.after(1)
                     
+                    self.log(f'Starting electrode {elec_numbers[i]}, frame {frame}')
                     ftime = time.time() - start_time
-                    # Record and save the frame
-                    self.record_signals(silent=True, new_time_plot=False,
-                                        savefig=False, plot_time_plot=False)
-                    self.save_last(name = f'{elec_numbers[i]}_{int(ftime)}',
-                                   subpath = s_t, savefig=False)
+                    ft = record_frame(self, inst, 1.4*1.2, recording_params,
+                                      ftime, recording_files, frame, 
+                                      save=True, process_last=True,
+                                      ax=self.timeax[i], 
+                                      multiplex_fname=f'{elec_numbers[i]}_{frame}')
+                                    
                     
-                    # Plot frame to time plot
-                    freqs = self.ft[0].freqs
-                    Z     = self.ft[0].Z
-                    phase = self.ft[0].phase
-                    params= self.ft[0].params
-                    self.update_time_plot(ftime, freqs, Z, phase, params,
-                                          ax = self.timeax[i])
+                    self.ft[frame] = ft
+                    
+                    frame += 1
+#                    i += 1
+                    
+                    
+                    
+                    
+                    # Record and save the frame
+                    
+                    # self.record_signals(silent=True, new_time_plot=False,
+                    #                     savefig=False, plot_time_plot=False)
+                    # self.save_last(name = f'{elec_numbers[i]}_{int(ftime)}',
+                    #                subpath = s_t, savefig=False)
+                    
+                    # # Plot frame to time plot
+                    # freqs = self.ft[frame].freqs
+                    # Z     = self.ft[0].Z
+                    # phase = self.ft[0].phase
+                    # params= self.ft[0].params
+                    # self.update_time_plot(ftime, freqs, Z, phase, params,
+                    #                       ax = self.timeax[i])
                     
                     os.remove(updatefile)
-                    
-            self.recording_time.insert('1.0', str(recording_time))
+            
+            # Process and save the last frame
+            process_frame(self, frame - 1, update_time_plot=True, 
+                          ax=self.ft[frame-1].ax)
+            save_frame(self, frame-1, self.ft[frame-1], recording_files,
+                       multiplex_fname= self.ft[frame-1].name)
+            print('Experiment finished')
+#            self.recording_time.insert('1.0', str(recording_time))
                 
             
                             
@@ -1446,7 +1175,14 @@ class MainWindow:
             'im': im}
             )
         
-        fname = save_path + f'\\{num:04}s.txt'
+        if num is None:
+            num = 0
+        
+        try:
+            fname = save_path + f'\\{num:04}s.txt'
+        except:
+            # Passing string as save name instead
+            fname = save_path + f'\\{num}.txt'
     
         d.to_csv(fname, columns = ['f', 're', 'im'],
                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
@@ -1542,7 +1278,7 @@ def createFolder(directory):
 
 
 root = tk.Tk()
-gui = MainWindow(root)
+gui = Recorder(root)
 root.mainloop()
 
 sys.stdout = default_stdout
