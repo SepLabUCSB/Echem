@@ -6,6 +6,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import sys
 import time
+import cmath
 from datetime import date, datetime
 from array import array
 import pyvisa
@@ -866,6 +867,7 @@ class Recorder:
                 # User hits cancel
                 return
             
+
             recording_files = init_save(self, save_path)
         
         else:
