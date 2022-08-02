@@ -500,23 +500,7 @@ class Recorder:
         self.update_config_file()
         return [s, applied_freqs]
     
-    
-    def get_freqs(self):
-        # Get applied frequencies
-        file  = os.path.join(rigol_waves, self.waveform.get())    
-        df    = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
         
-        freqs = 100000*np.fft.rfftfreq(len(df))
-        V     = np.fft.rfft(df['V'])
-        ftdf  = pd.DataFrame({
-                'freqs': freqs,
-                'V': V})
-        
-        ftdf  = ftdf[np.abs(ftdf['V']) > 100]
-        applied_freqs = ftdf['freqs'].to_numpy()
-        
-        return applied_freqs
-    
     
     def get_correction_values(self):
         # Path
