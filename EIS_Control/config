@@ -1,11 +1,11 @@
-last_file_name:repeat 2 hr multiplex
+last_file_name:
 test_mode:False
 potentiostat:Autolab
 waveform:Rigol_opt_100k_5k_1_29freqs.csv
 plot_Z:1
 plot_phase:1
 waveform_vpp:50
-recording_time:7200
+recording_time:10
 current_range:1e-6
 DC_offset:0
 ref_corr_val:10k
