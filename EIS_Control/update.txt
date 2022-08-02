@@ -1,2 +1,0 @@
-﻿Column 1	Column 2
-25	25
