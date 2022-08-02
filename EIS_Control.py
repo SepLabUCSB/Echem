@@ -987,8 +987,7 @@ class Recorder:
             recording_params = init_recording(self, new_time_plot=True,
                                               n_plots=no_of_channels, save=True)
             
-            
-            
+            # Wait for trigger
             while os.path.exists(updatefile) == False:
                 self.root.after(5)
             
@@ -1026,29 +1025,10 @@ class Recorder:
                                     
                     
                     self.ft[frame] = ft
-                    
-                    frame += 1
-#                    i += 1
-                    
-                    
-                    
-                    
-                    # Record and save the frame
-                    
-                    # self.record_signals(silent=True, new_time_plot=False,
-                    #                     savefig=False, plot_time_plot=False)
-                    # self.save_last(name = f'{elec_numbers[i]}_{int(ftime)}',
-                    #                subpath = s_t, savefig=False)
-                    
-                    # # Plot frame to time plot
-                    # freqs = self.ft[frame].freqs
-                    # Z     = self.ft[0].Z
-                    # phase = self.ft[0].phase
-                    # params= self.ft[0].params
-                    # self.update_time_plot(ftime, freqs, Z, phase, params,
-                    #                       ax = self.timeax[i])
-                    
                     os.remove(updatefile)
+                    frame += 1
+                    
+                    
             
             # Process and save the last frame
             process_frame(self, frame - 1, update_time_plot=True, 
@@ -1056,7 +1036,6 @@ class Recorder:
             save_frame(self, frame-1, self.ft[frame-1], recording_files,
                        multiplex_fname= self.ft[frame-1].name)
             print('Experiment finished')
-#            self.recording_time.insert('1.0', str(recording_time))
                 
             
                             
