@@ -44,7 +44,7 @@ To add:
 
 ##### Create log file #####
 
-LOGGING = True
+LOGGING = False
 
 log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
 
