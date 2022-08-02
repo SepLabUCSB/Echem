@@ -458,12 +458,12 @@ class Recorder:
     
     def selector_changed(self):
         # Reinitialize parameter to plot vs time        
-        self.get_waveform()  # Initialize list of frequencies
+        _, freqs     = self.get_waveform()  # Initialize list of frequencies
         _, _, params = self.initialize_circuit() # Initialize list of circuit elements
         
         
         if self.time_plot_param.get() in ('Phase', '|Z|'):
-            time_plot_val = self.freqs
+            time_plot_val = freqs
             
         
         elif self.fit.get():
@@ -496,9 +496,8 @@ class Recorder:
         ftdf  = ftdf[np.abs(ftdf['V']) > 100]
         applied_freqs = ftdf['freqs'].to_numpy()
         
-        self.freqs = applied_freqs.astype(int)
         self.update_config_file()
-        return [s, applied_freqs]
+        return s, applied_freqs
     
         
     
