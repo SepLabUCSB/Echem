@@ -86,7 +86,7 @@ def read_scope_params(Rec):
 def init_save(Rec, save_path):
     # Create metadata file
     meta_file = os.path.join(save_path, '0000_Metadata.txt')
-        
+    
     with open(meta_file, 'w') as f:
         f.write('Waveform Vpp (mV): '+ str(Rec.waveform_vpp.get('1.0', 'end')))
         f.write('Waveform: '+ str(Rec.waveform.get())) 
@@ -104,6 +104,12 @@ def init_save(Rec, save_path):
     # Start mean (DC) current file
     DC_file = os.path.join(save_path, '0000_DC_currents.txt')
     
-    return time_file, meta_file, fits_file, DC_file
+    d = {'time_file': time_file,
+         'meta_file': meta_file,
+         'fits_file': fits_file,
+         'DC_file'  : DC_file,
+         'save_path': save_path}
+    
+    return d
     
     

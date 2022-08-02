@@ -36,7 +36,6 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 '''
 To add:
 
-Plot multiple Z vs t for multiplexed in-vivo
 
 '''
 
@@ -44,16 +43,17 @@ Plot multiple Z vs t for multiplexed in-vivo
 
 ##### Create log file #####
 
-LOGGING = False
+LOGGING = True
 
-log_file = 'C:/Users/BRoehrich/Desktop/log.txt'
+log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
 
-def log(file, text):
-    if text != '\n' and text != '' and LOGGING:
-        with open(file, 'a') as f:
-            t = str(datetime.now().time())
-            f.write(t + '\t' + text + '\n')
-            f.close()
+#def log(text):
+#    global log_file
+#    if text != '\n' and text != '' and LOGGING:
+#        with open(log_file, 'a') as f:
+#            t = str(datetime.now().time())
+#            f.write(t + '\t' + text + '\n')
+#            f.close()
 
             
             
@@ -61,11 +61,13 @@ def log(file, text):
 
 class PrintLogger(): 
     # Class to print console output into Tkinter window
-    def __init__(self, textbox): # pass reference to text widget
+    def __init__(self, Rec, textbox): # pass reference to text widget
+        self.Rec = Rec
         self.textbox = textbox # keep ref
 
     def write(self, text):
-        log(log_file, text)
+        # use Recorder.log() to log console output
+        self.Rec.log(text)
         self.textbox.insert(tk.END, text) # write text to textbox
         self.textbox.see('end') # scroll to end
 
@@ -181,7 +183,7 @@ class Recorder:
         # console printout to frame3
         self.console = tk.Text(self.frame3, width=50, height=25)
         self.console.grid(row=0, column=0)
-        pl = PrintLogger(self.console)
+        pl = PrintLogger(self, self.console)
         sys.stdout = pl
        
         # fig: lower left
@@ -385,7 +387,13 @@ class Recorder:
         
         ### END __INIT__ ###
     
-        
+    def log(self, text):
+        global log_file
+        if text != '\n' and text != '' and LOGGING:
+            with open(log_file, 'a') as f:
+                t = str(datetime.now().time())
+                f.write(t + '\t' + text + '\n')
+                f.close()    
     
         
     def load_config(self):
@@ -738,9 +746,9 @@ class Recorder:
         
         ax.plot(t, val, 'ok')
         ax.set_ylabel(label)
-        self.timefig.tight_layout()
-        self.timefig.canvas.draw()
-        self.timefig.canvas.flush_events()
+#        self.timefig.tight_layout()
+        self.timefig.canvas.draw_idle()
+#        self.timefig.canvas.flush_events()
             
             
     
@@ -858,17 +866,16 @@ class Recorder:
                 # User hits cancel
                 return
             
-            time_file, meta_file, fits_file, DC_file = init_save(self, 
-                                                                 save_path)
+            recording_files = init_save(self, save_path)
         
         else:
-            time_file, meta_file, fits_file, DC_file, save_path = '','','','', ''
+            recording_files = {}
             
-        recording_files = {'time_file':time_file,
-                           'meta_file':meta_file,
-                           'fits_file':fits_file,
-                           'DC_file':DC_file,
-                           'save_path':save_path}          
+#        recording_files = {'time_file':time_file,
+#                           'meta_file':meta_file,
+#                           'fits_file':fits_file,
+#                           'DC_file':DC_file,
+#                           'save_path':save_path}          
         
         ### RECORDING MAIN LOOP ###
         
@@ -914,7 +921,7 @@ class Recorder:
             # Save metadata
             self.fig.savefig(save_path+'\\0000_fig', dpi=100)
             
-            with open(meta_file, 'a') as f:
+            with open(recording_files['meta_file'], 'a') as f:
                 avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
                 f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
             
@@ -999,6 +1006,11 @@ class Recorder:
         
         
         elif exp_type == 'invivo': 
+            
+            name = tk.simpledialog.askstring('Save name', 'Input save name:',
+                                                 initialvalue = self.last_file_name)
+            self.last_file_name = name
+            
             conc = ''
             
             inst = self.rm.open_resource(self.scope.get())
@@ -1021,25 +1033,29 @@ class Recorder:
             
             today = str(date.today())
             save_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
-                                       today, s_t)
+                                       today, name)
+            createFolder(save_path)
             
             recording_files = init_save(self, save_path)
             frame = 0            
               
             
             start_time = time.time()
+            self.ft = {}
+            self.log('Experiment starting')
             while time.time() - start_time < recording_time:
                 # Multiplex
                 for i in range(no_of_channels):
+                    
                     
                     while os.path.exists(updatefile) == False:
                         # Wait for autolab to create start file
                         self.root.after(1)
                     
-                    
+                    self.log(f'Starting electrode {elec_numbers[i]}, frame {frame}')
                     ftime = time.time() - start_time
                     ft = record_frame(self, inst, 1.4*1.2, recording_params,
-                                      ftime, recording_files,frame, 
+                                      ftime, recording_files, frame, 
                                       save=True, process_last=True,
                                       ax=self.timeax[i], 
                                       multiplex_fname=f'{elec_numbers[i]}_{frame}')
@@ -1048,6 +1064,7 @@ class Recorder:
                     self.ft[frame] = ft
                     
                     frame += 1
+#                    i += 1
                     
                     
                     
@@ -1068,8 +1085,14 @@ class Recorder:
                     #                       ax = self.timeax[i])
                     
                     os.remove(updatefile)
-                    
-            self.recording_time.insert('1.0', str(recording_time))
+            
+            # Process and save the last frame
+            process_frame(self, frame - 1, update_time_plot=True, 
+                          ax=self.ft[frame-1].ax)
+            save_frame(self, frame-1, self.ft[frame-1], recording_files,
+                       multiplex_fname= self.ft[frame-1].name)
+            print('Experiment finished')
+#            self.recording_time.insert('1.0', str(recording_time))
                 
             
                             
