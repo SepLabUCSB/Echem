@@ -621,6 +621,7 @@ class Recorder:
         inst = self.rm.open_resource(self.arb.get())
         
         Vpp = self.waveform_vpp.get('1.0', 'end')
+        # Need to multiply by 2 to get the right Vpp...
         Vpp = str(float(Vpp)*2/1000)
         
         try:
@@ -725,9 +726,7 @@ class Recorder:
         
         ax.plot(t, val, 'ok')
         ax.set_ylabel(label)
-#        self.timefig.tight_layout()
         self.timefig.canvas.draw_idle()
-#        self.timefig.canvas.flush_events()
             
             
     
@@ -797,8 +796,6 @@ class Recorder:
         
         self.update_config_file()
         
-        plot_Z     = self.plot_Z.get()
-        plot_phase = self.plot_phase.get()
         
         
         # Get waveform correction factors
@@ -851,16 +848,10 @@ class Recorder:
         else:
             recording_files = {}
             
-#        recording_files = {'time_file':time_file,
-#                           'meta_file':meta_file,
-#                           'fits_file':fits_file,
-#                           'DC_file':DC_file,
-#                           'save_path':save_path}          
+          
         
         ### RECORDING MAIN LOOP ###
         
-        # Record starting time
-        start_time = time.time()
         self.ft = {}
         
         # Record frames
@@ -869,6 +860,7 @@ class Recorder:
             print('Recording for ~%d s' %t)
             
         frame = 0
+        start_time = time.time()
         while time.time() - start_time < t:
             self.ft[frame] = record_frame(self, inst, 1.4*1.2, recording_params,
                                           time.time() - start_time, recording_files,
@@ -879,21 +871,14 @@ class Recorder:
         
         inst.write('TRMD AUTO')
         
+        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
+        
+        
+        
         # Process the final frame
         t, freqs, Z, phase, fits = process_frame(self, frame-1, 
                                                  update_time_plot=True)
-           
-        # if plot_time_plot:
-        #     self.update_time_plot(t, freqs, Z, phase, fits)
-        
-        try:
-            if not silent:
-                print(self.ft[frame-1].params)
-        except:
-            pass
-        
-        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
-        
+                 
         if save:
             # Save last frame
             save_frame(self, frame-1, self.ft[frame-1], recording_files)
