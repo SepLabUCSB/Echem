@@ -20,6 +20,9 @@ default_stdin  = sys.stdin
 default_stderr = sys.stderr
 
 
+LOGGING = False
+log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
+
 
 this_dir = rigol_control.__file__[:-16]
 config_file = os.path.join(this_dir, 'config')
@@ -42,19 +45,9 @@ To add:
 
 
 
-##### Create log file #####
 
-LOGGING = False
 
-log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
 
-#def log(text):
-#    global log_file
-#    if text != '\n' and text != '' and LOGGING:
-#        with open(log_file, 'a') as f:
-#            t = str(datetime.now().time())
-#            f.write(t + '\t' + text + '\n')
-#            f.close()
 
             
             
@@ -597,14 +590,16 @@ class Recorder:
         
         
         # Reinitialize file selection list to incude new file
+        del self.waveform
         self.file_list = [file for file in os.listdir(rigol_waves) 
                           if file.endswith('freqs.csv')
                           if file.startswith('Rigol')]
         
-        del self.waveform_selector
-        self.waveform_selector = tk.OptionMenu(self.frame, self.waveform, 
-                                               *self.file_list, command=self.show_waveform)
-        self.waveform_selector.grid(row=2, column=2)
+        self.waveform = TKObject('StringVar', self.frame,
+                                  default=self.config['waveform'],
+                                  variable=self.waveform, options=self.file_list,
+                                  command=self.show_waveform, pos=(2,2))
+        
         self.update_config_file()
         print('\n')
         
