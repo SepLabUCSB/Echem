@@ -896,16 +896,15 @@ class Recorder:
         
             
     def multiplex(self):
-                        
+        
+        #### ASK FOR MULTIPLEXING PARAMETERS ####
+                    
         # Ask for titration/ invivo experiment
         exp_type = tk.simpledialog.askstring(
                         'Experiment type', 
                         'Titration (0) or in-vivo (1)?') 
         if exp_type == '0':
             exp_type = 'titration'
-#            if int(self.recording_time.get('1.0', 'end')) != 10:
-#                print('Set recording time to 10 for multiplexing!')
-#                return
         elif exp_type == '1':
             exp_type = 'invivo'
         else:
@@ -918,31 +917,34 @@ class Recorder:
                         'Number of channels', 'Number of channels:')    
         no_of_channels = int(no_of_channels)
         
+        
         # Ask for electrode IDs (if desired, otherwise default to 1,2,3,..)
         elec_numbers = tk.simpledialog.askstring(
                         'Electrode numbers', 'Electrode numbers:',
                         initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
         elec_numbers = elec_numbers.split(',')
         
+        
+        # Titration: ask for number of concentrations
         if exp_type == 'titration':
-            # Ask for number of concentrations
             number_of_concs = tk.simpledialog.askstring(
                             'Number of concentrations', 'Number of concentrations:')
             number_of_concs = int(number_of_concs)
         
+        
+        # Invivo: save recording time
         if exp_type == 'invivo':
             recording_time = self.recording_time.get('1.0', 'end')
             recording_time = float(recording_time)
         
+        
         # Path of triggering file
         updatefile = os.path.join(this_dir, 'update.txt')
-        
-        # Clean up trigger file to start
         if os.path.exists(updatefile):
             os.remove(updatefile)
         
                 
-        # Iterate through concentrations
+        #### RUN TITRATION ####
         if exp_type == 'titration':
             for _ in range(number_of_concs):
                 
@@ -953,7 +955,7 @@ class Recorder:
                 # Wait for autolab to create start file
                 # ULTRA bad way of triggering recording...
                 while os.path.exists(updatefile) == False:
-                    time.sleep(0.1)
+                    self.root.after(5)
                 
                 # Multiplex record and save
                 for i in range(no_of_channels):
@@ -970,6 +972,7 @@ class Recorder:
                     os.remove(updatefile)
         
         
+        #### RUN INVIVO ####
         elif exp_type == 'invivo': 
             
             name = tk.simpledialog.askstring('Save name', 'Input save name:',
@@ -980,11 +983,7 @@ class Recorder:
             
             inst = self.rm.open_resource(self.scope.get())
             
-            # self.recording_time.delete('1.0', 'end')
-            # self.recording_time.insert('1.0', '1.5')
-            
-            # self.init_time_plot(no_of_channels)
-            
+            # Initialize plots and save files
             recording_params = init_recording(self, new_time_plot=True,
                                               n_plots=no_of_channels, save=True)
             
