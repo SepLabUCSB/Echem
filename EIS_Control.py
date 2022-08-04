@@ -700,12 +700,12 @@ class Recorder:
         
         # Get the value
         if self.time_plot_param.get() == 'Phase':
-            freq = int(self.time_plot_val.get())
+            freq = float(self.time_plot_val.get())
             idx = np.where(freqs == freq)[0][0]
             val = phase[idx]
         
         elif self.time_plot_param.get() == '|Z|':
-            freq = int(self.time_plot_val.get())
+            freq = float(self.time_plot_val.get())
             idx = np.where(freqs == freq)[0][0]
             val = Z[idx]
         

@@ -59,6 +59,7 @@ def record_frame(Rec, inst, frame_time, recording_params,
         df = correct_Z(Rec, df)
         
         
+        
     
     # Save to FTData object
     ft.freqs    = df['freqs'].to_numpy()
@@ -150,7 +151,7 @@ def correct_Z(Rec, df):
     df['Z']     = df['Z'] / Z_corr
     df['phase'] = df['phase'] - phase_corr
     
-    df['Z'] = df['Z'] * np.exp(-1j*df['phase']*np.pi/180)
+    df['Z'] = df['Z'] * np.exp(1j*df['phase']*np.pi/180)
     
     return df
 

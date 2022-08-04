@@ -1,5 +1,5 @@
 last_file_name:
-test_mode:True
+test_mode:False
 potentiostat:Autolab
 waveform:Rigol_opt_100k_5k_1_29freqs.csv
 plot_Z:1
