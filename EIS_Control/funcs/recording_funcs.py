@@ -87,7 +87,8 @@ def read_data(inst, recording_params):
     # Get CH 1 data
     inst.write('C1:WF? DAT2')
     trace1 = inst.read_raw()
-    wave1 = trace1[22:-2]
+    wave1 = trace1[22:-2] # Read SDS programming manual. First 11 bytes specify
+                          # length of trace (we don't care), last byte says done
     adc1 = np.array(array('b', wave1))
     
     # Get CH 2 data
