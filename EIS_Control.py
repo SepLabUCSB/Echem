@@ -912,25 +912,28 @@ class Recorder:
             return
         
         
-        # Ask for number of multiplexed channels
-        no_of_channels = tk.simpledialog.askstring(
-                        'Number of channels', 'Number of channels:')    
-        no_of_channels = int(no_of_channels)
-        
-        
-        # Ask for electrode IDs (if desired, otherwise default to 1,2,3,..)
-        elec_numbers = tk.simpledialog.askstring(
-                        'Electrode numbers', 'Electrode numbers:',
-                        initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
-        elec_numbers = elec_numbers.split(',')
-        
-        
-        # Titration: ask for number of concentrations
-        if exp_type == 'titration':
-            number_of_concs = tk.simpledialog.askstring(
-                            'Number of concentrations', 'Number of concentrations:')
-            number_of_concs = int(number_of_concs)
-        
+        try:
+            # Ask for number of multiplexed channels
+            no_of_channels = tk.simpledialog.askstring(
+                            'Number of channels', 'Number of channels:')    
+            no_of_channels = int(no_of_channels)
+            
+            
+            # Ask for electrode IDs (if desired, otherwise default to 1,2,3,..)
+            elec_numbers = tk.simpledialog.askstring(
+                            'Electrode numbers', 'Electrode numbers:',
+                            initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
+            elec_numbers = elec_numbers.split(',')
+            
+            
+            # Titration: ask for number of concentrations
+            if exp_type == 'titration':
+                number_of_concs = tk.simpledialog.askstring(
+                                'Number of concentrations', 'Number of concentrations:')
+                number_of_concs = int(number_of_concs)
+        except:
+            # hit cancel
+            pass
         
         # Invivo: save recording time
         if exp_type == 'invivo':
@@ -1119,78 +1122,79 @@ class Recorder:
         if num is None:
             num = 0
         
-        try:
-            fname = save_path + f'\\{num:04}s.txt'
-        except:
-            # Passing string as save name instead
+        if type(num) == str:
             fname = save_path + f'\\{num}.txt'
+        else:
+            fname = save_path + f'\\{num:04}s.txt'
+            
     
         d.to_csv(fname, columns = ['f', 're', 'im'],
                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
                      sep = '\t', index = False, encoding='ascii')
+        print(f'saved as {fname}')
         
         
         
     def save_last(self, name = None, savefig=True, subpath=''):
                
         if self.ft:
+            
             try:
                 if not name:
                     name = tk.simpledialog.askstring('Save name', 'Input save name:',
                                                  initialvalue = self.last_file_name)
-                
-                self.last_file_name = name
-                
-                today = str(date.today())
-                                    
-                folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
-                                           today, subpath, name)
-                
-                createFolder(folder_path)
-                
-                meta_file = os.path.join(folder_path, '0000_Metadata.txt')
-                time_file = os.path.join(folder_path, '0000_time_list.txt')
-                DC_file = os.path.join(folder_path, '0000_DC_currents.txt')
-                
-                
-                with open(time_file, 'w') as f:
-                    for i, _ in self.ft.items():
-                        ftime = str(self.ft[i].time)
-                        f.write(ftime + '\n')
-                
-                with open(meta_file, 'w') as f:
-                    f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                    f.write('Waveform: '+ str(self.waveform.get()))
-                    s_t = datetime.now().strftime("%H:%M:%S.%f")
-                    f.write('\nStart time: %s'%s_t)
-                    avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
-                    f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
-                    
-                with open(DC_file, 'w') as f:
-                    for i, _ in self.ft.items():
-                        DC = self.ft[i].mean_I
-                        f.write(DC + '\n')    
-                  
-                    
-                for i, _ in self.ft.items():
-                    re = np.real(self.ft[i].Z)
-                    im = np.imag(self.ft[i].Z)
-                    freqs = self.ft[i].freqs
-                    
-                    self.save_frame(i, freqs, re, im, folder_path)
-                
-                
-                if savefig:    
-                    self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
-                
-                print('Saved as ASCII:', folder_path, '\n')
-                 
-            
             except:
                 # User hits cancel
                 # Still option to save previous run
                 pass
+                                
+            self.last_file_name = name
+            
+            today = str(date.today())
+                                
+            folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                       today, subpath, name)
+            
+            createFolder(folder_path)
+            
+            meta_file = os.path.join(folder_path, '0000_Metadata.txt')
+            time_file = os.path.join(folder_path, '0000_time_list.txt')
+            DC_file = os.path.join(folder_path, '0000_DC_currents.txt')
+            
+            
+            with open(time_file, 'w') as f:
+                for i, _ in self.ft.items():
+                    ftime = str(self.ft[i].time)
+                    f.write(ftime + '\n')
+            
+            with open(meta_file, 'w') as f:
+                f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                f.write('Waveform: '+ str(self.waveform.get()))
+                s_t = datetime.now().strftime("%H:%M:%S.%f")
+                f.write('\nStart time: %s'%s_t)
+                avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
+                f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
                 
+            with open(DC_file, 'w') as f:
+                for i, _ in self.ft.items():
+                    DC = self.ft[i].mean_I
+                    f.write(str(DC) + '\n')    
+              
+                
+            for i, _ in self.ft.items():
+                re = np.real(self.ft[i].Z)
+                im = np.imag(self.ft[i].Z)
+                freqs = self.ft[i].freqs
+                
+                self.save_frame(i, freqs, re, im, folder_path)
+            
+            
+            if savefig:    
+                self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
+            
+            print('Saved as ASCII:', folder_path, '\n')
+                 
+    
 
         else:
             print('No previous measurement to export\n')
