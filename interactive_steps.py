@@ -472,6 +472,7 @@ class Index:
         self.i = i
         self.slider[i] =  0 #initialize slider index
         
+        
         df = get_data(files[i], POTENTIOSTAT)
         
         # Initialize plot
@@ -494,6 +495,9 @@ class Index:
         
         self.cid = fig.canvas.mpl_connect('button_press_event', 
                                           self.sp[i])
+        
+        self.slider2[i] = len(self.xs[i]) - 1
+        
         plt.show()
     
     
@@ -768,7 +772,8 @@ class Index:
             
             self.line.set_xdata(self.xs[i][ind:ind2])
             self.line.set_ydata(self.plot_ys[i][ind:ind2])
-            ax.autoscale(axis='y')
+            ax.set_xlim(0.95*self.xs[i][ind],
+                        1.05*self.xs[i][ind2])
             ax.figure.canvas.draw_idle()
 
         except KeyError:
@@ -796,8 +801,8 @@ class Index:
             
             self.line.set_xdata(self.xs[i][ind:ind2])
             self.line.set_ydata(self.plot_ys[i][ind:ind2])
-            ax.autoscale(axis='x')
-            ax.autoscale(axis='y')
+            ax.set_xlim(0.95*self.xs[i][ind],
+                        1.05*self.xs[i][ind2])
             ax.figure.canvas.draw_idle()
 
         except KeyError:
