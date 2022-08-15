@@ -463,6 +463,7 @@ class Index:
         self.files = files
         
         self.slider  = dict()
+        self.slider2 = dict()
         self.xs      = dict()
         self.ys      = dict()
         self.plot_ys = dict()
@@ -526,6 +527,7 @@ class Index:
                 self.plot_ys[i] = self.ys[i]
             
             slider.set_val(self.xs[i][0])
+            slider2.set_val(self.xs[i][-1])
             self.line, = ax.plot(self.xs[i], self.plot_ys[i], 'k-')
             self.sp[i] = StepPicker(self.xs[i], self.ys[i], 
                                     self.plot_ys[i], ax=ax)
@@ -533,11 +535,13 @@ class Index:
         else:
             # Reinitialize
             
-            ind = self.slider[i]
+            ind  = self.slider[i]
+            ind2 = self.slider2[i]
             slider.set_val(self.xs[i][ind])
+            slider2.set_val(self.xs[i][ind2])
             
-            self.line, = ax.plot(self.xs[i][ind:], 
-                                 self.plot_ys[i][ind:], 'k-')
+            self.line, = ax.plot(self.xs[i][ind:ind2], 
+                                 self.plot_ys[i][ind:ind2], 'k-')
             
             self.sp[i]._update()
             
@@ -573,6 +577,7 @@ class Index:
                 self.plot_ys[i] = self.ys[i]
             
             slider.set_val(self.xs[i][0])
+            slider2.set_val(self.xs[i][-1])
             self.line, = ax.plot(self.xs[i], self.plot_ys[i], 'k-')
  
             self.sp[i] = StepPicker(self.xs[i], self.ys[i], 
@@ -581,11 +586,14 @@ class Index:
         else:
             # Reinitialize
             
-            ind = self.slider[i]
+            ind  = self.slider[i]
+            ind2 = self.slider2[i]
             slider.set_val(self.xs[i][ind])
+            slider2.set_val(self.xs[i][ind2])
             
-            self.line, = ax.plot(self.xs[i][ind:], 
-                                 self.plot_ys[i][ind:], 'k-')
+            self.line, = ax.plot(self.xs[i][ind:ind2], 
+                                 self.plot_ys[i][ind:ind2], 'k-')
+            
             self.sp[i]._update()
             
         self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
@@ -601,12 +609,13 @@ class Index:
         '''
         # i = self.ind % len(files)
         i = self.i
-        ind = self.slider[i]
+        ind  = self.slider[i]
+        ind2 = self.slider2[i]
         
         try:
-            self.sp[i].xdata = self.xs[i][ind:]
-            self.sp[i].ydata = self.ys[i][ind:]
-            self.sp[i].plot_ydata = self.plot_ys[i][ind:]
+            self.sp[i].xdata = self.xs[i][ind:ind2]
+            self.sp[i].ydata = self.ys[i][ind:ind2]
+            self.sp[i].plot_ydata = self.plot_ys[i][ind:ind2]
 
             self.sp[i].calculate_steps(event)
         
@@ -754,10 +763,40 @@ class Index:
         
         try:
             ind = np.where(self.xs[i] == find_nearest(self.xs[i], val))[0][0]
-            self.slider[i] = ind
+            self.slider[i]  = ind
+            ind2 = self.slider2[i]
             
-            self.line.set_xdata(self.xs[i][ind:])
-            self.line.set_ydata(self.plot_ys[i][ind:])
+            self.line.set_xdata(self.xs[i][ind:ind2])
+            self.line.set_ydata(self.plot_ys[i][ind:ind2])
+            ax.autoscale(axis='y')
+            ax.figure.canvas.draw_idle()
+
+        except KeyError:
+            pass
+    
+    
+    def slider2_changed(self, val):
+        '''
+        Redraw raw data after adding/ removing xdata using slider
+        '''        
+        
+        i = self.i
+        
+        def find_nearest(array,value):
+            idx = np.searchsorted(array, value, side="left")
+            if idx > 0 and (idx == len(array) or abs(value - array[idx-1]) < abs(value - array[idx])):
+                return array[idx-1]
+            else:
+                return array[idx]
+        
+        try:
+            ind2 = np.where(self.xs[i] == find_nearest(self.xs[i], val))[0][0]
+            self.slider2[i]  = ind2
+            ind = self.slider[i]
+            
+            self.line.set_xdata(self.xs[i][ind:ind2])
+            self.line.set_ydata(self.plot_ys[i][ind:ind2])
+            ax.autoscale(axis='x')
             ax.autoscale(axis='y')
             ax.figure.canvas.draw_idle()
 
@@ -788,27 +827,27 @@ plt.subplots_adjust(bottom=0.3)
 callback = Index()
 
 # Recalculate step sizes
-axcalc = plt.axes([0.5, 0.1, 0.25, 0.075])
+axcalc = plt.axes([0.5, 0.075, 0.25, 0.05])
 bcalc = Button(axcalc, 'Recalculate')
 bcalc.on_clicked(callback.recalc)
 
 # Next file
-axnext = plt.axes([0.8, 0.1, 0.1, 0.075])
+axnext = plt.axes([0.8, 0.075, 0.1, 0.05])
 bnext = Button(axnext, 'Next')
 bnext.on_clicked(callback.next)
 
 # Previous file
-axprev = plt.axes([0.35, 0.1, 0.1, 0.075])
+axprev = plt.axes([0.35, 0.075, 0.1, 0.05])
 bprev = Button(axprev, 'Prev')
 bprev.on_clicked(callback.prev)
 
 # Save as xlsx
-axexport = plt.axes([0.1, 0.1, 0.2, 0.075])
+axexport = plt.axes([0.1, 0.075, 0.2, 0.05])
 bexport = Button(axexport, 'Export')
 bexport.on_clicked(callback.save)
 
 # Plot histogram
-axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.075])
+axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.05])
 histbutton = Button(axplotbutton, 'Plot histogram')
 histbutton.on_clicked(callback.hist)
 
@@ -818,12 +857,18 @@ slider = Slider(axslider, '', callback.xs[0][0],
                 callback.xs[0][-1], valinit=callback.xs[0][0])
 slider.on_changed(callback.slider_changed)
 
+# Ending point slider
+axslider2 = plt.axes([0.1, 0.15, 0.8, 0.025])
+slider2 = Slider(axslider2, '', callback.xs[0][0], 
+                callback.xs[0][-1], valinit=callback.xs[0][-1])
+slider2.on_changed(callback.slider2_changed)
+
 # Absolute delta I checkbox
-axcheckbox = plt.axes([0.4, 0.005, 0.35, 0.075])
+axcheckbox = plt.axes([0.4, 0.005, 0.35, 0.05])
 checkbox = CheckButtons(axcheckbox, ['Absolute $\Delta$I'])
 
 # Select first n points box
-axpointsbox = plt.axes([0.8, 0.005, 0.1, 0.075])
+axpointsbox = plt.axes([0.8, 0.005, 0.1, 0.05])
 pointsbox = TextBox(axpointsbox, '', initial='10')
 
 
