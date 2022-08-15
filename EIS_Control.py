@@ -20,6 +20,9 @@ default_stdin  = sys.stdin
 default_stderr = sys.stderr
 
 
+LOGGING = False
+log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
+
 
 this_dir = rigol_control.__file__[:-16]
 config_file = os.path.join(this_dir, 'config')
@@ -42,19 +45,9 @@ To add:
 
 
 
-##### Create log file #####
 
-LOGGING = True
 
-log_file = os.path.expanduser('~\Desktop\EIS Output\log.txt')
 
-#def log(text):
-#    global log_file
-#    if text != '\n' and text != '' and LOGGING:
-#        with open(log_file, 'a') as f:
-#            t = str(datetime.now().time())
-#            f.write(t + '\t' + text + '\n')
-#            f.close()
 
             
             
@@ -465,12 +458,12 @@ class Recorder:
     
     def selector_changed(self):
         # Reinitialize parameter to plot vs time        
-        self.get_waveform()  # Initialize list of frequencies
+        _, freqs     = self.get_waveform()  # Initialize list of frequencies
         _, _, params = self.initialize_circuit() # Initialize list of circuit elements
         
         
         if self.time_plot_param.get() in ('Phase', '|Z|'):
-            time_plot_val = self.freqs
+            time_plot_val = freqs
             
         
         elif self.fit.get():
@@ -503,27 +496,10 @@ class Recorder:
         ftdf  = ftdf[np.abs(ftdf['V']) > 100]
         applied_freqs = ftdf['freqs'].to_numpy()
         
-        self.freqs = applied_freqs.astype(int)
         self.update_config_file()
-        return [s, applied_freqs]
+        return s, applied_freqs
     
-    
-    def get_freqs(self):
-        # Get applied frequencies
-        file  = os.path.join(rigol_waves, self.waveform.get())    
-        df    = pd.read_csv(file, skiprows=9, names=('x', 'V'))    
         
-        freqs = 100000*np.fft.rfftfreq(len(df))
-        V     = np.fft.rfft(df['V'])
-        ftdf  = pd.DataFrame({
-                'freqs': freqs,
-                'V': V})
-        
-        ftdf  = ftdf[np.abs(ftdf['V']) > 100]
-        applied_freqs = ftdf['freqs'].to_numpy()
-        
-        return applied_freqs
-    
     
     def get_correction_values(self):
         # Path
@@ -597,14 +573,16 @@ class Recorder:
         
         
         # Reinitialize file selection list to incude new file
+        del self.waveform
         self.file_list = [file for file in os.listdir(rigol_waves) 
                           if file.endswith('freqs.csv')
                           if file.startswith('Rigol')]
         
-        del self.waveform_selector
-        self.waveform_selector = tk.OptionMenu(self.frame, self.waveform, 
-                                               *self.file_list, command=self.show_waveform)
-        self.waveform_selector.grid(row=2, column=2)
+        self.waveform = TKObject('StringVar', self.frame,
+                                  default=self.config['waveform'],
+                                  variable=self.waveform, options=self.file_list,
+                                  command=self.show_waveform, pos=(2,2))
+        
         self.update_config_file()
         print('\n')
         
@@ -643,6 +621,7 @@ class Recorder:
         inst = self.rm.open_resource(self.arb.get())
         
         Vpp = self.waveform_vpp.get('1.0', 'end')
+        # Need to multiply by 2 to get the right Vpp...
         Vpp = str(float(Vpp)*2/1000)
         
         try:
@@ -721,12 +700,12 @@ class Recorder:
         
         # Get the value
         if self.time_plot_param.get() == 'Phase':
-            freq = int(self.time_plot_val.get())
+            freq = float(self.time_plot_val.get())
             idx = np.where(freqs == freq)[0][0]
             val = phase[idx]
         
         elif self.time_plot_param.get() == '|Z|':
-            freq = int(self.time_plot_val.get())
+            freq = float(self.time_plot_val.get())
             idx = np.where(freqs == freq)[0][0]
             val = Z[idx]
         
@@ -747,9 +726,7 @@ class Recorder:
         
         ax.plot(t, val, 'ok')
         ax.set_ylabel(label)
-#        self.timefig.tight_layout()
         self.timefig.canvas.draw_idle()
-#        self.timefig.canvas.flush_events()
             
             
     
@@ -819,8 +796,6 @@ class Recorder:
         
         self.update_config_file()
         
-        plot_Z     = self.plot_Z.get()
-        plot_phase = self.plot_phase.get()
         
         
         # Get waveform correction factors
@@ -873,16 +848,10 @@ class Recorder:
         else:
             recording_files = {}
             
-#        recording_files = {'time_file':time_file,
-#                           'meta_file':meta_file,
-#                           'fits_file':fits_file,
-#                           'DC_file':DC_file,
-#                           'save_path':save_path}          
+          
         
         ### RECORDING MAIN LOOP ###
         
-        # Record starting time
-        start_time = time.time()
         self.ft = {}
         
         # Record frames
@@ -891,6 +860,7 @@ class Recorder:
             print('Recording for ~%d s' %t)
             
         frame = 0
+        start_time = time.time()
         while time.time() - start_time < t:
             self.ft[frame] = record_frame(self, inst, 1.4*1.2, recording_params,
                                           time.time() - start_time, recording_files,
@@ -901,21 +871,14 @@ class Recorder:
         
         inst.write('TRMD AUTO')
         
+        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
+        
+        
+        
         # Process the final frame
         t, freqs, Z, phase, fits = process_frame(self, frame-1, 
                                                  update_time_plot=True)
-           
-        # if plot_time_plot:
-        #     self.update_time_plot(t, freqs, Z, phase, fits)
-        
-        try:
-            if not silent:
-                print(self.ft[frame-1].params)
-        except:
-            pass
-        
-        print(f'Measurement complete. Total time {time.time()-start_time:.2f} s')
-        
+                 
         if save:
             # Save last frame
             save_frame(self, frame-1, self.ft[frame-1], recording_files)
@@ -933,16 +896,15 @@ class Recorder:
         
             
     def multiplex(self):
-                        
+        
+        #### ASK FOR MULTIPLEXING PARAMETERS ####
+                    
         # Ask for titration/ invivo experiment
         exp_type = tk.simpledialog.askstring(
                         'Experiment type', 
                         'Titration (0) or in-vivo (1)?') 
         if exp_type == '0':
             exp_type = 'titration'
-#            if int(self.recording_time.get('1.0', 'end')) != 10:
-#                print('Set recording time to 10 for multiplexing!')
-#                return
         elif exp_type == '1':
             exp_type = 'invivo'
         else:
@@ -950,36 +912,42 @@ class Recorder:
             return
         
         
-        # Ask for number of multiplexed channels
-        no_of_channels = tk.simpledialog.askstring(
-                        'Number of channels', 'Number of channels:')    
-        no_of_channels = int(no_of_channels)
+        try:
+            # Ask for number of multiplexed channels
+            no_of_channels = tk.simpledialog.askstring(
+                            'Number of channels', 'Number of channels:')    
+            no_of_channels = int(no_of_channels)
+            
+            
+            # Ask for electrode IDs (if desired, otherwise default to 1,2,3,..)
+            elec_numbers = tk.simpledialog.askstring(
+                            'Electrode numbers', 'Electrode numbers:',
+                            initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
+            elec_numbers = elec_numbers.split(',')
+            
+            
+            # Titration: ask for number of concentrations
+            if exp_type == 'titration':
+                number_of_concs = tk.simpledialog.askstring(
+                                'Number of concentrations', 'Number of concentrations:')
+                number_of_concs = int(number_of_concs)
+        except:
+            # hit cancel
+            pass
         
-        # Ask for electrode IDs (if desired, otherwise default to 1,2,3,..)
-        elec_numbers = tk.simpledialog.askstring(
-                        'Electrode numbers', 'Electrode numbers:',
-                        initialvalue = ','.join([str(i) for i in range(1,no_of_channels+1)]))
-        elec_numbers = elec_numbers.split(',')
-        
-        if exp_type == 'titration':
-            # Ask for number of concentrations
-            number_of_concs = tk.simpledialog.askstring(
-                            'Number of concentrations', 'Number of concentrations:')
-            number_of_concs = int(number_of_concs)
-        
+        # Invivo: save recording time
         if exp_type == 'invivo':
             recording_time = self.recording_time.get('1.0', 'end')
             recording_time = float(recording_time)
         
+        
         # Path of triggering file
         updatefile = os.path.join(this_dir, 'update.txt')
-        
-        # Clean up trigger file to start
         if os.path.exists(updatefile):
             os.remove(updatefile)
         
                 
-        # Iterate through concentrations
+        #### RUN TITRATION ####
         if exp_type == 'titration':
             for _ in range(number_of_concs):
                 
@@ -990,7 +958,7 @@ class Recorder:
                 # Wait for autolab to create start file
                 # ULTRA bad way of triggering recording...
                 while os.path.exists(updatefile) == False:
-                    time.sleep(0.1)
+                    self.root.after(5)
                 
                 # Multiplex record and save
                 for i in range(no_of_channels):
@@ -1007,6 +975,7 @@ class Recorder:
                     os.remove(updatefile)
         
         
+        #### RUN INVIVO ####
         elif exp_type == 'invivo': 
             
             name = tk.simpledialog.askstring('Save name', 'Input save name:',
@@ -1017,16 +986,11 @@ class Recorder:
             
             inst = self.rm.open_resource(self.scope.get())
             
-            # self.recording_time.delete('1.0', 'end')
-            # self.recording_time.insert('1.0', '1.5')
-            
-            # self.init_time_plot(no_of_channels)
-            
+            # Initialize plots and save files
             recording_params = init_recording(self, new_time_plot=True,
                                               n_plots=no_of_channels, save=True)
             
-            
-            
+            # Wait for trigger
             while os.path.exists(updatefile) == False:
                 self.root.after(5)
             
@@ -1064,29 +1028,10 @@ class Recorder:
                                     
                     
                     self.ft[frame] = ft
-                    
-                    frame += 1
-#                    i += 1
-                    
-                    
-                    
-                    
-                    # Record and save the frame
-                    
-                    # self.record_signals(silent=True, new_time_plot=False,
-                    #                     savefig=False, plot_time_plot=False)
-                    # self.save_last(name = f'{elec_numbers[i]}_{int(ftime)}',
-                    #                subpath = s_t, savefig=False)
-                    
-                    # # Plot frame to time plot
-                    # freqs = self.ft[frame].freqs
-                    # Z     = self.ft[0].Z
-                    # phase = self.ft[0].phase
-                    # params= self.ft[0].params
-                    # self.update_time_plot(ftime, freqs, Z, phase, params,
-                    #                       ax = self.timeax[i])
-                    
                     os.remove(updatefile)
+                    frame += 1
+                    
+                    
             
             # Process and save the last frame
             process_frame(self, frame - 1, update_time_plot=True, 
@@ -1094,7 +1039,6 @@ class Recorder:
             save_frame(self, frame-1, self.ft[frame-1], recording_files,
                        multiplex_fname= self.ft[frame-1].name)
             print('Experiment finished')
-#            self.recording_time.insert('1.0', str(recording_time))
                 
             
                             
@@ -1178,78 +1122,79 @@ class Recorder:
         if num is None:
             num = 0
         
-        try:
-            fname = save_path + f'\\{num:04}s.txt'
-        except:
-            # Passing string as save name instead
+        if type(num) == str:
             fname = save_path + f'\\{num}.txt'
+        else:
+            fname = save_path + f'\\{num:04}s.txt'
+            
     
         d.to_csv(fname, columns = ['f', 're', 'im'],
                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
                      sep = '\t', index = False, encoding='ascii')
+        print(f'saved as {fname}')
         
         
         
     def save_last(self, name = None, savefig=True, subpath=''):
                
         if self.ft:
+            
             try:
                 if not name:
                     name = tk.simpledialog.askstring('Save name', 'Input save name:',
                                                  initialvalue = self.last_file_name)
-                
-                self.last_file_name = name
-                
-                today = str(date.today())
-                                    
-                folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
-                                           today, subpath, name)
-                
-                createFolder(folder_path)
-                
-                meta_file = os.path.join(folder_path, '0000_Metadata.txt')
-                time_file = os.path.join(folder_path, '0000_time_list.txt')
-                DC_file = os.path.join(folder_path, '0000_DC_currents.txt')
-                
-                
-                with open(time_file, 'w') as f:
-                    for i, _ in self.ft.items():
-                        ftime = str(self.ft[i].time)
-                        f.write(ftime + '\n')
-                
-                with open(meta_file, 'w') as f:
-                    f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
-                    f.write('Waveform: '+ str(self.waveform.get()))
-                    s_t = datetime.now().strftime("%H:%M:%S.%f")
-                    f.write('\nStart time: %s'%s_t)
-                    avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
-                    f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
-                    
-                with open(DC_file, 'w') as f:
-                    for i, _ in self.ft.items():
-                        DC = self.ft[i].mean_I
-                        f.write(DC + '\n')    
-                  
-                    
-                for i, _ in self.ft.items():
-                    re = np.real(self.ft[i].Z)
-                    im = np.imag(self.ft[i].Z)
-                    freqs = self.ft[i].freqs
-                    
-                    self.save_frame(i, freqs, re, im, folder_path)
-                
-                
-                if savefig:    
-                    self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
-                
-                print('Saved as ASCII:', folder_path, '\n')
-                 
-            
             except:
                 # User hits cancel
                 # Still option to save previous run
                 pass
+                                
+            self.last_file_name = name
+            
+            today = str(date.today())
+                                
+            folder_path = os.path.join(os.path.expanduser('~\Desktop\EIS Output'), 
+                                       today, subpath, name)
+            
+            createFolder(folder_path)
+            
+            meta_file = os.path.join(folder_path, '0000_Metadata.txt')
+            time_file = os.path.join(folder_path, '0000_time_list.txt')
+            DC_file = os.path.join(folder_path, '0000_DC_currents.txt')
+            
+            
+            with open(time_file, 'w') as f:
+                for i, _ in self.ft.items():
+                    ftime = str(self.ft[i].time)
+                    f.write(ftime + '\n')
+            
+            with open(meta_file, 'w') as f:
+                f.write('Waveform Vpp (mV): '+ str(self.waveform_vpp.get('1.0', 'end')))
+                f.write('Waveform: '+ str(self.waveform.get()))
+                s_t = datetime.now().strftime("%H:%M:%S.%f")
+                f.write('\nStart time: %s'%s_t)
+                avg_Vpp = np.mean([self.ft[frame].Vpp for frame in self.ft])
+                f.write(f'\nExperimental Vpp (V): {avg_Vpp}')
                 
+            with open(DC_file, 'w') as f:
+                for i, _ in self.ft.items():
+                    DC = self.ft[i].mean_I
+                    f.write(str(DC) + '\n')    
+              
+                
+            for i, _ in self.ft.items():
+                re = np.real(self.ft[i].Z)
+                im = np.imag(self.ft[i].Z)
+                freqs = self.ft[i].freqs
+                
+                self.save_frame(i, freqs, re, im, folder_path)
+            
+            
+            if savefig:    
+                self.fig.savefig(folder_path+'\\0000_fig', dpi=100)
+            
+            print('Saved as ASCII:', folder_path, '\n')
+                 
+    
 
         else:
             print('No previous measurement to export\n')

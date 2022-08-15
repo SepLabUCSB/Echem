@@ -56,20 +56,9 @@ def record_frame(Rec, inst, frame_time, recording_params,
     
     # Apply reference correction
     if Rec.ref_corr_var.get():
-        Z_corr, phase_corr = Rec.get_correction_values()
+        df = correct_Z(Rec, df)
         
-        try:
-            len(Z_corr)
-        except:
-            # Z_corr == 0 instead of array, no correction values
-            pass
         
-        df['Z'] = np.absolute(df['Z'])
-        
-        df['Z']     = df['Z'] / Z_corr
-        df['phase'] = df['phase'] - phase_corr
-        
-        df['Z'] = df['Z'] * np.exp(-1j*df['phase']*np.pi/180)
         
     
     # Save to FTData object
@@ -99,7 +88,8 @@ def read_data(inst, recording_params):
     # Get CH 1 data
     inst.write('C1:WF? DAT2')
     trace1 = inst.read_raw()
-    wave1 = trace1[22:-2]
+    wave1 = trace1[22:-2] # Read SDS programming manual. First 11 bytes specify
+                          # length of trace (we don't care), last byte says done
     adc1 = np.array(array('b', wave1))
     
     # Get CH 2 data
@@ -145,7 +135,27 @@ def transform_data(volts1, volts2, recording_params,
                             mean_I  = mean_I)
     
     return ft
+ 
+
+
+def correct_Z(Rec, df):
+    Z_corr, phase_corr = Rec.get_correction_values()
+        
+    try:
+        len(Z_corr)
+    except:
+        # Z_corr == 0 instead of array, no correction values
+        pass
     
+    df['Z'] = np.absolute(df['Z'])
+    
+    df['Z']     = df['Z'] / Z_corr
+    df['phase'] = df['phase'] - phase_corr
+    
+    df['Z'] = df['Z'] * np.exp(1j*df['phase']*np.pi/180)
+    
+    return df
+
 
 
 def process_frame(Rec, frame, update_time_plot, ax=None):

@@ -1,4 +1,4 @@
-last_file_name:
+last_file_name:1_4
 test_mode:False
 potentiostat:Autolab
 waveform:Rigol_opt_100k_5k_1_29freqs.csv
@@ -13,4 +13,4 @@ ref_corr_var:1
 fit:0
 circuit:RRC
 time_plot_param:Phase
-time_plot_val:1
+time_plot_val:1.0

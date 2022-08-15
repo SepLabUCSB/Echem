@@ -8,7 +8,7 @@ plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
 
 
-correct_baselines = False
+correct_baselines = True
 start_after = 100 # cut off first (n) seconds
 delay = 10 # Points after "fast" spike to skip fitting on
 
@@ -54,17 +54,18 @@ elif fit == 'linear':
 def main(folder, params):
     # Analyze all files in folder and save together   
     d = {param: [] for param in params}
-    d['integral/ C'] = []
-    d['Reduced Chi^2'] = []
-    d['time/ s'] = []
-    d['File'] = []
+    d['baseline slope'] = []
+    d['integral/ C']    = []
+    d['Reduced Chi^2']  = []
+    d['time/ s']        = []
+    d['File']           = []
     
     
     for file in os.listdir(folder):    
         if file.endswith('.txt'):
             # fits = list of lists i.e. [[*param1], [*param2], ...]
             # integrals: spike areas. Unit: C
-            fits, integrals, chi_sqs, points = analyze_file(folder + '/' + file,
+            fits, integrals, chi_sqs, points, ms = analyze_file(folder + '/' + file,
                                                     correct_baselines, 
                                                     apply_filter, delay,
                                                     start_after)
@@ -72,6 +73,8 @@ def main(folder, params):
             for i in range(len(params)):
                 for x in fits[i]:
                     d[params[i]].append(x)
+            for x in ms:
+                d['baseline slope'].append(x)
             for x in integrals:
                 d['integral/ C'].append(x)
             for x in chi_sqs:
@@ -333,9 +336,10 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
         List of fitted [a, b, c] parameters for each spike.
     '''
     
-    fits = []
+    fits    = []
     chi_sqs = []
-    pops = []
+    pops    = []
+    ms      = []
     
     if app_filter:
         y = lowpass(y, t, filter_freq)
@@ -363,14 +367,18 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
             pops.append(this_idx - delay)
             continue
         
-        m, b = np.polyfit(t[last_idx:this_idx-delay-5], 
-                  y[last_idx:this_idx-delay-5], deg=1)
+        
         
         # Subtract the baseline
         if baseline_correct:
-            baseline = m*t + b
+            m, b = np.polyfit(t[last_idx:this_idx-delay-5], 
+                  y[last_idx:this_idx-delay-5], deg=1)
         else:
-            baseline = 0*t
+            m, b = 0, 0
+            
+        baseline = m*t + b
+        
+        
         
         if (next_idx - this_idx) < 50:
             print(f'Not enough points to fit {t[this_idx - delay]} s.')
@@ -390,15 +398,15 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
                             # bounds=bounds
                             )
         
-        print(popt)        
-        fits.append(popt)
+        # print(popt)        
+        
         
         
         # Calculate chi^2
         fit_y = exp_func(ts, *popt) # Fits
         residuals = abs((data - fit_y)/fit_y)
         chi_sq = np.sum(residuals**2)/len(residuals)
-        chi_sqs.append(chi_sq)
+        
         
         # fig, ax2 = plt.subplots(figsize=(5,5), dpi=100)
         # ax2.plot(ts, data, '.')
@@ -409,10 +417,12 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
         if baseline_correct:
             ax.plot(t[last_idx:next_idx], baseline[last_idx:next_idx], 'r--')
         
-    
+        fits.append(popt)
+        ms.append(m)
+        chi_sqs.append(chi_sq)
            
         
-    return fits, chi_sqs, pops
+    return fits, chi_sqs, pops, ms
 
 
 
@@ -448,7 +458,7 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
     
     
     # Fit peaks. Optionally plot fits onto same ax    
-    fits, chi_sqs, pops = fit_peaks(t, i, idxs, sara, ax, 
+    fits, chi_sqs, pops, ms = fit_peaks(t, i, idxs, sara, ax, 
                               baseline_correct=baseline_correct,
                               app_filter = app_filter, delay=delay)
     
@@ -467,7 +477,7 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
     a, b, c = fits[0], fits[1], fits[2]
     
     
-    return fits, integrals, chi_sqs, points
+    return fits, integrals, chi_sqs, points, ms
 
 
 
