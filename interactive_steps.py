@@ -36,6 +36,8 @@ the get_data function to change this.
 
 
 # PARAMETERS TO ADJUST
+POTENTIOSTAT = 'Biologic'
+# POTENTIOSTAT = 'HEKA'
 threshold = 0.0005   # Autopick steps with relative size > threshold
 cutoff = 60          # Remove first n seconds
 linear_fit = False  # Do linear fit between points. If False, uses median
@@ -48,15 +50,48 @@ linear_fit = False  # Do linear fit between points. If False, uses median
 
 
 
-def get_data(file):
-    df = pd.read_fwf(file, skiprows=1, headers=0,
-                          names=('t', 'i'))
-    df['i'] = df['i']/1000 #convert mA -> A
-    df = df[df['t'] > cutoff]
-    
-    # df = df.groupby(np.arange(len(df))//10).mean() #compress to 100 Hz
 
-    return df
+def get_data(file, potentiostat):
+    if potentiostat == 'Biologic':
+        df = pd.read_fwf(file, skiprows=1, headers=0,
+                              names=('t', 'i'))
+        df['i'] = df['i']/1000 #convert mA -> A
+        df = df[df['t'] > cutoff]
+        
+        # df = df.groupby(np.arange(len(df))//10).mean() #compress to 100 Hz
+    
+        return df
+    
+    
+    elif potentiostat == 'HEKA':        
+        # Use StringIO for faster file reading, and handling multiple
+        # PATCHMASTER Series in a single file
+        from io import StringIO
+        
+        s = StringIO()
+        
+        def isfloat(x):
+            try:
+                float(x)
+                return True
+            except:
+                return False
+        
+        with open(file) as f:
+            for line in f:
+                if isfloat(line.split(',')[0]):
+                    #skip rows which don't start with the index number (1, 2, ...)
+                    s.write(line)
+    
+        s.seek(0) #return to top of StringIO
+        
+        
+        df = pd.read_csv(s, names=(
+            "index", "t", "i", "time2", "v"), 
+            engine='c', dtype=float)
+        df = df.drop(['time2', 'index', 'v'], axis=1)
+        
+        return df
 
 
 
@@ -403,7 +438,7 @@ class Index:
     Class for cycling through multiple graphs
     '''
     
-    global folder, files, checkbox, pointsbox
+    global folder, files, checkbox, pointsbox, POTENTIOSTAT
     
     
     def __init__(self):
@@ -421,7 +456,7 @@ class Index:
         self.i = i
         self.slider[i] =  0 #initialize slider index
         
-        df = get_data(files[i])
+        df = get_data(files[i], POTENTIOSTAT)
         
         # Initialize plot
         name = files[i].split('/')[-1][:-4]
@@ -702,8 +737,9 @@ class Index:
 os.chdir(folder)
 files = []
 for file in os.listdir(folder):
-    if file.endswith('.txt'):
-        files.append(file)
+    if (file.endswith('.txt')
+        or file.endswith('.asc')):
+        files.append(os.path.join(folder,file))
 
 
 fig, ax = plt.subplots(figsize=(5,6), dpi=100)
