@@ -556,7 +556,9 @@ class InteractivePicker:
         '''
         Main function to call to detect and fit spikes
         '''
-        print('analyzing')
+        
+        fname = self.file.split('\\')[-1]
+        print(f'\nAnalyzing {fname}')
         # Get data
         t, i, sara = self.extract_data(self.file, start_after)
         
@@ -581,6 +583,7 @@ class InteractivePicker:
         
         self.ax.set_xlabel('Time/ s')
         self.ax.set_ylabel('Current/ A')
+        self.ax.set_title(fname, fontsize=9, )
         
         
         # Fit peaks. Optionally plot fits onto same ax    
@@ -628,8 +631,8 @@ class Index:
         self.files = [os.path.join(folder, file)
                       for file in os.listdir(folder)
                       if file.endswith('.txt')]
-        self.inds  = [i for i in range(len(files))]
-        self.file  = files[0]
+        self.inds  = [i for i in range(len(self.files))]
+        self.file  = self.files[0]
         
         self.fig   = fig
         self.ax    = ax
