@@ -617,79 +617,6 @@ class InteractivePicker:
 
 
 
-
-def main(folder, params):
-    # Analyze all files in folder and save together  
-    d = {}
-    d['Index']          = []
-    d['time/ s']        = []
-    d.update({param: [] for param in params})
-    d['baseline slope'] = []
-    d['integral/ C']    = []
-    d['Reduced Chi^2']  = []
-    d['File']           = []
-    
-    
-    for file in os.listdir(folder):    
-        if file.endswith('.txt'):
-            # fits = list of lists i.e. [[*param1], [*param2], ...]
-            # integrals: spike areas. Unit: C
-            
-            fig, ax = plt.subplots(figsize=(5,6), dpi=100)
-            plt.subplots_adjust(bottom=0.3)
-
-            Picker = InteractivePicker(os.path.join(folder, file), fig, ax)
-            fig.canvas.mpl_connect('button_press_event', Picker)
-            
-               
-        
-            
-            fits, integrals, chi_sqs, points, ms = Picker.analyze_file(
-                                                    correct_baselines, 
-                                                    apply_filter, delay,
-                                                    start_after
-                                                    )
-            
-            for i in range(len(integrals)):
-                d['Index'].append(i+1)
-            for i in range(len(params)):
-                for x in fits[i]:
-                    d[params[i]].append(x)
-            for x in ms:
-                d['baseline slope'].append(x)
-            for x in integrals:
-                d['integral/ C'].append(x)
-            for x in chi_sqs:
-                d['Reduced Chi^2'].append(x)
-            for x in points:
-                d['time/ s'].append(x)
-            
-            d['File'].append(file)
-            d['File'].append(f'Fit: {fit}')
-            d['File'].append(f'Baseline correct: {correct_baselines}')
-            d['File'].append(f'Delay: {delay} pts')
-            
-            for key in d:
-                while len(d[key]) < max([len(d[key]) for key in d]):
-                    d[key].append(' ')
-                    
-            plt.show()
-                    
-
-
-    df = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in d.items() ]))
-
-    
-    writer = pd.ExcelWriter(folder + '/output.xlsx', engine='xlsxwriter')
-    df.to_excel(writer, index=False, header=True, startcol=0)
-    writer.save()
-    print(f'Saved as {folder}/output.xlsx')
-    
-    return d, df, Picker
-
-
-
-
 class Index:
     
     global params
@@ -851,19 +778,10 @@ class Index:
 
 
 
-files = []
-for file in os.listdir(data_folder):
-    if file.endswith('.txt'):
-        files.append(os.path.join(data_folder, file))
-
-
 fig, ax = plt.subplots(figsize=(5,6), dpi=100)    
 plt.subplots_adjust(bottom=0.3)
+
 index = Index(data_folder, fig, ax)
-
-
-
-# d, df, Picker = main(data_folder, params)     
 
 
 axcalc = plt.axes([0.4, 0.1, 0.25, 0.05])
