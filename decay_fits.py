@@ -4,9 +4,10 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, signal
 import os
+# plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
+# data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
 plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
-
 
 correct_baselines = False
 start_after = 100 # cut off first (n) seconds
@@ -16,9 +17,18 @@ apply_filter     = True
 filter_freq      = 25
 
 fit = 'monoexponential'
+fit = 'monoexp-linear'
 # fit = 'biexponential'
 # fit = 'linear'
 
+
+
+''' 
+TO-DO
+    
+Interactive picking/deleting points
+
+'''
 
 
 # Define fit function and parameters    
@@ -48,30 +58,46 @@ elif fit == 'linear':
     
     def exp_func(x, a, b):
         return a*x + b
+    
+elif fit == 'monoexp-linear':
+    params = ['a/ A',
+            'b/ s-1',
+            'm/ A s-1',
+            'c/ A']
+    
+    def exp_func(x, a, b, m, c):
+        return a*np.exp(-b * x) + m*x + c
 
 
 
 def main(folder, params):
-    # Analyze all files in folder and save together   
-    d = {param: [] for param in params}
-    d['integral/ C'] = []
-    d['Reduced Chi^2'] = []
-    d['time/ s'] = []
-    d['File'] = []
+    # Analyze all files in folder and save together  
+    d = {}
+    d['Index']          = []
+    d['time/ s']        = []
+    d.update({param: [] for param in params})
+    d['baseline slope'] = []
+    d['integral/ C']    = []
+    d['Reduced Chi^2']  = []
+    d['File']           = []
     
     
     for file in os.listdir(folder):    
         if file.endswith('.txt'):
             # fits = list of lists i.e. [[*param1], [*param2], ...]
             # integrals: spike areas. Unit: C
-            fits, integrals, chi_sqs, points = analyze_file(folder + '/' + file,
+            fits, integrals, chi_sqs, points, ms = analyze_file(folder + '/' + file,
                                                     correct_baselines, 
                                                     apply_filter, delay,
                                                     start_after)
             
+            for i in range(len(integrals)):
+                d['Index'].append(i+1)
             for i in range(len(params)):
                 for x in fits[i]:
                     d[params[i]].append(x)
+            for x in ms:
+                d['baseline slope'].append(x)
             for x in integrals:
                 d['integral/ C'].append(x)
             for x in chi_sqs:
@@ -210,7 +236,7 @@ def refine_peaks(y, signals):
     for idx in idxs:
         for i in range(idx-10, idx+10):
             if i in idxs and i != idx:
-                print(f'Removing {i} because of duplicate')
+                #print(f'Removing {i} because of duplicate')
                 idxs.remove(i)
         
         
@@ -221,7 +247,7 @@ def refine_peaks(y, signals):
             i = np.where(abs(y) ==
                           max(abs(y[idx-10:idx+10])))[0][0]
             
-            print(f'Moving {idx} to {i}')
+            #print(f'Moving {idx} to {i}')
             idxs.remove(idx)
             idxs.append(i)
             idxs.sort()
@@ -251,7 +277,7 @@ def integrate_spikes(t, y, idxs, avg):
     '''
     
     integrals = []
-    
+    pops      = []
     
     for idx in idxs:
         
@@ -288,7 +314,13 @@ def integrate_spikes(t, y, idxs, avg):
                 
         
         integral = total_area - baseline_area
-        integrals.append(integral)
+        
+        if integral < 0:
+            pops.append(idx)
+            print(f'Negative integral: {idx}')
+        
+        else:
+            integrals.append(integral)
         
                 
         
@@ -300,7 +332,7 @@ def integrate_spikes(t, y, idxs, avg):
                 
         # print(integral)
     
-    return integrals
+    return integrals, pops
 
 
 
@@ -333,9 +365,10 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
         List of fitted [a, b, c] parameters for each spike.
     '''
     
-    fits = []
+    fits    = []
     chi_sqs = []
-    pops = []
+    pops    = []
+    ms      = []
     
     if app_filter:
         y = lowpass(y, t, filter_freq)
@@ -358,19 +391,23 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
         elif i == 0: # first spike
             last_idx = max(0, this_idx - 500)
         
-        if (this_idx-delay - last_idx) < 100:
+        if ((this_idx-delay - last_idx) < 100 and baseline_correct):
             print(f'Not enough points to fit baseline {t[this_idx-delay]} s.')
             pops.append(this_idx - delay)
             continue
         
-        m, b = np.polyfit(t[last_idx:this_idx-delay-5], 
-                  y[last_idx:this_idx-delay-5], deg=1)
+        
         
         # Subtract the baseline
         if baseline_correct:
-            baseline = m*t + b
+            m, b = np.polyfit(t[last_idx:this_idx-delay-5], 
+                  y[last_idx:this_idx-delay-5], deg=1)
         else:
-            baseline = 0*t
+            m, b = 0, 0
+            
+        baseline = m*t + b
+        
+        
         
         if (next_idx - this_idx) < 50:
             print(f'Not enough points to fit {t[this_idx - delay]} s.')
@@ -384,35 +421,52 @@ def fit_peaks(t, y, idxs, sara, ax=None, t_max=10, delay = 10,
             bounds=(-np.inf, [1., np.inf, np.inf, np.inf, np.inf])
         elif fit == 'monoexponential':
             bounds=(-np.inf, [1., np.inf, np.inf])
-            
-        popt, pcov = optimize.curve_fit(exp_func, ts, data, 
-                            maxfev=100000,
-                            # bounds=bounds
-                            )
         
-        print(popt)        
-        fits.append(popt)
+        try:
+            popt, pcov = optimize.curve_fit(exp_func, ts, data, 
+                                maxfev=100000,
+                                # bounds=bounds
+                                )
+        except: 
+            popt = [0,0,0,0,0]
+        
+        # print(popt)        
+        
         
         
         # Calculate chi^2
         fit_y = exp_func(ts, *popt) # Fits
         residuals = abs((data - fit_y)/fit_y)
         chi_sq = np.sum(residuals**2)/len(residuals)
-        chi_sqs.append(chi_sq)
+        
         
         # fig, ax2 = plt.subplots(figsize=(5,5), dpi=100)
         # ax2.plot(ts, data, '.')
         # ax2.plot(ts, fit_y)
         
         
+        ### Remove point based on fit criteria ###
+        # Find 'a' in params
+        p_idx = [idx for idx, param in enumerate(params) if 'a' in param]
+        # Remove if a > 0 (reductive spikes should have a < 0)
+        if popt[p_idx] > 0:
+            print(f'Fitted a > 0 at {t[this_idx-delay]} s. Removing point.')
+            pops.append(this_idx - delay)
+            continue
+        
+        
+        
+        # Plot fit to main graph
         ax.plot(ts+t[this_idx], fit_y + baseline[this_idx:next_idx], 'gold')
         if baseline_correct:
             ax.plot(t[last_idx:next_idx], baseline[last_idx:next_idx], 'r--')
         
-    
+        fits.append(popt)
+        ms.append(m)
+        chi_sqs.append(chi_sq)
            
         
-    return fits, chi_sqs, pops
+    return fits, chi_sqs, pops, ms
 
 
 
@@ -448,7 +502,7 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
     
     
     # Fit peaks. Optionally plot fits onto same ax    
-    fits, chi_sqs, pops = fit_peaks(t, i, idxs, sara, ax, 
+    fits, chi_sqs, pops, ms = fit_peaks(t, i, idxs, sara, ax, 
                               baseline_correct=baseline_correct,
                               app_filter = app_filter, delay=delay)
     
@@ -457,17 +511,20 @@ def analyze_file(file, baseline_correct, app_filter, delay, start_after):
         idxs.pop(np.where(idxs==pt)[0][0])
     
     # Calculate spike integrals
-    integrals = integrate_spikes(t, i, idxs, avgFilter)
+    integrals, pops = integrate_spikes(t, i, idxs, avgFilter)
+    
+    for pt in pops:
+        # Remove spike indices with negative integrals
+        idxs.pop(np.where(idxs==pt)[0][0])
     
     # Get time points
     points = t[idxs]
     
     # Transpose data for saving
     fits = np.array(fits).T
-    a, b, c = fits[0], fits[1], fits[2]
     
     
-    return fits, integrals, chi_sqs, points
+    return fits, integrals, chi_sqs, points, ms
 
 
 

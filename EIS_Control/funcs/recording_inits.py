@@ -18,7 +18,7 @@ def init_recording(Rec, new_time_plot, n_plots, save):
         
     vdiv1, vdiv2, voffset1, voffset2, sara, frame_time = read_scope_params(Rec)
     
-    freqs = Rec.get_freqs()
+    _, freqs = Rec.get_waveform()
             
     return locals()
 
