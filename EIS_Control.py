@@ -510,18 +510,19 @@ class Recorder:
         R = R[:-1]
         
         # Waveform
-        waveform = self.waveform.get()
+        waveform = self.waveform.get().strip('.csv')
+        waveform = waveform.replace('_opt', '')
+               
         
-        if waveform.split('_')[1] == 'opt':
-            # Use same correction factors for optimized waveform as
-            # for unoptimized
-            waveform = waveform.split('_')
-            del waveform[1]
-            waveform = '_'.join(waveform)
+        # Current range
+        i_range = self.current_range.get('1.0', 'end').strip('\n')
+        i_range = float(i_range)
+        i_range = f'{i_range:.0E}'
         
         
         # Put it all together and get corrections
-        fname = 'REF_%s_%s'%(R, waveform)
+        fname = f'REF_{R}_{waveform}_{i_range}.csv'
+        
         file = os.path.join(ref_dir, fname)
         
         try:
@@ -1072,9 +1073,14 @@ class Recorder:
         # Determine reference file path/ name
         ref_dir = os.path.join(this_dir, 'reference waveforms\\')
         
-        waveform = self.waveform.get()
+        waveform = self.waveform.get().strip('.csv')
+        waveform = waveform.replace('_opt', '')
+        i_range = self.current_range.get('1.0', 'end').strip('\n')
         
-        name = 'REF_%s_%s'%(R, waveform)
+        i_range = float(i_range)
+        i_range = f'{i_range:.0E}'
+        
+        name = f'REF_{R}_{waveform}_{i_range}.csv'
         
         out_file = os.path.join(ref_dir, name)
         
@@ -1131,7 +1137,7 @@ class Recorder:
         d.to_csv(fname, columns = ['f', 're', 'im'],
                      header = ['<Frequency>', '<Re(Z)>', '<Im(Z)>'], 
                      sep = '\t', index = False, encoding='ascii')
-        print(f'saved as {fname}')
+#        print(f'saved as {fname}')
         
         
         
