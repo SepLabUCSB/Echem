@@ -11,7 +11,7 @@ import os
 plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-folder = r"C:\Users\Eric Liu\Desktop\LiorLab\InsulatingProject\33umdiff"
+folder = r'C:/Users/BRoehrich/Desktop/New folder'
 
 """
 **Type %matplotlib in console before running file**
@@ -36,11 +36,18 @@ the get_data function to change this.
 
 
 # PARAMETERS TO ADJUST
-threshold = 0.0005   # Autopick steps with relative size > threshold
-cutoff = 60          # Remove first n seconds
+# POTENTIOSTAT = 'Biologic'
+POTENTIOSTAT = 'HEKA'
+filtered   = True   # Apply Savinsky-Golay filter to current
+filter_win = 101    # S-G filter window (int)
+filter_ord = 1      # S-G filter order (int)
+
+threshold  = 0.01  # Autopick steps with relative size > threshold
+cutoff     = 20     # Remove first n seconds
 linear_fit = False  # Do linear fit between points. If False, uses median
                     #    value between points instead. True accounts for 
-                    #    non-zero baseline
+                    #    non-zero baseline. Either way, the values are the 
+                    #    raw, non-filtered data!
 
 
 
@@ -48,29 +55,64 @@ linear_fit = False  # Do linear fit between points. If False, uses median
 
 
 
-def get_data(file):
-    df = pd.read_fwf(file, skiprows=1, headers=0,
-                          names=('t', 'i'))
-    df['i'] = df['i']/1000 #convert mA -> A
-    df = df[df['t'] > cutoff]
+
+def get_data(file, potentiostat):
+    if potentiostat == 'Biologic':
+        df = pd.read_fwf(file, skiprows=1, headers=0,
+                              names=('t', 'i'))
+        df['i'] = df['i']/1000 #convert mA -> A
+        df = df[df['t'] > cutoff]
+        
+        # df = df.groupby(np.arange(len(df))//10).mean() #compress to 100 Hz
     
-    # df = df.groupby(np.arange(len(df))//10).mean() #compress to 100 Hz
-
-    return df
+        return df
+    
+    
+    elif potentiostat == 'HEKA':        
+        # Use StringIO for faster file reading, and handling multiple
+        # PATCHMASTER Series in a single file
+        from io import StringIO
+        
+        s = StringIO()
+        
+        def isfloat(x):
+            try:
+                float(x)
+                return True
+            except:
+                return False
+        
+        with open(file) as f:
+            for line in f:
+                if isfloat(line.split(',')[0]):
+                    #skip rows which don't start with the index number (1, 2, ...)
+                    s.write(line)
+    
+        s.seek(0) #return to top of StringIO
+        
+        
+        df = pd.read_csv(s, names=(
+            "index", "t", "i", "time2", "v"), 
+            engine='c', dtype=float)
+        df = df.drop(['time2', 'index', 'v'], axis=1)
+        df = df[df['t'] > cutoff]
+        
+        return df
 
 
 
 class StepPicker(object):
     
-    global threshold, linear_fit
+    global threshold, linear_fit, filtered, filter_win, filter_ord
     
     """Based on
     https://scipy-cookbook.readthedocs.io/items/Matplotlib_Interactive_Plotting.html
     """
 
-    def __init__(self, xdata, ydata, points=[], ax=None):
+    def __init__(self, xdata, ydata, plot_ydata, points=[], ax=None):
         self.xdata = np.array(xdata)
         self.ydata = np.array(ydata)
+        self.plot_ydata = np.array(plot_ydata)
         self.criticalPoints = dict()
         self.steps = []
         
@@ -174,7 +216,7 @@ class StepPicker(object):
                 if not deleted:
                     i = np.abs(self.xdata-clickX).argmin()
                     this_x = self.xdata[i]
-                    this_y = self.ydata[i]
+                    this_y = self.plot_ydata[i]
                     self.drawPoints(event.inaxes, this_x, this_y)
 
          
@@ -228,6 +270,12 @@ class StepPicker(object):
            
         min_delta = 0
         n = 1
+        
+        if filtered:
+            from scipy.signal import savgol_filter
+            data = savgol_filter(self.ydata, filter_win, filter_ord)
+        else:
+            data = self.ydata
      
         
         while min_delta < thresh:
@@ -237,8 +285,8 @@ class StepPicker(object):
             
              # Initialize, find step points
              points = [0]
-             avg = np.zeros(len(self.ydata))
-             deltas = np.zeros(len(self.ydata))
+             avg = np.zeros(len(data))
+             deltas = np.zeros(len(data))
              for i in range(len(signals)):
                  if signals[i] == 1:
                      points.append(i)
@@ -249,14 +297,14 @@ class StepPicker(object):
                  index = points[c]
                  next_index = points[c+1]
                  for i in range(index, next_index):
-                      avg[i] = np.median(self.ydata[index: next_index])
+                      avg[i] = np.median(data[index: next_index])
                       # m, b = np.polyfit(self.xdata[index:next_index+1], 
                       #                   self.ydata[index:next_index+1], 1)
                       # avg[i] = m*i + b
     
            
              # Remove steps with delta Z < thresh/2
-             for i in range(len(self.ydata)-1):
+             for i in range(len(data)-1):
                  deltas[i] = abs(avg[i+1]-avg[i])/avg[i]
                  if deltas[i] > thresh:
                      signals[i+1] = 1
@@ -287,7 +335,7 @@ class StepPicker(object):
         
 
         indices = [i for i in range(len(signals)) if signals[i]==1]
-        points = [(self.xdata[i], self.ydata[i]) for i in indices]
+        points = [(self.xdata[i], self.plot_ydata[i]) for i in indices]
         
         return points
     
@@ -304,7 +352,7 @@ class StepPicker(object):
         
         # Refine step locations
         for i in range(len(self.xdata)-1):
-            delta[i] = abs((self.ydata[i+1]-self.ydata[i])/self.ydata[i])
+            delta[i] = abs((self.plot_ydata[i+1]-self.plot_ydata[i])/self.plot_ydata[i])
             
         for (x,y) in list(self.criticalPoints):  
             # find largest local step, search +- m points
@@ -319,7 +367,7 @@ class StepPicker(object):
                 # for m in self.criticalPoints[(x,y)]:
                 #     m.remove()
                 self.criticalPoints.pop((x,y), None)
-                self.drawPoints(self.ax, self.xdata[n], self.ydata[n])
+                self.drawPoints(self.ax, self.xdata[n], self.plot_ydata[n])
         
         
         # Fit data between steps to line
@@ -346,8 +394,9 @@ class StepPicker(object):
                     self.avg[i] = m*i + b
             
             else:
+                medianvalue = np.median(this_ydata)
                 for i in range(index, next_index):
-                    self.avg[i] = np.median(this_ydata)
+                    self.avg[i] = medianvalue
                 
             
             this_noise = np.sqrt(
@@ -403,7 +452,7 @@ class Index:
     Class for cycling through multiple graphs
     '''
     
-    global folder, files, checkbox, pointsbox
+    global folder, files, checkbox, pointsbox, POTENTIOSTAT, filtered, filter_ord, filter_win
     
     
     def __init__(self):
@@ -413,31 +462,44 @@ class Index:
         self.sp = dict() # sp[i] is StepPicker obj
         self.files = files
         
-        self.slider = dict()
-        self.xs = dict()
-        self.ys = dict()
+        self.slider  = dict()
+        self.slider2 = dict()
+        self.xs      = dict()
+        self.ys      = dict()
+        self.plot_ys = dict()
         
         i = self.ind % len(files)
         self.i = i
         self.slider[i] =  0 #initialize slider index
         
-        df = get_data(files[i])
+        
+        df = get_data(files[i], POTENTIOSTAT)
         
         # Initialize plot
         name = files[i].split('/')[-1][:-4]
+        ax.set_title('%s: %s'%((i+1), name), pad=15)
         
         self.xs[i] = df['t'].to_numpy()
         self.ys[i] = df['i'].to_numpy()
         
-        self.line, = ax.plot(self.xs[i], self.ys[i], 'k-')
-        ax.set_title('%s: %s'%((i+1), name), pad=15)
+        if filtered:
+            from scipy.signal import savgol_filter
+            self.plot_ys[i] = savgol_filter(self.ys[i], 
+                                       filter_win, filter_ord)
+        else:
+            self.plot_ys[i] = self.ys[i]
         
-        self.sp[i] = StepPicker(self.xs[i], self.ys[i], ax=ax)
+        self.line, = ax.plot(self.xs[i], self.plot_ys[i], 'k-')
+        self.sp[i] = StepPicker(self.xs[i], self.ys[i], 
+                                self.plot_ys[i], ax=ax)
+        
         self.cid = fig.canvas.mpl_connect('button_press_event', 
                                           self.sp[i])
         
+        self.slider2[i] = len(self.xs[i]) - 1
         
         plt.show()
+    
     
     
     
@@ -456,23 +518,34 @@ class Index:
         
         if i not in self.sp:
             # Create new
-            df = get_data(files[i])
+            df = get_data(files[i], POTENTIOSTAT)
             
             self.xs[i] = df['t'].to_numpy()
             self.ys[i] = df['i'].to_numpy()
+        
+            if filtered:
+                from scipy.signal import savgol_filter
+                self.plot_ys[i] = savgol_filter(self.ys[i], 
+                                           filter_win, filter_ord)
+            else:
+                self.plot_ys[i] = self.ys[i]
             
             slider.set_val(self.xs[i][0])
-            self.line, = ax.plot(self.xs[i], self.ys[i], 'k-')
-            self.sp[i] = StepPicker(self.xs[i], self.ys[i], ax=ax)
+            slider2.set_val(self.xs[i][-1])
+            self.line, = ax.plot(self.xs[i], self.plot_ys[i], 'k-')
+            self.sp[i] = StepPicker(self.xs[i], self.ys[i], 
+                                    self.plot_ys[i], ax=ax)
             
         else:
             # Reinitialize
             
-            ind = self.slider[i]
+            ind  = self.slider[i]
+            ind2 = self.slider2[i]
             slider.set_val(self.xs[i][ind])
+            slider2.set_val(self.xs[i][ind2])
             
-            self.line, = ax.plot(self.xs[i][ind:], 
-                                 self.ys[i][ind:], 'k-')
+            self.line, = ax.plot(self.xs[i][ind:ind2], 
+                                 self.plot_ys[i][ind:ind2], 'k-')
             
             self.sp[i]._update()
             
@@ -495,24 +568,36 @@ class Index:
         
         if i not in self.sp:
             # Create new
-            df = get_data(files[i])
+            df = get_data(files[i], POTENTIOSTAT)
             
             self.xs[i] = df['t'].to_numpy()
             self.ys[i] = df['i'].to_numpy()
+        
+            if filtered:
+                from scipy.signal import savgol_filter
+                self.plot_ys[i] = savgol_filter(self.ys[i], 
+                                           filter_win, filter_ord)
+            else:
+                self.plot_ys[i] = self.ys[i]
             
             slider.set_val(self.xs[i][0])
-            self.line, = ax.plot(self.xs[i], self.ys[i], 'k-')
+            slider2.set_val(self.xs[i][-1])
+            self.line, = ax.plot(self.xs[i], self.plot_ys[i], 'k-')
  
-            self.sp[i] = StepPicker(self.xs[i], self.ys[i], ax=ax)
+            self.sp[i] = StepPicker(self.xs[i], self.ys[i], 
+                                    self.plot_ys[i], ax=ax)
             
         else:
             # Reinitialize
             
-            ind = self.slider[i]
+            ind  = self.slider[i]
+            ind2 = self.slider2[i]
             slider.set_val(self.xs[i][ind])
+            slider2.set_val(self.xs[i][ind2])
             
-            self.line, = ax.plot(self.xs[i][ind:], 
-                                 self.ys[i][ind:], 'k-')
+            self.line, = ax.plot(self.xs[i][ind:ind2], 
+                                 self.plot_ys[i][ind:ind2], 'k-')
+            
             self.sp[i]._update()
             
         self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
@@ -528,11 +613,13 @@ class Index:
         '''
         # i = self.ind % len(files)
         i = self.i
-        ind = self.slider[i]
+        ind  = self.slider[i]
+        ind2 = self.slider2[i]
         
         try:
-            self.sp[i].xdata = self.xs[i][ind:]
-            self.sp[i].ydata = self.ys[i][ind:]
+            self.sp[i].xdata = self.xs[i][ind:ind2]
+            self.sp[i].ydata = self.ys[i][ind:ind2]
+            self.sp[i].plot_ydata = self.plot_ys[i][ind:ind2]
 
             self.sp[i].calculate_steps(event)
         
@@ -680,11 +767,42 @@ class Index:
         
         try:
             ind = np.where(self.xs[i] == find_nearest(self.xs[i], val))[0][0]
-            self.slider[i] = ind
+            self.slider[i]  = ind
+            ind2 = self.slider2[i]
             
-            self.line.set_xdata(self.xs[i][ind:])
-            self.line.set_ydata(self.ys[i][ind:])
-            ax.autoscale(axis='y')
+            self.line.set_xdata(self.xs[i][ind:ind2])
+            self.line.set_ydata(self.plot_ys[i][ind:ind2])
+            ax.set_xlim(0.95*self.xs[i][ind],
+                        1.05*self.xs[i][ind2])
+            ax.figure.canvas.draw_idle()
+
+        except KeyError:
+            pass
+    
+    
+    def slider2_changed(self, val):
+        '''
+        Redraw raw data after adding/ removing xdata using slider
+        '''        
+        
+        i = self.i
+        
+        def find_nearest(array,value):
+            idx = np.searchsorted(array, value, side="left")
+            if idx > 0 and (idx == len(array) or abs(value - array[idx-1]) < abs(value - array[idx])):
+                return array[idx-1]
+            else:
+                return array[idx]
+        
+        try:
+            ind2 = np.where(self.xs[i] == find_nearest(self.xs[i], val))[0][0]
+            self.slider2[i]  = ind2
+            ind = self.slider[i]
+            
+            self.line.set_xdata(self.xs[i][ind:ind2])
+            self.line.set_ydata(self.plot_ys[i][ind:ind2])
+            ax.set_xlim(0.95*self.xs[i][ind],
+                        1.05*self.xs[i][ind2])
             ax.figure.canvas.draw_idle()
 
         except KeyError:
@@ -702,8 +820,9 @@ class Index:
 os.chdir(folder)
 files = []
 for file in os.listdir(folder):
-    if file.endswith('.txt'):
-        files.append(file)
+    if (file.endswith('.txt')
+        or file.endswith('.asc')):
+        files.append(os.path.join(folder,file))
 
 
 fig, ax = plt.subplots(figsize=(5,6), dpi=100)
@@ -713,27 +832,27 @@ plt.subplots_adjust(bottom=0.3)
 callback = Index()
 
 # Recalculate step sizes
-axcalc = plt.axes([0.5, 0.1, 0.25, 0.075])
+axcalc = plt.axes([0.5, 0.075, 0.25, 0.05])
 bcalc = Button(axcalc, 'Recalculate')
 bcalc.on_clicked(callback.recalc)
 
 # Next file
-axnext = plt.axes([0.8, 0.1, 0.1, 0.075])
+axnext = plt.axes([0.8, 0.075, 0.1, 0.05])
 bnext = Button(axnext, 'Next')
 bnext.on_clicked(callback.next)
 
 # Previous file
-axprev = plt.axes([0.35, 0.1, 0.1, 0.075])
+axprev = plt.axes([0.35, 0.075, 0.1, 0.05])
 bprev = Button(axprev, 'Prev')
 bprev.on_clicked(callback.prev)
 
 # Save as xlsx
-axexport = plt.axes([0.1, 0.1, 0.2, 0.075])
+axexport = plt.axes([0.1, 0.075, 0.2, 0.05])
 bexport = Button(axexport, 'Export')
 bexport.on_clicked(callback.save)
 
 # Plot histogram
-axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.075])
+axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.05])
 histbutton = Button(axplotbutton, 'Plot histogram')
 histbutton.on_clicked(callback.hist)
 
@@ -743,12 +862,18 @@ slider = Slider(axslider, '', callback.xs[0][0],
                 callback.xs[0][-1], valinit=callback.xs[0][0])
 slider.on_changed(callback.slider_changed)
 
+# Ending point slider
+axslider2 = plt.axes([0.1, 0.15, 0.8, 0.025])
+slider2 = Slider(axslider2, '', callback.xs[0][0], 
+                callback.xs[0][-1], valinit=callback.xs[0][-1])
+slider2.on_changed(callback.slider2_changed)
+
 # Absolute delta I checkbox
-axcheckbox = plt.axes([0.4, 0.005, 0.35, 0.075])
+axcheckbox = plt.axes([0.4, 0.005, 0.35, 0.05])
 checkbox = CheckButtons(axcheckbox, ['Absolute $\Delta$I'])
 
 # Select first n points box
-axpointsbox = plt.axes([0.8, 0.005, 0.1, 0.075])
+axpointsbox = plt.axes([0.8, 0.005, 0.1, 0.05])
 pointsbox = TextBox(axpointsbox, '', initial='10')
 
 

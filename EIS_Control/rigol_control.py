@@ -5,7 +5,6 @@ from time import sleep, time
 import pandas as pd
 
 
-
 def to_int16(signal):
     
     signal = np.array(signal)
