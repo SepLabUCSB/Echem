@@ -525,17 +525,18 @@ class MainWindow:
                                                            'Z_corr', 
                                                            'phase_corr')
                                   )
-            
-            Z_corr = corr_df['Z_corr'].to_numpy()
-            phase_corr = corr_df['phase_corr'].to_numpy()
-            return Z_corr, phase_corr
-        
         except:
             print('Invalid reference file: ')
             print(file)
             print('Uncheck "Apply reference correction" or record a')
             print('reference spectrum of a resistor.\n')
             return 0
+        
+        Z_corr = corr_df['Z_corr'].to_numpy()
+        phase_corr = corr_df['phase_corr'].to_numpy()
+        return Z_corr, phase_corr
+        
+       
         
     
       
@@ -1388,6 +1389,12 @@ class MainWindow:
         ref_dir = os.path.join(this_dir, 'reference waveforms\\')
         
         waveform = self.waveform.get()
+        if waveform.split('_')[1] == 'opt':
+            # Use same correction factors for optimized waveform as
+            # for unoptimized
+            waveform = waveform.split('_')
+            del waveform[1]
+            waveform = '_'.join(waveform)
         
         name = 'REF_%s_%s'%(R, waveform)
         
