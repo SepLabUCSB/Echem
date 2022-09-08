@@ -1,11 +1,7 @@
-<<<<<<< HEAD
 last_file_name:
-=======
-last_file_name:1_test
->>>>>>> c5d225ae90fa30905e53f5ddeb76a62d46794c4c
 test_mode:False
 potentiostat:Autolab
-waveform:Rigol_opt_100k_1k_10_14freqs.csv
+waveform:Rigol_100k_1k_10_12freqs.csv
 plot_Z:1
 plot_phase:1
 waveform_vpp:50
@@ -17,8 +13,4 @@ ref_corr_var:1
 fit:0
 circuit:RRC
 time_plot_param:Phase
-<<<<<<< HEAD
-time_plot_val:10
-=======
-time_plot_val:1.0
->>>>>>> c5d225ae90fa30905e53f5ddeb76a62d46794c4c
+time_plot_val:10.0

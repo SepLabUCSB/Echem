@@ -68,7 +68,7 @@ def read_scope_params(Rec):
     # Set and record some scope parameters
     inst.write('TRMD AUTO')
     inst.write('MSIZ 70K')
-    inst.write('TDIV 100MS')
+    # inst.write('TDIV 100MS')
     inst.write('TRMD STOP')
     
     vdiv1       = float(inst.query('C1:VDIV?')[8:-2])
