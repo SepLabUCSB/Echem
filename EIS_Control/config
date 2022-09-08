@@ -1,11 +1,11 @@
-last_file_name:
+last_file_name:10 min fast recording
 test_mode:False
 potentiostat:Autolab
 waveform:Rigol_100k_1k_10_12freqs.csv
 plot_Z:1
 plot_phase:1
 waveform_vpp:50
-recording_time:10
+recording_time:600
 current_range:1e-6
 DC_offset:0
 ref_corr_val:10k

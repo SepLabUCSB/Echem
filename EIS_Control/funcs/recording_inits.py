@@ -67,7 +67,7 @@ def read_scope_params(Rec):
     
     # Set and record some scope parameters
     inst.write('TRMD AUTO')
-    inst.write('MSIZ 70K')
+    # inst.write('MSIZ 70K')
     # inst.write('TDIV 100MS')
     inst.write('TRMD STOP')
     
