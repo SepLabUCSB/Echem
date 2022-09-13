@@ -4,13 +4,33 @@ from array import array
 import numpy as np
 import pandas as pd
 
-      
+def _nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
+ 
 
 def record_frame(Rec, inst, frame_time, recording_params,
                  start_time, recording_files, frame, 
                  save, process_last=True, ax=None, 
                  multiplex_fname = None, **kwargs):
-        
+    
+    # Determine sample time based on slowest frequency
+    freqs = recording_params['freqs']
+    min_f = min(freqs)
+    min_s_time = 1/min_f
+    samples = np.floor(frame_time/min_s_time)
+    if (frame_time%min_s_time < min_s_time/4) and samples > 1:
+        samples -= 1
+    
+    
+    sample_time = min_s_time*samples
+    # print(f'Time for 1 cycle: {min_s_time}')
+    # print(f'Frame time: {frame_time}')
+    # print(f'Max cycles: {np.floor(frame_time/min_s_time)}')
+    # print(f'Will record {samples} cycles')
+    # print(f'Sample time: {sample_time}')
+    # print('')
     
     frame_start_time = time.time()
     
@@ -24,8 +44,13 @@ def record_frame(Rec, inst, frame_time, recording_params,
                        multiplex_fname = Rec.ft[frame-1].name)
     
     Rec.log(f'Done processing frame {frame-1}')
-        
-    while time.time() - frame_start_time < frame_time:
+    
+    tfactor = 1.2
+
+    if frame_time < 0.25:
+        tfactor=1.3
+    
+    while time.time() - frame_start_time < frame_time*tfactor:
         Rec.root.after(1)
     
     inst.write('TRMD STOP')
@@ -35,7 +60,7 @@ def record_frame(Rec, inst, frame_time, recording_params,
     volts1, volts2 = read_data(inst, recording_params)
     
     ft = transform_data(volts1, volts2, recording_params, 
-                        start_time)
+                        start_time, sample_time=sample_time)
     
     # Calculate Z
     V = ft.CH1data
@@ -48,12 +73,13 @@ def record_frame(Rec, inst, frame_time, recording_params,
     Z       = V/I
     phase   = np.angle(Z, deg=True)
     freqs   = recording_params['freqs']
-    
-    df = pd.DataFrame({'freqs': ft.freqs,
+
+    df = pd.DataFrame({'freqs': ft.freqs.round(decimals=6),
                        'Z': Z,
                        'phase': phase})
+    # print([freq for freq in freqs if freq not in df['freqs']])
     df = df[df['freqs'].isin(freqs)]
-    
+        
     # Apply reference correction
     if Rec.ref_corr_var.get():
         df = correct_Z(Rec, df)
@@ -107,7 +133,7 @@ def read_data(inst, recording_params):
 
 
 def transform_data(volts1, volts2, recording_params,
-                   frame_start_time, sample_time=1):
+                   frame_start_time, sample_time):
     
     sara            = recording_params['sara']
     current_range   = recording_params['current_range']
@@ -118,7 +144,10 @@ def transform_data(volts1, volts2, recording_params,
     # Only Fourier transform first sample_time s
     end = None
     if sample_time:
-        end = np.where(times == times[0] + sample_time)[0][0]
+        try:
+            end = np.where(times == times[0] + sample_time)[0][0]
+        except:
+            end = _nearest(times, sample_time)
         
     freqs = sara*np.fft.rfftfreq(len(volts1[:end]))[1:]
     ft1   =      np.fft.rfft(volts1[:end])[1:]
@@ -317,7 +346,7 @@ def fit_frame(Rec, frame, average=1, n_iter=25,
     # except:
     #     pass        
     
-    
+ 
 
 class FourierTransformData:
     

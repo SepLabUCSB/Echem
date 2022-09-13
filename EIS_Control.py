@@ -494,8 +494,8 @@ class Recorder:
                              'V': np.abs(np.fft.rfft(s))})
         
         ftdf  = ftdf[np.abs(ftdf['V']) > 100]
-        applied_freqs = ftdf['freqs'].to_numpy()
-        
+        applied_freqs = ftdf['freqs'].to_numpy().round(decimals=6)
+               
         self.update_config_file()
         return s, applied_freqs
     
@@ -575,6 +575,7 @@ class Recorder:
         
         # Reinitialize file selection list to incude new file
         del self.waveform
+        self.waveform = None
         self.file_list = [file for file in os.listdir(rigol_waves) 
                           if file.endswith('freqs.csv')
                           if file.startswith('Rigol')]
@@ -814,6 +815,7 @@ class Recorder:
         # Initialize recording
         recording_params = init_recording(self, new_time_plot, 
                                           n_plots, save)
+        
             
         # Get recording time
         t = self.recording_time.get('1.0', 'end')             
@@ -859,11 +861,12 @@ class Recorder:
         if not silent:
             print('')
             print('Recording for ~%d s' %t)
-            
+        
+        frametime = recording_params['frame_time']
         frame = 0
         start_time = time.time()
         while time.time() - start_time < t:
-            self.ft[frame] = record_frame(self, inst, 1.4*1.2, recording_params,
+            self.ft[frame] = record_frame(self, inst, frametime, recording_params,
                                           time.time() - start_time, recording_files,
                                           frame, save=save)   
             if not silent:
@@ -1235,5 +1238,4 @@ root.mainloop()
 sys.stdout = default_stdout
 sys.stdin = default_stdin
 sys.stderr = default_stderr
-
 
