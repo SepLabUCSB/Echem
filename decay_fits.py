@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, signal
 import os
+import warnings
 plt.ion()
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -16,8 +17,9 @@ data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spy
 
 correct_baselines = False
 start_after = 100 # cut off first (n) seconds
+min_s_to_fit = 10  # Requires n seconds of data to accept the fit
 delay = 10 # Points after "fast" spike to skip fitting on
-thresh = 0.005 # Used to determine acceptable baseline "flatness"
+thresh = 0.01 # Used to determine acceptable baseline "flatness"
                # Smaller = more picky, need flatter baseline to accept spike
 
 apply_filter     = False
@@ -421,8 +423,9 @@ class InteractivePicker:
     
     
     
-    def fit_peaks(self, t, y, idxs, sara, ax=None, t_max=60, delay = 10,
-                  baseline_correct=True, app_filter=False, thresh= 0.005): 
+    def fit_peaks(self, t, y, idxs, sara, ax=None, t_max=60, t_min=min_s_to_fit, 
+                  delay = 10, baseline_correct=True, app_filter=False, 
+                  thresh= 0.005): 
         '''
         Fit exponential decay betweek this peak and next peak,
         or the next n seconds
@@ -441,6 +444,8 @@ class InteractivePicker:
             ax to plot exponential fits on top of.
         t_max : int, optional
             Maximum time to use for fitting each spike. The default is 10.
+        t_min: int, optional
+            Minimum time necessary to choose a spike for fitting. Default 1 s
         delay : int, optional
             Number of points after fast spike to skip for curve fitting
         thresh: float, optional
@@ -505,7 +510,7 @@ class InteractivePicker:
             
             
             
-            if (next_idx - this_idx) < 50:
+            if (next_idx - this_idx) < int(round(t_min/sara)):
                 print(f'Not enough points to fit {t[this_idx - delay]} s.')
                 pops.append(this_idx - delay)
                 continue
@@ -519,7 +524,9 @@ class InteractivePicker:
                 bounds=(-np.inf, [1., np.inf, np.inf])
             
             try:
-                popt, pcov = optimize.curve_fit(exp_func, ts, data, 
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore')
+                    popt, pcov = optimize.curve_fit(exp_func, ts, data, 
                                     maxfev=100000,
                                     # bounds=bounds
                                     )
@@ -542,14 +549,20 @@ class InteractivePicker:
             
             
             ### Remove point based on fit criteria ###
-            # Find 'a' in params
-            p_idx = [idx for idx, param in enumerate(self.params) 
-                     if 'a' in param]
             # Remove if a > 0 (reductive spikes should have a < 0)
-            # if popt[p_idx] > 0:
-            #     print(f'Fitted a > 0 at {t[this_idx-delay]} s. Removing point.')
-            #     pops.append(this_idx - delay)
-            #     continue
+            a_idx = [idx for idx, param in enumerate(self.params) 
+                     if 'a' in param]
+            if popt[a_idx] > 0:
+                print(f'Fitted a > 0 at {t[this_idx-delay]} s. Removing point.')
+                pops.append(this_idx - delay)
+                continue
+            
+            c_idx = [idx for idx, param in enumerate(self.params) 
+                     if 'c' in param]
+            if popt[c_idx] > 0:
+                print(f'Fitted c > 0 at {t[this_idx-delay]} s. Removing point.')
+                pops.append(this_idx - delay)
+                continue 
             
             
             
