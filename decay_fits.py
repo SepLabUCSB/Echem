@@ -7,23 +7,25 @@ import os
 plt.ion()
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-# plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
-# data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
-plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
-data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
+plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
+data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
+# plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
+# data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
 
 
 
 correct_baselines = False
 start_after = 100 # cut off first (n) seconds
 delay = 10 # Points after "fast" spike to skip fitting on
+thresh = 0.005 # Used to determine acceptable baseline "flatness"
+               # Smaller = more picky, need flatter baseline to accept spike
 
 apply_filter     = False
 filter_freq      = 25
 
-fit = 'monoexponential'
-fit = 'monoexp-linear'
-# fit = 'biexponential'
+# fit = 'monoexponential'
+# fit = 'monoexp-linear'
+fit = 'biexponential'
 # fit = 'linear'
 
 
@@ -140,10 +142,13 @@ class InteractivePicker:
     
     global colors
     
-    def __init__(self, file, fig, ax):
+    def __init__(self, file, fig, ax, params, exp_func, plot=True):
         self.file = file
         self.fig  = fig
         self.ax   = ax
+        self.plot = plot
+        self.params = params
+        self.exp_func = exp_func
         
         self.fits   = []
         self.points = []
@@ -160,6 +165,8 @@ class InteractivePicker:
         
     
     def __call__(self, event):
+        if not self.plot:
+            return
         # Set xtol based on current axis limits 
         upper = self.ax.get_xlim()[1]
         lower = self.ax.get_xlim()[0]
@@ -199,9 +206,11 @@ class InteractivePicker:
                 
                     
     def _reset(self, event):
-        file = self.file
-        fig  = self.fig
-        ax   = self.ax
+        file     = self.file
+        fig      = self.fig
+        ax       = self.ax
+        params   = self.params
+        exp_func = self.exp_func
         
         self.line.remove()
         self.fitline.remove()
@@ -213,13 +222,13 @@ class InteractivePicker:
         for attr, _ in list(self.__dict__.items()):
             delattr(self, attr)
         
-        self.__init__(file, fig, ax)
+        self.__init__(file, fig, ax, params, exp_func)
         self.fig.canvas.mpl_connect('button_press_event', self)
         
         fits, integrals, chi_sqs, points, ms = self.analyze_file(
-                                                    correct_baselines, 
-                                                    apply_filter, delay,
-                                                    start_after
+                                                    correct_baselines, apply_filter, 
+                                                    delay, start_after, self.params,
+                                                    self.exp_func, thresh
                                                     )
         
         
@@ -228,6 +237,8 @@ class InteractivePicker:
     
     
     def draw_fits(self, xlim=[], ylim=[]):
+        if not self.plot:
+            return
         # Plot fit curves
         if self.fitline:
             self.fitline.remove()
@@ -410,8 +421,8 @@ class InteractivePicker:
     
     
     
-    def fit_peaks(self, t, y, idxs, sara, ax=None, t_max=10, delay = 10,
-                  baseline_correct=True, app_filter=False): 
+    def fit_peaks(self, t, y, idxs, sara, ax=None, t_max=60, delay = 10,
+                  baseline_correct=True, app_filter=False, thresh= 0.005): 
         '''
         Fit exponential decay betweek this peak and next peak,
         or the next n seconds
@@ -432,6 +443,8 @@ class InteractivePicker:
             Maximum time to use for fitting each spike. The default is 10.
         delay : int, optional
             Number of points after fast spike to skip for curve fitting
+        thresh: float, optional
+            Used to determine acceptable baseline "flatness"
     
         Returns
         -------
@@ -465,21 +478,30 @@ class InteractivePicker:
             elif i == 0: # first spike
                 last_idx = max(0, this_idx - 500)
             
-            if ((this_idx-delay - last_idx) < 100 and baseline_correct):
+            if (this_idx-delay - last_idx) < 100:
                 print(f'Not enough points to fit baseline {t[this_idx-delay]} s.')
                 pops.append(this_idx - delay)
                 continue
             
             
             
-            # Subtract the baseline
-            if baseline_correct:
-                m, b = np.polyfit(t[last_idx:this_idx-delay-5], 
-                      y[last_idx:this_idx-delay-5], deg=1)
+            # Calculate the baseline
+            m, b = np.polyfit(t[last_idx:this_idx-delay-5], 
+                  y[last_idx:this_idx-delay-5], deg=1)
+            
+            
+            if abs(m/y[last_idx]) > thresh:
+                print(f'Baseline not flat enough {t[this_idx-delay]} s.')
+                pops.append(this_idx - delay)
+                continue
+            
+            if baseline_correct:    
+                baseline = m*t + b
             else:
-                m, b = 0, 0
+                baseline = 0*t + 0
                 
-            baseline = m*t + b
+                
+            # Reject impacts which don't have a flat preceding baseline
             
             
             
@@ -521,12 +543,13 @@ class InteractivePicker:
             
             ### Remove point based on fit criteria ###
             # Find 'a' in params
-            p_idx = [idx for idx, param in enumerate(params) if 'a' in param]
+            p_idx = [idx for idx, param in enumerate(self.params) 
+                     if 'a' in param]
             # Remove if a > 0 (reductive spikes should have a < 0)
-            if popt[p_idx] > 0:
-                print(f'Fitted a > 0 at {t[this_idx-delay]} s. Removing point.')
-                pops.append(this_idx - delay)
-                continue
+            # if popt[p_idx] > 0:
+            #     print(f'Fitted a > 0 at {t[this_idx-delay]} s. Removing point.')
+            #     pops.append(this_idx - delay)
+            #     continue
             
             
             
@@ -552,7 +575,7 @@ class InteractivePicker:
     
     
     def analyze_file(self, baseline_correct, app_filter, 
-                     delay, start_after):
+                     delay, start_after, params, exp_func, thresh):
         '''
         Main function to call to detect and fit spikes
         '''
@@ -589,7 +612,8 @@ class InteractivePicker:
         # Fit peaks. Optionally plot fits onto same ax    
         fits, chi_sqs, pops, ms = self.fit_peaks(t, i, self.idxs, sara, self.ax, 
                                   baseline_correct=baseline_correct,
-                                  app_filter = app_filter, delay=delay)
+                                  app_filter = app_filter, delay=delay,
+                                  thresh = thresh)
         
         for pt in pops:
             # Remove spike indices that we couldn't fit
@@ -621,10 +645,8 @@ class InteractivePicker:
 
 
 class Index:
-    
-    global params
-    
-    def __init__(self, folder, fig, ax):
+        
+    def __init__(self, folder, fig, ax, params, exp_func):
         
         self.ind   = 0
         self.folder= folder
@@ -640,10 +662,15 @@ class Index:
         self.Picker = {}
         self.data   = {}
         
+        self.params = params
+        self.exp_func = exp_func
+        
                 
-        self.Picker[self.ind] = InteractivePicker(self.file, self.fig, self.ax)
+        self.Picker[self.ind] = InteractivePicker(self.file, self.fig, self.ax,
+                                                  self.params, self.exp_func)
         self.Picker[self.ind].analyze_file(correct_baselines, apply_filter, 
-                                           delay, start_after)
+                                           delay, start_after, self.params,
+                                           self.exp_func, thresh)
         
         self.cid = self.fig.canvas.mpl_connect('button_press_event', 
                                     self.Picker[self.ind])
@@ -665,9 +692,11 @@ class Index:
         self.ax.clear()
         self.fig.canvas.mpl_disconnect(self.cid)
         
-        self.Picker[self.ind] = InteractivePicker(self.file, self.fig, self.ax)
+        self.Picker[self.ind] = InteractivePicker(self.file, self.fig, self.ax,
+                                                  self.params, self.exp_func)
         self.Picker[self.ind].analyze_file(correct_baselines, apply_filter, 
-                                           delay, start_after)
+                                           delay, start_after, self.params,
+                                           self.exp_func, thresh)
         
         self.cid = self.fig.canvas.mpl_connect('button_press_event', 
                                     self.Picker[self.ind])
@@ -689,9 +718,11 @@ class Index:
         self.ax.clear()
         self.fig.canvas.mpl_disconnect(self.cid)
         
-        self.Picker[self.ind] = InteractivePicker(self.file, self.fig, self.ax)
+        self.Picker[self.ind] = InteractivePicker(self.file, self.fig, self.ax,
+                                                  self.params, self.exp_func)
         self.Picker[self.ind].analyze_file(correct_baselines, apply_filter, 
-                                           delay, start_after)
+                                           delay, start_after, self.params,
+                                           self.exp_func, thresh)
         
         self.cid = self.fig.canvas.mpl_connect('button_press_event', 
                                     self.Picker[self.ind])
@@ -713,7 +744,7 @@ class Index:
         d = {}
         d['Index']          = []
         d['time/ s']        = []
-        d.update({param: [] for param in params})
+        d.update({param: [] for param in self.params})
         d['baseline slope'] = []
         d['integral/ C']    = []
         d['Reduced Chi^2']  = []
@@ -724,7 +755,7 @@ class Index:
                 
         for i in range(len(p.integrals)):
             d['Index'].append(i+1)
-        for i in range(len(params)):
+        for i in range(len(self.params)):
             for x in p.save_fits[i]:
                 d[params[i]].append(x)
         for x in p.ms:
@@ -779,26 +810,26 @@ class Index:
     
 
 
+if __name__ == '__main__':
 
-
-fig, ax = plt.subplots(figsize=(5,6), dpi=100)    
-plt.subplots_adjust(bottom=0.3)
-
-index = Index(data_folder, fig, ax)
-
-
-axcalc = plt.axes([0.4, 0.1, 0.25, 0.05])
-bcalc = Button(axcalc, 'Reset')
-bcalc.on_clicked(index.reset)   
-
-axprev = plt.axes([0.15, 0.1, 0.25, 0.05])
-bnext = Button(axprev, 'Previous')
-bnext.on_clicked(index._next) 
-
-axnext = plt.axes([0.65, 0.1, 0.25, 0.05])
-bprev = Button(axnext, 'Next')
-bprev.on_clicked(index._prev) 
-
-axsave = plt.axes([0.45, 0.025, 0.25, 0.05])
-bsave = Button(axsave, 'Save')
-bsave.on_clicked(index.save)
+    fig, ax = plt.subplots(figsize=(5,6), dpi=100)    
+    plt.subplots_adjust(bottom=0.3)
+    
+    index = Index(data_folder, fig, ax, params, exp_func)
+    
+    
+    axcalc = plt.axes([0.4, 0.1, 0.25, 0.05])
+    bcalc = Button(axcalc, 'Reset')
+    bcalc.on_clicked(index.reset)   
+    
+    axprev = plt.axes([0.15, 0.1, 0.25, 0.05])
+    bnext = Button(axprev, 'Previous')
+    bnext.on_clicked(index._next) 
+    
+    axnext = plt.axes([0.65, 0.1, 0.25, 0.05])
+    bprev = Button(axnext, 'Next')
+    bprev.on_clicked(index._prev) 
+    
+    axsave = plt.axes([0.45, 0.025, 0.25, 0.05])
+    bsave = Button(axsave, 'Save')
+    bsave.on_clicked(index.save)

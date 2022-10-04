@@ -11,7 +11,7 @@ import os
 plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-folder = r'C:/Users/BRoehrich/Desktop/New folder'
+folder = r'C:\Users\BRoehrich\Desktop\Sofia data'
 
 """
 **Type %matplotlib in console before running file**
@@ -36,15 +36,15 @@ the get_data function to change this.
 
 
 # PARAMETERS TO ADJUST
-# POTENTIOSTAT = 'Biologic'
-POTENTIOSTAT = 'HEKA'
-filtered   = True   # Apply Savinsky-Golay filter to current
+POTENTIOSTAT = 'Biologic'
+# POTENTIOSTAT = 'HEKA'
+filtered   = False   # Apply Savinsky-Golay filter to current
 filter_win = 101    # S-G filter window (int)
 filter_ord = 1      # S-G filter order (int)
 
-threshold  = 0.01  # Autopick steps with relative size > threshold
+threshold  = 0.001  # Autopick steps with relative size > threshold
 cutoff     = 20     # Remove first n seconds
-linear_fit = False  # Do linear fit between points. If False, uses median
+linear_fit = True   # Do linear fit between points. If False, uses median
                     #    value between points instead. True accounts for 
                     #    non-zero baseline. Either way, the values are the 
                     #    raw, non-filtered data!
@@ -101,7 +101,7 @@ def get_data(file, potentiostat):
 
 
 
-class StepPicker(object):
+class StepPicker:
     
     global threshold, linear_fit, filtered, filter_win, filter_ord
     
@@ -123,7 +123,7 @@ class StepPicker(object):
         
         # self.line = average (stairstep) line
         # self.drawnpoints = step location markers
-        self.line, = self.ax.plot([self.xdata[0]], [self.ydata[0]]) 
+        self.line, = self.ax.plot([self.xdata[0]], [self.ydata[0]], '.-') 
         self.drawnpoints = self.ax.add_line(
             matplotlib.lines.Line2D([],[],linewidth=0, 
                                     marker='d', c='r', zorder=100))
@@ -277,65 +277,109 @@ class StepPicker(object):
         else:
             data = self.ydata
      
+        dy = np.diff(data, n=1)
         
-        while min_delta < thresh:
-             if n > 5:
-                 # Termination sequence if stuck
-                 break
+        avg = np.average(dy)
+        std = 4*np.std(dy)
+        
+        # fig, ax = plt.subplots(figsize=(5,5), dpi=100)
+        # ax.plot(dy)
+        # ax.plot(np.ones(len(dy))*avg)
+        # ax.plot(np.ones(len(dy))*(avg+std), 'orange')
+        # ax.plot(np.ones(len(dy))*(avg-std), 'orange')
+        
+        # idxs = np.where(abs(dy) > avg + std)
+        
+        idxs = []
+        in_spike = False
+        
+        # Identify spikes by changes in velocity
+        for i in range(len(dy)):
             
-             # Initialize, find step points
-             points = [0]
-             avg = np.zeros(len(data))
-             deltas = np.zeros(len(data))
-             for i in range(len(signals)):
-                 if signals[i] == 1:
-                     points.append(i)
-             points.append(len(signals))        
+            if (abs(dy[i]) >= avg + std and not in_spike):
+                # First point above std
+                idxs.append(i)
+                in_spike = True
             
-             # Get values between each point
-             for c in range(0, len(points)-1):
-                 index = points[c]
-                 next_index = points[c+1]
-                 for i in range(index, next_index):
-                      avg[i] = np.median(data[index: next_index])
-                      # m, b = np.polyfit(self.xdata[index:next_index+1], 
-                      #                   self.ydata[index:next_index+1], 1)
-                      # avg[i] = m*i + b
+            elif (abs(dy[i]) >= avg + std and in_spike):
+                # subsequent point in same spike
+                continue
+            
+            elif (abs(dy[i]) < avg + std and in_spike):
+                # second crossing point
+                in_spike = False
+            
+        # Verify steps have a reasonable change in current
+        for i in idxs[:]:
+            window = 50
+            
+            val_before = np.average(data[i-window:i-5])
+            val_after  = np.average(data[i+5:i+window])
+            
+            delta = val_after - val_before
+            
+            if abs(delta/val_before) < 0.001:
+                idxs.remove(i)
+        
+        # while min_delta < thresh:
+        #      if n > 5:
+        #          # Termination sequence if stuck
+        #          break
+            
+        #      # Initialize, find step points
+        #      points = [0]
+        #      avg = np.zeros(len(data))
+        #      deltas = np.zeros(len(data))
+        #      for i in range(len(signals)):
+        #          if signals[i] == 1:
+        #              points.append(i)
+        #      points.append(len(signals))        
+            
+        #      # Get values between each point
+        #      for c in range(0, len(points)-1):
+        #          index = points[c]
+        #          next_index = points[c+1]
+        #          for i in range(index, next_index):
+        #               avg[i] = np.median(data[index: next_index])
+        #               # m, b = np.polyfit(self.xdata[index:next_index+1], 
+        #               #                   self.ydata[index:next_index+1], 1)
+        #               # avg[i] = m*i + b
     
            
-             # Remove steps with delta Z < thresh/2
-             for i in range(len(data)-1):
-                 deltas[i] = abs(avg[i+1]-avg[i])/avg[i]
-                 if deltas[i] > thresh:
-                     signals[i+1] = 1
-                 else:
-                     signals[i+1] = 0
+        #      # Remove steps with delta Z < thresh/2
+        #      for i in range(len(data)-1):
+        #          deltas[i] = abs(avg[i+1]-avg[i])/avg[i]
+        #          if deltas[i] > thresh:
+        #              signals[i+1] = 1
+        #          else:
+        #              signals[i+1] = 0
              
             
              
-             for i in range(len(signals)-1):
-                 if signals[i] == 1:
-                     signals[i-1] = 0 
-                     deltas[i] = abs(avg[i-1]-avg[i+1])/avg[i-1]
-                 else:
-                     deltas[i] = 0
+        #      for i in range(len(signals)-1):
+        #          if signals[i] == 1:
+        #              signals[i-1] = 0 
+        #              deltas[i] = abs(avg[i-1]-avg[i+1])/avg[i-1]
+        #          else:
+        #              deltas[i] = 0
             
             
-             l = []
-             for delta in deltas:
-                 if delta != 0:
-                     l.append(delta)
+        #      l = []
+        #      for delta in deltas:
+        #          if delta != 0:
+        #              l.append(delta)
             
-             if not l:
-                 min_delta = 1
-             else:
-                 min_delta = min(l)
+        #      if not l:
+        #          min_delta = 1
+        #      else:
+        #          min_delta = min(l)
             
-             n += 1
+        #      n += 1
         
 
-        indices = [i for i in range(len(signals)) if signals[i]==1]
-        points = [(self.xdata[i], self.plot_ydata[i]) for i in indices]
+        # indices = [i for i in range(len(signals)) if signals[i]==1]
+        # points = [(self.xdata[i], self.plot_ydata[i]) for i in indices]
+        points = [(self.xdata[i], self.plot_ydata[i]) for i in idxs]
         
         return points
     
@@ -351,29 +395,13 @@ class StepPicker(object):
         
         
         # Refine step locations
-        for i in range(len(self.xdata)-1):
-            delta[i] = abs((self.plot_ydata[i+1]-self.plot_ydata[i])/self.plot_ydata[i])
-            
-        for (x,y) in list(self.criticalPoints):  
-            # find largest local step, search +- m points
-            m = 5
-            xi = np.where(self.xdata == x)[0][0] #convert to index
-            
-            # if xi < m: # Make sure not to go to negative indices
-            #     m = xi
-                
-            n = np.where(delta == max(delta[xi-m:xi+m+1]))[0][0]
-            if not n == xi:
-                # for m in self.criticalPoints[(x,y)]:
-                #     m.remove()
-                self.criticalPoints.pop((x,y), None)
-                self.drawPoints(self.ax, self.xdata[n], self.plot_ydata[n])
+        xs   = [x for (x,y) in list(self.criticalPoints)]
+        idxs = [np.where(self.xdata == x)[0][0] for x in xs]
+
+        indices = self.refine_step_locs(idxs, 50)     
         
         
-        # Fit data between steps to line
-        indices = [np.where(self.xdata == x)[0][0] 
-                   for (x,y) in list(self.criticalPoints)]
-    
+        # Fit data between steps to line    
         indices.insert(0,0)
         indices.append(len(self.xdata-1))
         indices.sort()
@@ -416,16 +444,61 @@ class StepPicker(object):
         print(f'Average RMS noise: {self.noise: .1E} A')
     
     
+    
+    def refine_step_locs(self, idxs, m):
+        
+        # maximize (avg before) - (avg after) for each step
+        best_steps = []
+        for idx in idxs:
+            i = self._calc_max_step(idx, m)
+            best_steps.append(i)
+        
+        # remove duplicates
+        best_steps = list(set(best_steps))
+    
+        # update plot
+        for (x,y) in list(self.criticalPoints):
+            self.drawPoints(self.ax, x, y)
+            
+        for i in best_steps:
+            self.drawPoints(self.ax, self.xdata[i], self.plot_ydata[i])
+        
+        return best_steps
+    
+    
+    def _calc_max_step(self, idx, m):
+        
+        ydata = self.ydata[idx-m:idx+m]
+        
+        best_i    = 0
+        best_step = 0
+        
+        for i in range(idx-m+1, idx+m-1):
+            mean_before = np.average(self.ydata[idx-m:i]) 
+            mean_after  = np.average(self.ydata[i:idx+m])
+            step_size = abs(mean_after - mean_before)
+            
+            if step_size > best_step:
+                best_step = step_size
+                best_i    = i
+        
+        return best_i
+            
+    
             
     def draw_average(self):
         '''
         Redraw smoothed step line
         '''
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
         self.line.remove()
         self.line, = self.ax.plot([self.xdata[0]], 
                                   [self.ydata[0]], color=colors[0]) 
         
         self.line.set_data(self.xdata, self.avg)
+        self.ax.set_xlim(xlim)
+        self.ax.set_ylim(ylim)
         self.line.figure.canvas.draw()
     
     
@@ -646,7 +719,7 @@ class Index:
                     n = 0
                     for step in steps:
                         if n < int(pointsbox.text):
-                            step_list.append(abs(step))
+                            step_list.append(step)
                             n += 1
                 except KeyError:
                     print('No steps saved in File %s' %(i+1))
@@ -660,7 +733,7 @@ class Index:
                     n = 0
                     for step in steps:
                         if n < int(pointsbox.text):
-                            step_list.append(abs(step))
+                            step_list.append(step)
                             n += 1
                 except KeyError:
                     print('No steps saved in File %s' %(i+1))
