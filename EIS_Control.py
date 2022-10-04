@@ -802,12 +802,12 @@ class Recorder:
         
         # Get waveform correction factors
         if self.ref_corr_var.get():
-            try:
-                Z_corr, phase_corr = self.get_correction_values()
-            except:
-                # get_correction_values() returns 0 if 
-                # invalid reference file
+            Z_corr, phase_corr = self.get_correction_values()
+            
+            if type(Z_corr) == int:
+                # Invalid reference file
                 return
+            
                 
         # Connect to scope
         inst = self.rm.open_resource(self.scope.get())
