@@ -509,10 +509,11 @@ class Recorder:
         R = self.ref_corr_val.get('1.0', 'end')
         R = R[:-1]
         
-        # Waveform
-        waveform = self.waveform.get().strip('.csv')
+        # Waveform name
+        waveform = self.waveform.get()
+        if waveform.endswith('.csv'):
+            waveform = waveform[:-4]
         waveform = waveform.replace('_opt', '')
-               
         
         # Current range
         i_range = self.current_range.get('1.0', 'end').strip('\n')
@@ -1076,10 +1077,12 @@ class Recorder:
         # Determine reference file path/ name
         ref_dir = os.path.join(this_dir, 'reference waveforms\\')
         
-        waveform = self.waveform.get().strip('.csv')
+        waveform = self.waveform.get()
+        if waveform.endswith('.csv'):
+            waveform = waveform[:-4]
         waveform = waveform.replace('_opt', '')
-        i_range = self.current_range.get('1.0', 'end').strip('\n')
         
+        i_range = self.current_range.get('1.0', 'end').strip('\n')
         i_range = float(i_range)
         i_range = f'{i_range:.0E}'
         
