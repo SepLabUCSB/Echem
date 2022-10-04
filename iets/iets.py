@@ -1,13 +1,19 @@
 import pyvisa
 import time
 import os
+import matplotlib.pyplot as plt
+import numpy as np
 
-from funcs import init_recording, record_current
+from funcs import init_recording, record_current, record_current_srs, record_current_sr
+
+plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
 
 
 scope   = 'USB0::0xF4ED::0xEE3A::SDS1EDED5R0471::INSTR'
-autolab_i_range    = 10e-6 # A/V
-lockin_sensitivity = 500e-3 # V
+srs     = 'GPIB0::8::INSTR'
+sr      = 'GPIB0::16::INSTR'
+autolab_i_range    = 1e-3 # A
+lockin_sensitivity = 10e-3 # V
 
 
 trig_file = r'C:\Users\BRoehrich\Desktop\git\echem\iets\update.txt'
@@ -59,30 +65,49 @@ def record_sweep(scope, n, save_path, ask_inputs=False, SAVE=False,
     
     
     # initialize scope params
-    params = init_recording(inst)
+    if scope.startswith('USB'):
+        params = init_recording(inst)
+    # elif scope.startswith('GPIB'):
+    #     inst.write('AGAN')
     
-    # if os.path.exists(trig_file):
-    #     os.remove(trig_file)
+    if scope == 'GPIB0::16::INSTR':
+        sens = inst.query('SENS')
+        sens = int(sens)
+    
+    if os.path.exists(trig_file):
+        os.remove(trig_file)
         
     j = 0
     
     while j < n:
         
+        # if (j % 50 == 0) and scope.startswith('GPIB'):
+        #     print('Previous sensitivity ', inst.query('SENS?'))
+        #     inst.write('AGAN')
+            
+        
         while os.path.exists(trig_file) == False:
             time.sleep(0.001)
             
         # record single (v, i)
-        i = record_current(inst, 0, params, autolab_i_range,
-                       lockin_sensitivity)
+        if scope.startswith('USB'):
+            i = record_current(inst, 0, params, autolab_i_range,
+                           lockin_sensitivity)
+            
+        elif scope == 'GPIB0::8::INSTR':
+            i = record_current_srs(inst, autolab_i_range, 0.3)
+            
+        elif scope == 'GPIB0::16::INSTR':
+            i = record_current_sr(inst, sens, autolab_i_range, 0.4)
         
-        j_, v = get_v(trig_file)
+        j, v = get_v(trig_file)
         
         l.append((v,i))
         if SAVE:
             append_save(save_file, (v,i))
         print(j, v, i)
-        j += 1
-        # os.remove(trig_file)
+        
+        os.remove(trig_file)
     
     
     return l
@@ -111,7 +136,25 @@ def createFolder(directory):
             os.makedirs(directory)
     except OSError:
         print ('Error: Creating directory. ' +  directory)            
+
             
-# l = record_sweep(scope, 51, save_path)
-d = record_multiple_sweeps(scope, 3, 51, save_path)
+# l = record_sweep(sr, 201, save_path, ask_inputs=True, SAVE=True)
+d = record_multiple_sweeps(sr, 100, 201, save_path)
+
+
+
+
+# fig, ax = plt.subplots()
+# for n in d:
+#     l = d[n]
+#     ii = []
+#     vv = []
+#     for (v, i) in l:
+#         ii.append(i)
+#         vv.append(v)
+    
+#     ax.plot(vv, ii)
+
+# v = np.average([[v for (v,i) in d[n]] for n in d], axis=0)
+# i = np.average([[i for (v,i) in d[n]] for n in d], axis=0)
             
