@@ -42,20 +42,17 @@ def record_frame(Rec, inst, frame_time, recording_params,
         if save:
             save_frame(Rec, frame-1, Rec.ft[frame-1], recording_files, 
                        multiplex_fname = Rec.ft[frame-1].name)
+            
     
     Rec.log(f'Done processing frame {frame-1}')
-    
-    tfactor = 1.2
-
-    if frame_time < 0.25:
-        tfactor=1.3
-    
-    while time.time() - frame_start_time < frame_time*tfactor:
-        Rec.root.after(1)
+        
+    while time.time() - frame_start_time < 10*frame_time:
+        inr = int(inst.query('INR?').strip('\n').split(' ')[1])
+        if inr==1: break
     
     inst.write('TRMD STOP')
 
-    Rec.log('Stopped scope')    
+    Rec.log(f'Stopped scope frame time= {(time.time()-frame_start_time):0.3f}')    
         
     volts1, volts2 = read_data(inst, recording_params)
     
