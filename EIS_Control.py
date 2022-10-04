@@ -1231,11 +1231,15 @@ def createFolder(directory):
         print ('Error: Creating directory. ' +  directory)
 
 
-root = tk.Tk()
-gui = Recorder(root)
-root.mainloop()
+if __name__ == '__main__':
 
-sys.stdout = default_stdout
-sys.stdin = default_stdin
-sys.stderr = default_stderr
+    root = tk.Tk()
+    gui = Recorder(root)
+    root.mainloop()
+    
+    gui.rm.close()
+    
+    sys.stdout = default_stdout
+    sys.stdin = default_stdin
+    sys.stderr = default_stderr
 
