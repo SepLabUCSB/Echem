@@ -1,11 +1,11 @@
 last_file_name:
 test_mode:False
 potentiostat:Autolab
-waveform:Rigol_opt_100k_1k_1_18freqs.csv
+waveform:Rigol_100k_1k_10_12freqs.csv
 plot_Z:1
 plot_phase:1
 waveform_vpp:25
-recording_time:10
+recording_time:7200
 current_range:1e-6
 DC_offset:0
 ref_corr_val:10k
@@ -13,4 +13,4 @@ ref_corr_var:1
 fit:0
 circuit:RRC
 time_plot_param:Phase
-time_plot_val:1.0
+time_plot_val:10.0

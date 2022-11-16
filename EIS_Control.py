@@ -778,7 +778,7 @@ class Recorder:
         
 
 
-    def record_signals(self, save=False, silent=True, plot_time_plot=True,
+    def record_signals(self, save=False, silent=True, plot_time_plot=False,
                        axes = None, new_time_plot=True, n_plots=1, **kwargs):
         '''
         Record impedance for one, non-multiplexed electrode for the set
@@ -869,7 +869,8 @@ class Recorder:
         while time.time() - start_time < t:
             self.ft[frame] = record_frame(self, inst, frametime, recording_params,
                                           time.time() - start_time, recording_files,
-                                          frame, save=save)   
+                                          frame, save=save, 
+                                          plot_time_plot=plot_time_plot)   
             if not silent:
                 print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
@@ -882,7 +883,7 @@ class Recorder:
         
         # Process the final frame
         t, freqs, Z, phase, fits = process_frame(self, frame-1, 
-                                                 update_time_plot=True)
+                                                 plot_time_plot=plot_time_plot)
                  
         if save:
             # Save last frame
@@ -1137,7 +1138,7 @@ class Recorder:
         if type(num) == str:
             fname = save_path + f'\\{num}.txt'
         else:
-            fname = save_path + f'\\{num:04}s.txt'
+            fname = save_path + f'\\{num:06}s.txt'
             
     
         d.to_csv(fname, columns = ['f', 're', 'im'],
