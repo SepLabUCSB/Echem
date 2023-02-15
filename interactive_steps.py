@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import pandas as pd
+from scipy.signal import savgol_filter
 from matplotlib.widgets import Button
 from matplotlib.widgets import Slider
 from matplotlib.widgets import CheckButtons
@@ -11,7 +12,8 @@ import os
 plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-folder = r'C:\Users\Eric Liu\Desktop\LiorLab\InsulatingProject\cubese12'
+# folder = r'C:\Users\Eric Liu\Desktop\LiorLab\InsulatingProject\cubese12'
+folder = r'C:\Users\BRoehrich\Desktop\data'
 
 """
 **Type %matplotlib in console before running file**
@@ -44,6 +46,7 @@ filter_ord = 1      # S-G filter order (int)
 
 threshold  = 0.001  # Autopick steps with relative size > threshold
 cutoff     = 20     # Remove first n seconds
+fit_type   = 'savgol'
 linear_fit = True   # Do linear fit between points. If False, uses median
                     #    value between points instead. True accounts for 
                     #    non-zero baseline. Either way, the values are the 
@@ -110,11 +113,14 @@ class StepPicker:
     """
 
     def __init__(self, xdata, ydata, plot_ydata, points=[], ax=None):
-        self.xdata = np.array(xdata)
-        self.ydata = np.array(ydata)
-        self.plot_ydata = np.array(plot_ydata)
-        self.criticalPoints = dict()
+        self.xdata = np.array(xdata)            # Time
+        self.ydata = np.array(ydata)            # Raw current data
+        self.plot_ydata = np.array(plot_ydata)  # (possibly) filtered current
+        self.criticalPoints = dict()            # Step points (x,y):1
         self.steps = []
+        self.steptimes = []
+        
+        self.min_spacing = 10
         
         if ax is None:
             self.ax = plt.gca()
@@ -256,31 +262,34 @@ class StepPicker:
             # print(len(self.criticalPoints))
     
     
+    def remove_hanging_points(self, xmin, xmax):
+        '''
+        Removes points which are outside of the currently selected 
+        time boundaries xmin: xmax
+        '''
+        for (x, y) in self.criticalPoints.copy():
+            if (x < xmin) or (x > xmax):
+                # Remove point
+                self.drawPoints(self.ax, x, y)
+        
+        
     
     def detect_steps(self, thresh=threshold):
         '''
         Initial step detection algorithm
         
-        Finds points where step heights (determined by
-            median values between points) are > thresh param.
-
+        Apply savitzky-golay filter, calculate 1st derivative,
+        pick steps based on spikes in 1st derivative
         '''
-        signals = np.ones(len(self.ydata))
-        signals[0] = 0
-           
-        min_delta = 0
-        n = 1
         
-        if filtered:
-            from scipy.signal import savgol_filter
-            data = savgol_filter(self.ydata, filter_win, filter_ord)
-        else:
-            data = self.ydata
-     
-        dy = np.diff(data, n=1)
+        data = self.ydata
+        dy = savgol_filter(self.ydata, 31, 1, deriv=1, mode='nearest')
+        self.dy = dy
+        dy = abs(dy)
         
         avg = np.average(dy)
-        std = 4*np.std(dy)
+        std = 3*np.std(dy)
+        
         
         # fig, ax = plt.subplots(figsize=(5,5), dpi=100)
         # ax.plot(dy)
@@ -292,6 +301,7 @@ class StepPicker:
         
         idxs = []
         in_spike = False
+        _out_counter = 0
         
         # Identify spikes by changes in velocity
         for i in range(len(dy)):
@@ -307,83 +317,27 @@ class StepPicker:
             
             elif (abs(dy[i]) < avg + std and in_spike):
                 # second crossing point
-                in_spike = False
+                _out_counter += 1
+                if _out_counter > self.min_spacing:
+                    in_spike = False
+                    _out_counter = 0
             
         # Verify steps have a reasonable change in current
-        for i in idxs[:]:
-            window = 50
+        # for i in idxs[:]:
+        #     window = 50
             
-            val_before = np.average(data[i-window:i-5])
-            val_after  = np.average(data[i+5:i+window])
+        #     val_before = np.average(data[i-window:i-5])
+        #     val_after  = np.average(data[i+5:i+window])
             
-            delta = val_after - val_before
+        #     delta = val_after - val_before
             
-            if abs(delta/val_before) < 0.001:
-                idxs.remove(i)
+        #     if abs(delta/val_before) < 0.0015:
+        #         idxs.remove(i)
         
-        # while min_delta < thresh:
-        #      if n > 5:
-        #          # Termination sequence if stuck
-        #          break
-            
-        #      # Initialize, find step points
-        #      points = [0]
-        #      avg = np.zeros(len(data))
-        #      deltas = np.zeros(len(data))
-        #      for i in range(len(signals)):
-        #          if signals[i] == 1:
-        #              points.append(i)
-        #      points.append(len(signals))        
-            
-        #      # Get values between each point
-        #      for c in range(0, len(points)-1):
-        #          index = points[c]
-        #          next_index = points[c+1]
-        #          for i in range(index, next_index):
-        #               avg[i] = np.median(data[index: next_index])
-        #               # m, b = np.polyfit(self.xdata[index:next_index+1], 
-        #               #                   self.ydata[index:next_index+1], 1)
-        #               # avg[i] = m*i + b
-    
-           
-        #      # Remove steps with delta Z < thresh/2
-        #      for i in range(len(data)-1):
-        #          deltas[i] = abs(avg[i+1]-avg[i])/avg[i]
-        #          if deltas[i] > thresh:
-        #              signals[i+1] = 1
-        #          else:
-        #              signals[i+1] = 0
-             
-            
-             
-        #      for i in range(len(signals)-1):
-        #          if signals[i] == 1:
-        #              signals[i-1] = 0 
-        #              deltas[i] = abs(avg[i-1]-avg[i+1])/avg[i-1]
-        #          else:
-        #              deltas[i] = 0
-            
-            
-        #      l = []
-        #      for delta in deltas:
-        #          if delta != 0:
-        #              l.append(delta)
-            
-        #      if not l:
-        #          min_delta = 1
-        #      else:
-        #          min_delta = min(l)
-            
-        #      n += 1
-        
-
-        # indices = [i for i in range(len(signals)) if signals[i]==1]
-        # points = [(self.xdata[i], self.plot_ydata[i]) for i in indices]
         points = [(self.xdata[i], self.plot_ydata[i]) for i in idxs]
         
         return points
-    
-    
+        
     
     
     def calculate_steps(self, button):
@@ -397,24 +351,29 @@ class StepPicker:
         # Refine step locations
         for i in range(len(self.xdata)-1):
             delta[i] = abs((self.plot_ydata[i+1]-self.plot_ydata[i])/self.plot_ydata[i])
+        
+        # delta = self.dy
+        
+        for (x,y) in sorted(list(self.criticalPoints), key=lambda x:x[0]):
             
-        for (x,y) in list(self.criticalPoints):  
             # find largest local step, search +- m points
-            m = 10
+            m = self.min_spacing
             xi = np.where(self.xdata == x)[0][0] #convert to index
             
-            # if xi < m: # Make sure not to go to negative indices
-            #     m = xi
                 
-            n = np.where(delta == max(delta[xi-m:xi+m+1]))[0][0]
+            n = np.where(delta == max(delta[xi-m:xi+m]))[0][0]
             if not n == xi:
-                # for m in self.criticalPoints[(x,y)]:
-                #     m.remove()
-                self.criticalPoints.pop((x,y), None)
-                self.drawPoints(self.ax, self.xdata[n], self.plot_ydata[n])
+                # Remove old point
+                # print(f'Removing {x:0.3f}. Found better point {self.xdata[n]:0.3f}')
+                self.drawPoints(self.ax, x, y)
+                # Add new point (xdata[n], ydata[n])
+                if (self.xdata[n], self.plot_ydata[n]) not in self.criticalPoints:
+                    self.drawPoints(self.ax, self.xdata[n], 
+                                    self.plot_ydata[n])
         
         
-        # Fit data between steps to line
+        # Smooth data between steps to measure step size
+        # more accurately
         indices = [np.where(self.xdata == x)[0][0] 
                    for (x,y) in list(self.criticalPoints)]
     
@@ -426,29 +385,53 @@ class StepPicker:
         for i in range(len(indices)-1):
             index = indices[i]
             next_index = indices[i+1]
-            this_ydata = self.ydata[index+2: next_index-2]
             
-                        
-            if linear_fit:
-                # Fit line in between steps to account for sloped baseline
-                m, b = np.polyfit(np.arange(index+2,next_index-2), 
-                                      self.ydata[index+2:next_index-2], 1)
+            pad = (next_index - index)//10
+            if pad < 2: pad = 2
+            if pad > 50: pad = 50
             
-                for i in range(index, next_index):
-                    self.avg[i] = m*i + b
+            def isEven(x):
+                return not bool(x%2)
             
-            else:
-                medianvalue = np.median(this_ydata)
-                for i in range(index, next_index):
-                    self.avg[i] = medianvalue
-                
+            this_ydata = self.ydata[index+pad: next_index-pad]
             
+            window = len(this_ydata)//5 
+            if window == 1:
+                window = 3
+            if isEven(window):
+                window += 1
+            if window > 100:
+                window = 99
+            filtered = savgol_filter(this_ydata, window,
+                                     polyorder=1)
+            
+            # Calculate noise as data - filtered data
             this_noise = np.sqrt(
                 np.mean(
-                (this_ydata-np.average(this_ydata))**2)
+                (this_ydata-filtered)**2)
                 )
-        
             noises.append(this_noise)
+            
+            filtered = np.pad(filtered, pad, 'edge')
+            self.avg[index:next_index] = filtered
+                        
+            # if linear_fit:
+                # Fit line in between steps to account for sloped baseline
+                # m, b = np.polyfit(np.arange(index+2,next_index-2), 
+                #                       self.ydata[index+2:next_index-2], 1)
+            
+                # for i in range(index, next_index):
+                #     self.avg[i] = m*i + b
+            
+            # else:
+            #     medianvalue = np.median(this_ydata)
+            #     for i in range(index, next_index):
+            #         self.avg[i] = medianvalue
+                
+            
+            
+        
+            
                 
             if index != 0:
                 self.avg[index] = self.avg[index-1]
@@ -459,22 +442,7 @@ class StepPicker:
         self.noise = np.average(noises[2:len(noises)-2])
         print(f'Average RMS noise: {self.noise: .1E} A')
     
-    
-    
-    # def refine_step_loc(self):
         
-    #     # maximize (avg before) - (avg after)
-        
-    #     return
-    
-    
-    # def _calc_step_size(self, idx, m):
-        
-    #     ydata = self.ydata[idx-m:idx+m]
-        
-    #     for i in range(idx-m+1, idx+m-1):
-    #         step_size = np.average(self.ydata[idx-m:i]) 
-    
     
             
     def draw_average(self):
@@ -499,12 +467,15 @@ class StepPicker:
         '''
         Save current step sizes to self.steps and self.abs_steps
         '''
+        self.steptimes = []
         self.steps = []
         self.abs_steps = []
-        for (x,y) in self.criticalPoints:
+        for (x,y) in sorted(list(self.criticalPoints), 
+                            key=lambda x:x[0]):
             i = np.where(self.xdata==x)[0][0]
             step = (self.avg[i+1]-self.avg[i])/self.avg[i]
             abs_step = self.avg[i+1]-self.avg[i]
+            self.steptimes.append(x)
             self.steps.append(step)
             self.abs_steps.append(abs_step)
 
@@ -667,8 +638,8 @@ class Index:
         self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
         
         plt.show()        
-
     
+        
     def recalc(self, event):
         '''
         Call calculate_steps on current graph instance
@@ -684,6 +655,10 @@ class Index:
             self.sp[i].xdata = self.xs[i][ind:ind2]
             self.sp[i].ydata = self.ys[i][ind:ind2]
             self.sp[i].plot_ydata = self.plot_ys[i][ind:ind2]
+            
+            # Remove points outside slider selected window
+            xmin, xmax = self.xs[i][ind], self.xs[i][ind2]
+            self.sp[i].remove_hanging_points(xmin, xmax)
 
             self.sp[i].calculate_steps(event)
         
@@ -755,6 +730,7 @@ class Index:
         '''
         file_index = []
         file_list = []
+        time_list = []
         step_list = []
         abs_step_list = []
         noise_list = []
@@ -764,6 +740,7 @@ class Index:
             # Create list of steps and abs_steps to export
             try:
                 file = self.files[i]
+                times = self.sp[i].steptimes
                 steps = self.sp[i].steps
                 abs_steps = self.sp[i].abs_steps
                 noise = self.sp[i].noise
@@ -771,11 +748,12 @@ class Index:
                 n = 0
                 m = 0
 
-                for step in steps:
+                for time, step in zip(times, steps):
                     if n < int(pointsbox.text):
                         # Only keep first n steps
                         file_index.append(i+1)
                         file_list.append(file)
+                        time_list.append(time)
                         step_list.append(step)
                         noise_list.append(noise)
                         n += 1
@@ -786,6 +764,7 @@ class Index:
                 
                 file_index.append('')
                 file_list.append('')
+                time_list.append('')
                 step_list.append('')
                 abs_step_list.append('')
                 noise_list.append('')
@@ -802,6 +781,7 @@ class Index:
             out = pd.DataFrame(
                 {'File #': file_index,
                 'File': file_list,
+                'Time/s': time_list,
                 'dI/Iss': step_list,
                 'delta I (A)': abs_step_list,
                 'RMS noise (A)': noise_list
@@ -895,8 +875,22 @@ plt.subplots_adjust(bottom=0.3)
 
 callback = Index()
 
+# Save as xlsx
+axexport = plt.axes([0.1, 0.075, 0.15, 0.05])
+bexport = Button(axexport, 'Export')
+bexport.on_clicked(callback.save)
+
+# Previous file
+axprev = plt.axes([0.27, 0.075, 0.1, 0.05])
+bprev = Button(axprev, 'Prev')
+bprev.on_clicked(callback.prev)
+
+# axpick = plt.axes([0.38, 0.075, 0.15, 0.05])
+# bpick = Button(axpick, 'Detect')
+# bpick.on_clicked(callback.redetect)
+
 # Recalculate step sizes
-axcalc = plt.axes([0.5, 0.075, 0.25, 0.05])
+axcalc = plt.axes([0.54, 0.075, 0.25, 0.05])
 bcalc = Button(axcalc, 'Recalculate')
 bcalc.on_clicked(callback.recalc)
 
@@ -905,15 +899,9 @@ axnext = plt.axes([0.8, 0.075, 0.1, 0.05])
 bnext = Button(axnext, 'Next')
 bnext.on_clicked(callback.next)
 
-# Previous file
-axprev = plt.axes([0.35, 0.075, 0.1, 0.05])
-bprev = Button(axprev, 'Prev')
-bprev.on_clicked(callback.prev)
 
-# Save as xlsx
-axexport = plt.axes([0.1, 0.075, 0.2, 0.05])
-bexport = Button(axexport, 'Export')
-bexport.on_clicked(callback.save)
+
+
 
 # Plot histogram
 axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.05])
