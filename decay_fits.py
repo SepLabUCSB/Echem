@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
+from matplotlib.patches import Polygon
 import numpy as np
 import pandas as pd
 from scipy import optimize, signal
@@ -8,10 +9,10 @@ import warnings
 plt.ion()
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
-data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
-# plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
-# data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
+# plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
+# data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
+plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
+data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
 
 
 
@@ -26,8 +27,8 @@ apply_filter     = False
 filter_freq      = 25
 
 # fit = 'monoexponential'
-# fit = 'monoexp-linear'
-fit = 'biexponential'
+fit = 'monoexp-linear'
+# fit = 'biexponential'
 # fit = 'linear'
 
 
@@ -198,6 +199,7 @@ class InteractivePicker:
                         
                         # Remove from output lists
                         self.save_fits  = np.delete(self.save_fits, i, axis=1)
+                        self.areas      = np.delete(self.areas, i)
                         self.integrals  = np.delete(self.integrals, i)
                         self.chi_sqs    = np.delete(self.chi_sqs, i)
                         self.points     = np.delete(self.points, i)
@@ -459,6 +461,7 @@ class InteractivePicker:
         
         fits    = []
         chi_sqs = []
+        integrals = []
         pops    = []
         ms      = []
         
@@ -472,7 +475,7 @@ class InteractivePicker:
             try:
                 next_idx = min(idxs[i+1] - 2, this_idx + int(round(t_max/sara)))
             except: # Last point
-                next_idx = min(len(y), this_idx + int(round(t_max/sara)))
+                next_idx = min(len(y)-1, this_idx + int(round(t_max/sara)))
             
                 
             # Subtract out baseline
@@ -506,15 +509,15 @@ class InteractivePicker:
                 baseline = 0*t + 0
                 
                 
-            # Reject impacts which don't have a flat preceding baseline
-            
             
             
             if (next_idx - this_idx) < int(round(t_min/sara)):
                 print(f'Not enough points to fit {t[this_idx - delay]} s.')
                 pops.append(this_idx - delay)
                 continue
-                
+            
+            
+            ### Do fitting ###
             ts = t[this_idx:next_idx] - t[this_idx]
             data = y[this_idx:next_idx] - baseline[this_idx:next_idx]
             
@@ -533,14 +536,26 @@ class InteractivePicker:
             except: 
                 popt = [0,0,0,0,0]
             
-            # print(popt)        
-            
-            
+                       
             
             # Calculate chi^2
             fit_y = exp_func(ts, *popt) # Fits
             residuals = abs((data - fit_y)/fit_y)
             chi_sq = np.sum(residuals**2)/len(residuals)
+            
+            
+            ### Calculate integral (excludes initial sharp spike)      
+            # area to draw
+            verts = [(t[this_idx], fit_y[-1]),
+                     *zip(t[this_idx:next_idx], data),
+                     (t[next_idx], fit_y[-1])]
+            poly = Polygon(verts, color= colors[0], alpha = 0.7)
+            ax.add_patch(poly)
+            
+            # actual calculation
+            xs = t[this_idx:next_idx]
+            ys = data - fit_y[-1]
+            integ = np.trapz(ys, xs)
             
             
             # fig, ax2 = plt.subplots(figsize=(5,5), dpi=100)
@@ -579,11 +594,12 @@ class InteractivePicker:
                 ax.plot(t[last_idx:next_idx], baseline[last_idx:next_idx], 'r--')
             
             fits.append(popt)
+            integrals.append(integ)
             ms.append(m)
             chi_sqs.append(chi_sq)
         
         
-        return fits, chi_sqs, pops, ms
+        return fits, integrals, chi_sqs, pops, ms
     
     
     
@@ -623,10 +639,12 @@ class InteractivePicker:
         
         
         # Fit peaks. Optionally plot fits onto same ax    
-        fits, chi_sqs, pops, ms = self.fit_peaks(t, i, self.idxs, sara, self.ax, 
-                                  baseline_correct=baseline_correct,
-                                  app_filter = app_filter, delay=delay,
-                                  thresh = thresh)
+        fits, areas, chi_sqs, pops, ms = self.fit_peaks(t, i, 
+                                      self.idxs, sara, self.ax, 
+                                      baseline_correct=baseline_correct,
+                                      app_filter = app_filter, delay=delay,
+                                      thresh = thresh
+                                      )
         
         for pt in pops:
             # Remove spike indices that we couldn't fit
@@ -648,12 +666,13 @@ class InteractivePicker:
         fits = np.array(fits).T
         
         self.save_fits  = fits
+        self.areas      = areas
         self.integrals  = integrals
         self.chi_sqs    = chi_sqs
         self.points     = points
         self.ms         = ms
         
-        return fits, integrals, chi_sqs, points, ms
+        return fits, areas, integrals, chi_sqs, points, ms
 
 
 
@@ -758,6 +777,7 @@ class Index:
         d['Index']          = []
         d['time/ s']        = []
         d.update({param: [] for param in self.params})
+        d['Catalytic area/ C'] = []
         d['baseline slope'] = []
         d['integral/ C']    = []
         d['Reduced Chi^2']  = []
@@ -771,6 +791,8 @@ class Index:
         for i in range(len(self.params)):
             for x in p.save_fits[i]:
                 d[params[i]].append(x)
+        for x in p.areas:
+            d['Catalytic area/ C'].append(x)
         for x in p.ms:
             d['baseline slope'].append(x)
         for x in p.integrals:
@@ -843,6 +865,6 @@ if __name__ == '__main__':
     bprev = Button(axnext, 'Next')
     bprev.on_clicked(index._prev) 
     
-    axsave = plt.axes([0.45, 0.025, 0.25, 0.05])
+    axsave = plt.axes([0.4, 0.025, 0.25, 0.05])
     bsave = Button(axsave, 'Save')
     bsave.on_clicked(index.save)

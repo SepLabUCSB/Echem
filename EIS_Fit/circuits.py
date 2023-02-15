@@ -177,20 +177,20 @@ def Randles_uelec(f, params):
 def Randles_adsorption(f, params):
     '''
     Params:
-        R1: Series resistance
-        R2: CT resistance
-        Q1: dl capacitance
-        n1: dl exponent (0 < n < 1)
-        Q2: Adsorption CPE
-        n2: Adsorption exponent (0 < n < 1)
+        Rs: Series resistance
+        Rct: CT resistance
+        Cdl: dl capacitance
+        ndl: dl exponent (0 < n < 1)
+        Cad: Adsorption CPE
+        nad: Adsorption exponent (0 < n < 1)
     '''
     
-    R1 = params['R1']
-    R2 = params['R2']
-    Q1 = params['Q1']
-    n1 = params['n1']
-    Q2 = params['Q2']
-    n2 = params['n2']
+    R1 = params['Rs']
+    R2 = params['Rct']
+    Q1 = params['Cdl']
+    n1 = params['ndl']
+    Q2 = params['Cad']
+    n2 = params['nad']
     
     Ca = CPE(f, {'Q':Q2, 'n':n2})
     Cdl = CPE(f, {'Q':Q1, 'n':n1})

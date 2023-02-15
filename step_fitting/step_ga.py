@@ -24,11 +24,10 @@ def step_func(c):
         
     # if not any(pt[1] == 0 for pt in c):
     #     c.append((c[0][0], 0))
-    c.sort(key=lambda x:x[1])
         
-    for i, (val, end) in enumerate(c):
+    for i, (end, val) in enumerate(c):
         if i > 0:
-            last_idx = c[i-1][1]
+            last_idx = c[i-1][0]
             new_arr = val*np.ones(end - last_idx)
             arr = np.hstack((arr, new_arr))
         
@@ -67,7 +66,7 @@ def selection(pop, scores, k=3):
     return pop[selection_ix]
 
 
-def crossover(p1, p2, r_cross, force_locs):
+def crossover(p1, p2, r_cross, y):
     '''
     Create children c1 and c2 which are linear combinations of
     parents p1 and p2.
@@ -80,36 +79,36 @@ def crossover(p1, p2, r_cross, force_locs):
         frac = np.random.rand()
         
                 
-        for i in range(len(c1)):
+        for i in range(1, len(c1)):
             
             
-            loc1 = int(frac*p1[i][1] + (1-frac)*p2[i][1])
-            loc2 = int(frac*p2[i][1] + (1-frac)*p1[i][1])
-            
-            if p1[i][1] in force_locs:
-                loc1 = p1[i][1]
-            if p2[i][1] in force_locs:
-                loc2 = p2[i][1]
-            
-            
-            
-            c1[i] = (frac*p1[i][0] + (1-frac)*p2[i][0], 
-                     loc1)
-            
-            c2[i] = (frac*p2[i][0] + (1-frac)*p1[i][0], 
-                     loc2)
+            loc1 = int(frac*p1[i][0] + (1-frac)*p2[i][0])
+            loc2 = int(frac*p2[i][0] + (1-frac)*p1[i][0])
+                        
+                        
+            c1[i] = (loc1, 0)
+            c2[i] = (loc2, 0)
             
     
-    c1.sort(key=lambda x:x[1])
-    c2.sort(key=lambda x:x[1])
-            
+    c1.sort()
+    c2.sort()
+    
+    # for i in range(1, len(c1)):
+        
+    #     med1 = np.median(y[ c1[i-1][0]:c1[i][0] ])
+    #     med2 = np.median(y[ c2[i-1][0]:c2[i][0] ])
+    #     c1[i] = (c1[i][0], med1)
+    #     c2[i] = (c2[i][0], med2)
+        
+    # c1[0] = (c1[0][0], c1[1][1])
+    # c2[0] = (c2[0][0], c2[1][1])       
         
     return [c1, c2]
 
 
 
 
-def mutation(candidate, bounds, length, r_mut, force_locs):
+def mutation(candidate, y, length, r_mut, force_locs):
     '''
     Mutate candidate with r_mut chance
     
@@ -118,47 +117,36 @@ def mutation(candidate, bounds, length, r_mut, force_locs):
     randomizes parameter value within set bounds
     '''  
     
+    locs = [loc for (loc, val) in candidate]
+    
+    
+    for i in range(1, len(candidate)-1):
         
-    for i, (val, loc) in enumerate(candidate):
-        
-        locs = [loc for (val, loc) in candidate]
-        
-        if (np.random.rand() < r_mut and loc != 0):
-            val = random(bounds[0], bounds[1])
-        
-        if (np.random.rand() < r_mut and loc != 0 and loc != length
-            and loc not in force_locs):
-            loc = np.random.randint(1, length)
-            
-            bad_locs = [loc for loc in (loc-1, loc, loc+1)
-                        if loc in locs]
-            
-            if len(bad_locs) != 0:
+        if np.random.rand() < r_mut:
+            while True:
+                loc = np.random.randint(2,length-1)
+                if loc not in locs:
+                    locs[i] = loc
+                    break
                 
-                if loc > length:
-                    loc = np.random.randint(1, length)
-                # while any((loc-1, loc, loc+1)) in locs:
-                #     print(loc, locs)
-                #     loc += 1
-                # print('changed loc: ', loc, locs)
+    
+    candidate = []
+    locs.sort()
+    for i, loc in enumerate(locs):
+        if i == 0:
+            continue
         
-        candidate[i] = (val, loc)
+        med = np.median(y[ locs[i-1]:locs[i] ])
+        candidate.append( (loc, med) )
     
-    if len(np.unique([loc for (val, loc) in candidate])) != len(candidate):
-        candidate = mutation(candidate, bounds, length, 1, [])
+    candidate.append( (locs[0], candidate[0][1]))
     
-    # candidate.sort(key=lambda x:x[1])
-    # candidate[0] = (candidate[1][0], candidate[0][1])
+    candidate.sort()
     
     return candidate
     
-
-def worker(l, i, candidate, y, objective):
-    score = objective(y, candidate)
-    l[i] = score
     
-
-
+    
 
 def genetic_algorithm(y, n_steps, 
                        objective=step_func_score, n_pop=100, 
@@ -171,7 +159,6 @@ def genetic_algorithm(y, n_steps,
     bests = []
     
     
-    bounds = [min(y), max(y)]
     length = len(y)
     
     for i in range(n_pop):
@@ -179,37 +166,28 @@ def genetic_algorithm(y, n_steps,
         c = []
         locs = []
         
-        if len(force_locs) != 0:
-            for loc in force_locs:
-                locs.append(loc)
-                c.append(
-                    (random(bounds[0], bounds[1]), loc)
-                    )
         
-        for _ in range(n_steps - len(c)):
+        locs.append(0)
+        locs.append(len(y))
+        
+        for _ in range(n_steps):
+            while True:
+                loc = np.random.randint(2,len(y)-1)
+                if loc not in locs:
+                    locs.append(loc)
+                    break
+        locs.sort()
+        
+        for i, loc in enumerate(locs):
+            if i == 0:
+                continue
             
-            loc = np.random.randint(1, length)
-            
-            if loc in locs:
-                while (loc or loc-1 or loc+1) in locs:
-                    loc = np.random.randint(1, length)
-            
-            c.append(
-                (random(bounds[0], bounds[1]), loc)
-                )
+            med = np.median(y[ locs[i-1]:locs[i] ])
+            c.append( (loc, med) )
         
-                
-        # Endpoint
-        c.append(
-            (random(bounds[0], bounds[1]), 
-             length)
-                )
+        c.append( (locs[0], c[0][1]))
         
-        c.sort(key=lambda x:x[1])
-        
-        # Starting point
-        c.append((c[0][0], 0))
-        c.sort(key=lambda x:x[1])
+        c.sort()
                 
         pop.append(c)
                 
@@ -227,11 +205,7 @@ def genetic_algorithm(y, n_steps,
     # initialize best candidate
     best, best_eval = pop[0], objective(y, pop[0])
     
-    # if force_val:
-    #     for i in range(n_pop):
-    #         print(i, pop[i])
-    #         print('')
-    
+        
     # iterate through generations
     for gen in range(n_iter):
         #check for new best solution
@@ -263,8 +237,8 @@ def genetic_algorithm(y, n_steps,
             p1, p2 = selected[i], selected[i+1]
             
             #crossover and mutate
-            for c in crossover(p1, p2, r_cross, force_locs):
-                c = mutation(c, bounds, length, r_mut, force_locs)
+            for c in crossover(p1, p2, r_cross, y):
+                c = mutation(c, y, length, r_mut, force_locs)
                 children.append(c)
         
         # for i in range(len(children)):
