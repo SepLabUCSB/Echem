@@ -138,7 +138,8 @@ class StepPicker:
         foundPoints = self.detect_steps()
         for (x,y) in foundPoints:
             self.drawPoints(ax, x, y)
-
+        
+        self.ax.figure.canvas.draw_idle()
 
 
     def _update(self, xdata=None, ydata=None, 
@@ -205,7 +206,6 @@ class StepPicker:
         diff = upper-lower
         xtol = 0.01*diff
         
-        
         deleted = False
         if event.inaxes and fig.canvas.manager.toolbar.mode == "":
             # print(xtol)
@@ -224,8 +224,20 @@ class StepPicker:
                     this_x = self.xdata[i]
                     this_y = self.plot_ydata[i]
                     self.drawPoints(event.inaxes, this_x, this_y)
-
-         
+    
+    
+    def keypress_event_handler(self, event):
+        key = event.key
+        if key in ['left', 'right', 'up', 'down']:
+            shift_axes(self.ax, key)
+        self.ax.figure.canvas.draw_idle()
+    
+    
+    def scroll_event_handler(self, event):
+        key = event.button
+        if key in ['down', 'up']:
+            zoom_axes(self.ax, key)
+        self.ax.figure.canvas.draw_idle() 
 
     
     def drawPoints(self, ax, x, y):
@@ -453,7 +465,8 @@ class StepPicker:
         ylim = self.ax.get_ylim()
         self.line.remove()
         self.line, = self.ax.plot([self.xdata[0]], 
-                                  [self.ydata[0]], color=colors[0]) 
+                                  [self.ydata[0]], 
+                                  color=colors[0]) 
         
         self.line.set_data(self.xdata, self.avg)
         self.ax.set_xlim(xlim)
@@ -530,13 +543,16 @@ class Index:
         
         self.cid = fig.canvas.mpl_connect('button_press_event', 
                                           self.sp[i])
+        self.cid2 = fig.canvas.mpl_connect('key_press_event',
+                                           self.sp[i].keypress_event_handler)
+        self.cid3 = fig.canvas.mpl_connect('scroll_event',
+                                           self.sp[i].scroll_event_handler)
         
         self.slider2[i] = len(self.xs[i]) - 1
         
         plt.show()
     
-    
-    
+        
     
     def next(self, event):
         '''
@@ -544,6 +560,7 @@ class Index:
         '''
         ax.clear()
         fig.canvas.mpl_disconnect(self.cid)
+        fig.canvas.mpl_disconnect(self.cid2)
         self.ind += 1
         i = self.ind % len(files)  
         self.i = i
@@ -585,6 +602,9 @@ class Index:
             self.sp[i]._update()
             
         self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
+        self.cid2 = fig.canvas.mpl_connect('key_press_event',
+                                           self.sp[i].keypress_event_handler)
+        
         plt.show()
         
     
@@ -594,6 +614,7 @@ class Index:
         '''
         ax.clear()
         fig.canvas.mpl_disconnect(self.cid)
+        fig.canvas.mpl_disconnect(self.cid2)
         self.ind -= 1
         i = self.ind % len(files)
         self.i = i
@@ -636,6 +657,9 @@ class Index:
             self.sp[i]._update()
             
         self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
+        self.cid2 = fig.canvas.mpl_connect('key_press_event',
+                                           self.sp[i].keypress_event_handler)
+    
         
         plt.show()        
     
@@ -853,13 +877,79 @@ class Index:
             pass
         
         
+  
 
-# root = tk.Tk()
-# root.withdraw()
-# root.attributes("-topmost", True)
-# files = filedialog.askopenfilenames(title='Select files', 
-#                                     filetypes=(('Text', '*.txt' ), 
-#                                                ('All files', '*')))
+def shift_axes(ax, direction):
+    # Pan axes if arrow keys are pressed
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    xdelta = 0.2*(xlim[1] - xlim[0])
+    ydelta = 0.2*(ylim[1] - ylim[0])
+    if direction == 'right':
+        xlim = [
+            xlim[0] + xdelta,
+            xlim[1] + xdelta,
+            ]
+    if direction == 'left':
+        xlim = [
+            xlim[0] - xdelta,
+            xlim[1] - xdelta,
+            ]
+    if direction == 'up':
+        ylim = [
+            ylim[0] + ydelta,
+            ylim[1] + ydelta,
+            ]
+    if direction == 'down':
+        ylim = [
+            ylim[0] - ydelta,
+            ylim[1] - ydelta,
+            ]
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    return
+
+
+def zoom_axes(ax, direction):
+    # Zoom axes by mouse scroll wheel
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    xdelta = 0.2*(xlim[1] - xlim[0])
+    ydelta = 0.2*(ylim[1] - ylim[0])
+    if direction == 'up':
+        xlim = [
+            xlim[0] + xdelta,
+            xlim[1] - xdelta,
+            ]
+        ylim = [
+            ylim[0] + ydelta,
+            ylim[1] - ydelta,
+            ]
+    if direction == 'down':
+        # zoom out if scroll down
+        xlim = [
+            xlim[0] - xdelta,
+            xlim[1] + xdelta,
+            ]
+        ylim = [
+            ylim[0] - ydelta,
+            ylim[1] + ydelta,
+            ]
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    return
+        
+
+
+
+
+# Unbind left and right arrow keys so we can use them to pan the graph
+try:
+    plt.rcParams['keymap.back'].remove('left')
+    plt.rcParams['keymap.forward'].remove('right')
+except: # Already removed
+    pass
+
 
 os.chdir(folder)
 files = []
@@ -875,22 +965,8 @@ plt.subplots_adjust(bottom=0.3)
 
 callback = Index()
 
-# Save as xlsx
-axexport = plt.axes([0.1, 0.075, 0.15, 0.05])
-bexport = Button(axexport, 'Export')
-bexport.on_clicked(callback.save)
-
-# Previous file
-axprev = plt.axes([0.27, 0.075, 0.1, 0.05])
-bprev = Button(axprev, 'Prev')
-bprev.on_clicked(callback.prev)
-
-# axpick = plt.axes([0.38, 0.075, 0.15, 0.05])
-# bpick = Button(axpick, 'Detect')
-# bpick.on_clicked(callback.redetect)
-
 # Recalculate step sizes
-axcalc = plt.axes([0.54, 0.075, 0.25, 0.05])
+axcalc = plt.axes([0.5, 0.075, 0.25, 0.05])
 bcalc = Button(axcalc, 'Recalculate')
 bcalc.on_clicked(callback.recalc)
 
@@ -899,6 +975,20 @@ axnext = plt.axes([0.8, 0.075, 0.1, 0.05])
 bnext = Button(axnext, 'Next')
 bnext.on_clicked(callback.next)
 
+# Previous file
+axprev = plt.axes([0.35, 0.075, 0.1, 0.05])
+bprev = Button(axprev, 'Prev')
+bprev.on_clicked(callback.prev)
+
+# Save as xlsx
+axexport = plt.axes([0.1, 0.075, 0.2, 0.05])
+bexport = Button(axexport, 'Export')
+bexport.on_clicked(callback.save)
+
+# Plot histogram
+axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.05])
+histbutton = Button(axplotbutton, 'Plot histogram')
+histbutton.on_clicked(callback.hist)
 
 
 
