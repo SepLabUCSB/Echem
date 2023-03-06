@@ -13,7 +13,8 @@ def _nearest(array, value):
 def record_frame(Rec, inst, frame_time, recording_params,
                  start_time, recording_files, frame, 
                  save, process_last=True, ax=None, 
-                 multiplex_fname = None, **kwargs):
+                 multiplex_fname = None, plot_time_plot=True,
+                 **kwargs):
     
     # Determine sample time based on slowest frequency
     freqs = recording_params['freqs']
@@ -38,24 +39,22 @@ def record_frame(Rec, inst, frame_time, recording_params,
     inst.write('TRMD AUTO')
     
     if (process_last and frame != 0):
-        process_frame(Rec, frame - 1, update_time_plot=True, ax=Rec.ft[frame-1].ax)
+        process_frame(Rec, frame - 1, plot_time_plot=plot_time_plot, 
+                      ax=Rec.ft[frame-1].ax)
         if save:
             save_frame(Rec, frame-1, Rec.ft[frame-1], recording_files, 
                        multiplex_fname = Rec.ft[frame-1].name)
+            
     
     Rec.log(f'Done processing frame {frame-1}')
-    
-    tfactor = 1.2
-
-    if frame_time < 0.25:
-        tfactor=1.3
-    
-    while time.time() - frame_start_time < frame_time*tfactor:
-        Rec.root.after(1)
+        
+    while time.time() - frame_start_time < 10*frame_time:
+        inr = int(inst.query('INR?').strip('\n').split(' ')[1])
+        if inr==1: break
     
     inst.write('TRMD STOP')
 
-    Rec.log('Stopped scope')    
+    Rec.log(f'Stopped scope frame time= {(time.time()-frame_start_time):0.3f}')    
         
     volts1, volts2 = read_data(inst, recording_params)
     
@@ -187,7 +186,7 @@ def correct_Z(Rec, df):
 
 
 
-def process_frame(Rec, frame, update_time_plot, ax=None):
+def process_frame(Rec, frame, plot_time_plot, ax=None):
     
     params = None
     
@@ -258,7 +257,7 @@ def process_frame(Rec, frame, update_time_plot, ax=None):
         Rec.fig.canvas.draw()
         Rec.fig.canvas.flush_events()
     
-    if update_time_plot:
+    if plot_time_plot:
         Rec.update_time_plot(d.time, d.freqs, d.Z, d.phase, params,
                              ax=ax)
 

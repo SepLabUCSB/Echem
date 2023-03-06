@@ -509,10 +509,11 @@ class Recorder:
         R = self.ref_corr_val.get('1.0', 'end')
         R = R[:-1]
         
-        # Waveform
-        waveform = self.waveform.get().strip('.csv')
+        # Waveform name
+        waveform = self.waveform.get()
+        if waveform.endswith('.csv'):
+            waveform = waveform[:-4]
         waveform = waveform.replace('_opt', '')
-               
         
         # Current range
         i_range = self.current_range.get('1.0', 'end').strip('\n')
@@ -777,7 +778,7 @@ class Recorder:
         
 
 
-    def record_signals(self, save=False, silent=True, plot_time_plot=True,
+    def record_signals(self, save=False, silent=True, plot_time_plot=False,
                        axes = None, new_time_plot=True, n_plots=1, **kwargs):
         '''
         Record impedance for one, non-multiplexed electrode for the set
@@ -802,12 +803,12 @@ class Recorder:
         
         # Get waveform correction factors
         if self.ref_corr_var.get():
-            try:
-                Z_corr, phase_corr = self.get_correction_values()
-            except:
-                # get_correction_values() returns 0 if 
-                # invalid reference file
+            Z_corr, phase_corr = self.get_correction_values()
+            
+            if type(Z_corr) == int:
+                # Invalid reference file
                 return
+            
                 
         # Connect to scope
         inst = self.rm.open_resource(self.scope.get())
@@ -868,7 +869,8 @@ class Recorder:
         while time.time() - start_time < t:
             self.ft[frame] = record_frame(self, inst, frametime, recording_params,
                                           time.time() - start_time, recording_files,
-                                          frame, save=save)   
+                                          frame, save=save, 
+                                          plot_time_plot=plot_time_plot)   
             if not silent:
                 print(f'Frame {frame}: {self.ft[frame].time:.2f} s')                
             frame += 1
@@ -881,7 +883,7 @@ class Recorder:
         
         # Process the final frame
         t, freqs, Z, phase, fits = process_frame(self, frame-1, 
-                                                 update_time_plot=True)
+                                                 plot_time_plot=plot_time_plot)
                  
         if save:
             # Save last frame
@@ -1076,10 +1078,12 @@ class Recorder:
         # Determine reference file path/ name
         ref_dir = os.path.join(this_dir, 'reference waveforms\\')
         
-        waveform = self.waveform.get().strip('.csv')
+        waveform = self.waveform.get()
+        if waveform.endswith('.csv'):
+            waveform = waveform[:-4]
         waveform = waveform.replace('_opt', '')
-        i_range = self.current_range.get('1.0', 'end').strip('\n')
         
+        i_range = self.current_range.get('1.0', 'end').strip('\n')
         i_range = float(i_range)
         i_range = f'{i_range:.0E}'
         
@@ -1134,7 +1138,7 @@ class Recorder:
         if type(num) == str:
             fname = save_path + f'\\{num}.txt'
         else:
-            fname = save_path + f'\\{num:04}s.txt'
+            fname = save_path + f'\\{num:06}s.txt'
             
     
         d.to_csv(fname, columns = ['f', 're', 'im'],
@@ -1231,11 +1235,15 @@ def createFolder(directory):
         print ('Error: Creating directory. ' +  directory)
 
 
-root = tk.Tk()
-gui = Recorder(root)
-root.mainloop()
+if __name__ == '__main__':
 
-sys.stdout = default_stdout
-sys.stdin = default_stdin
-sys.stderr = default_stderr
+    root = tk.Tk()
+    gui = Recorder(root)
+    root.mainloop()
+    
+    gui.rm.close()
+    
+    sys.stdout = default_stdout
+    sys.stdin = default_stdin
+    sys.stderr = default_stderr
 
