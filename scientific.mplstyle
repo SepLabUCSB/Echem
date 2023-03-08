@@ -39,6 +39,7 @@ ytick.minor.width: 2
 
 # Line properties
 lines.linewidth: 2.5
+lines.solid_capstyle: round
 
 # Legend properties
 legend.framealpha: 1

@@ -13,7 +13,8 @@ plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 # folder = r'C:\Users\Eric Liu\Desktop\LiorLab\InsulatingProject\cubese12'
-folder = r'C:\Users\BRoehrich\Desktop\data'
+# folder = r'C:\Users\BRoehrich\Desktop\data'
+folder = r'C:\Users\BRoehrich\Desktop\Julia_data'
 
 """
 **Type %matplotlib in console before running file**
@@ -40,17 +41,22 @@ the get_data function to change this.
 # PARAMETERS TO ADJUST
 POTENTIOSTAT = 'Biologic'
 # POTENTIOSTAT = 'HEKA'
-filtered   = False   # Apply Savinsky-Golay filter to current
-filter_win = 101    # S-G filter window (int)
-filter_ord = 1      # S-G filter order (int)
 
-threshold  = 0.001  # Autopick steps with relative size > threshold
-cutoff     = 20     # Remove first n seconds
-fit_type   = 'savgol'
-linear_fit = True   # Do linear fit between points. If False, uses median
-                    #    value between points instead. True accounts for 
-                    #    non-zero baseline. Either way, the values are the 
-                    #    raw, non-filtered data!
+threshold  = 1     # Autopick steps with 1st derivative n stdevs above average
+cutoff     = 10    # Remove first n seconds
+
+
+
+
+filtered   = False    # Apply Savinsky-Golay filter to plotted current (raw data unfiltered)
+filter_win = 101      # S-G filter window (int)
+filter_ord = 1        # S-G filter order (int)
+
+fit_type   = 'savgol' # Fit to do between steps
+linear_fit = True     # Do linear fit between points. If False, uses median
+                      #    value between points instead. True accounts for 
+                      #    non-zero baseline. Either way, the values are the 
+                      #    raw, non-filtered data!
 
 
 
@@ -60,6 +66,9 @@ linear_fit = True   # Do linear fit between points. If False, uses median
 
 
 def get_data(file, potentiostat):
+    if file.endswith('.asc'): 
+        potentiostat = 'HEKA'
+        
     if potentiostat == 'Biologic':
         df = pd.read_fwf(file, skiprows=1, headers=0,
                               names=('t', 'i'))
@@ -100,8 +109,14 @@ def get_data(file, potentiostat):
         df = df.drop(['time2', 'index', 'v'], axis=1)
         df = df[df['t'] > cutoff]
         
+        if df.empty:
+            df = get_data(file, 'Biologic')
+        
         return df
 
+
+def isEven(x):
+    return not bool(x%2)
 
 
 class StepPicker:
@@ -120,7 +135,10 @@ class StepPicker:
         self.steps = []
         self.steptimes = []
         
-        self.min_spacing = 10
+        self.frequency = 1/np.mean(np.diff(xdata))
+        
+        self.min_spacing = max(5, int(0.2 * self.frequency)) # at least 5 points, or 0.2 s
+        # print(f'freq: {self.frequency:0.2f}, spacing: {self.min_spacing}')
         
         if ax is None:
             self.ax = plt.gca()
@@ -235,8 +253,9 @@ class StepPicker:
     
     def scroll_event_handler(self, event):
         key = event.button
+        x, y = event.xdata, event.ydata
         if key in ['down', 'up']:
-            zoom_axes(self.ax, key)
+            zoom_axes(self.ax, key, (x,y))
         self.ax.figure.canvas.draw_idle() 
 
     
@@ -294,13 +313,15 @@ class StepPicker:
         pick steps based on spikes in 1st derivative
         '''
         
-        data = self.ydata
-        dy = savgol_filter(self.ydata, 31, 1, deriv=1, mode='nearest')
+        window = 3*self.min_spacing
+        if isEven(window):
+            window -= 1
+        dy = savgol_filter(self.ydata, window, 1, deriv=1, mode='nearest')
         self.dy = dy
         dy = abs(dy)
         
         avg = np.average(dy)
-        std = 3*np.std(dy)
+        std = thresh*np.std(dy)
         
         
         # fig, ax = plt.subplots(figsize=(5,5), dpi=100)
@@ -366,6 +387,7 @@ class StepPicker:
         
         # delta = self.dy
         
+        
         for (x,y) in sorted(list(self.criticalPoints), key=lambda x:x[0]):
             
             # find largest local step, search +- m points
@@ -399,14 +421,11 @@ class StepPicker:
             next_index = indices[i+1]
             
             pad = (next_index - index)//10
+            if pad*self.frequency > 0.5:
+                pad = int(0.5/self.frequency)
             if pad < 2: pad = 2
-            if pad > 50: pad = 50
-            
-            def isEven(x):
-                return not bool(x%2)
             
             this_ydata = self.ydata[index+pad: next_index-pad]
-            
             window = len(this_ydata)//5 
             if window == 1:
                 window = 3
@@ -414,26 +433,34 @@ class StepPicker:
                 window += 1
             if window > 100:
                 window = 99
-            filtered = savgol_filter(this_ydata, window,
+            
+            if window == 1:
+                filtered = this_ydata
+            else:
+                filtered = savgol_filter(this_ydata, window,
                                      polyorder=1)
             
             # Calculate noise as data - filtered data
             this_noise = np.sqrt(
-                np.mean(
-                (this_ydata-filtered)**2)
+                np.mean( (this_ydata-filtered)**2 )
                 )
             noises.append(this_noise)
-            
-            filtered = np.pad(filtered, pad, 'edge')
+            filtered = np.pad(filtered, pad, mode='constant',
+                              constant_values=(this_ydata[0],
+                                               this_ydata[-1]))
             self.avg[index:next_index] = filtered
                         
             # if linear_fit:
-                # Fit line in between steps to account for sloped baseline
-                # m, b = np.polyfit(np.arange(index+2,next_index-2), 
-                #                       self.ydata[index+2:next_index-2], 1)
+            #     # Fit line in between steps to account for sloped baseline
+            #     m, b = np.polyfit(np.arange(index+pad,next_index-pad), 
+            #                           this_ydata, 1)
             
-                # for i in range(index, next_index):
-                #     self.avg[i] = m*i + b
+            #     for i in range(index, next_index):
+            #         self.avg[i] = m*i + b
+                
+            #     this_noise = np.sqrt(np.mean((this_ydata - self.avg[index+pad:next_index-pad])**2))
+            #     noises.append(this_noise)
+                    
             
             # else:
             #     medianvalue = np.median(this_ydata)
@@ -447,7 +474,7 @@ class StepPicker:
                 
             if index != 0:
                 self.avg[index] = self.avg[index-1]
-                
+             
         # Draw result on graph and save step sizes 
         self.draw_average()
         self.get_steps()
@@ -910,31 +937,46 @@ def shift_axes(ax, direction):
     return
 
 
-def zoom_axes(ax, direction):
+def zoom_axes(ax, direction, center):
     # Zoom axes by mouse scroll wheel
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
+    
+    # Shift (almost) to new center
+    x, y = center
+    shift_x = x - (xlim[0] + xlim[1])/2 
+    shift_y = y - (ylim[0] + ylim[1])/2 
+    
+    if direction == 'down':
+        shift_x = -shift_x
+        shift_y = -shift_y
+    
+    xlim = [
+        xlim[0] + 0.7*shift_x,
+        xlim[1] + 0.7*shift_x,
+        ]  
+    ylim = [
+        ylim[0] + 0.7*shift_y,
+        ylim[1] + 0.7*shift_y,
+        ]
+        
+    # Zoom in or out
     xdelta = 0.2*(xlim[1] - xlim[0])
     ydelta = 0.2*(ylim[1] - ylim[0])
-    if direction == 'up':
-        xlim = [
-            xlim[0] + xdelta,
-            xlim[1] - xdelta,
-            ]
-        ylim = [
-            ylim[0] + ydelta,
-            ylim[1] - ydelta,
-            ]
+    
     if direction == 'down':
-        # zoom out if scroll down
-        xlim = [
-            xlim[0] - xdelta,
-            xlim[1] + xdelta,
-            ]
-        ylim = [
-            ylim[0] - ydelta,
-            ylim[1] + ydelta,
-            ]
+        xdelta = - xdelta
+        ydelta = - ydelta
+    
+    xlim = [
+        xlim[0] + xdelta,
+        xlim[1] - xdelta,
+        ]
+    ylim = [
+        ylim[0] + ydelta,
+        ylim[1] - ydelta,
+        ]
+        
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     return
@@ -984,14 +1026,6 @@ bprev.on_clicked(callback.prev)
 axexport = plt.axes([0.1, 0.075, 0.2, 0.05])
 bexport = Button(axexport, 'Export')
 bexport.on_clicked(callback.save)
-
-# Plot histogram
-axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.05])
-histbutton = Button(axplotbutton, 'Plot histogram')
-histbutton.on_clicked(callback.hist)
-
-
-
 
 # Plot histogram
 axplotbutton = plt.axes([0.1, 0.005, 0.3, 0.05])
