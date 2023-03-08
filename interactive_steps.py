@@ -8,41 +8,52 @@ from matplotlib.widgets import Slider
 from matplotlib.widgets import CheckButtons
 from matplotlib.widgets import TextBox
 import os
-# matplotlib.use('qt5agg')
 plt.ion() # Interactive mode
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+"""
+**Type %matplotlib in console before running file**
+
+Python script for interactive analysis of single entity echem step data. 
+Analyzes all files in specified folder.The program will automatically try to 
+find steps (with >2% relative change). Click to select or deselect step 
+points.Click "Export" when finished to save a list of all step sizes to 
+a folder of your choice.
+
+
+Adjust threshold and cutoff to make automatic picking work better. The better
+your S/N the lower the threshold can be.
+
+
+Zoom with mouse wheel, scroll with arrow keys. Click to select/ deselect 
+a step point. Click "Recalculate" to redo average line and step size calculations.
+Next and previous cycle through data files in your folder. 
+
+
+When exporting data, make sure to adjust the number in the bottom right corner.
+It is configured to only export the first n steps, in case you only want
+to analyze the subset of the data where particles aren't stacking up on 
+the electrode.
+
+
+NOTE: the script assumes current data is given in mA. Edit 
+the get_data function to change this.
+"""
+
+
+##### Put all your data in a folder and put the path here #####
 
 # folder = r'C:\Users\Eric Liu\Desktop\LiorLab\InsulatingProject\cubese12'
 # folder = r'C:\Users\BRoehrich\Desktop\data'
 folder = r'C:\Users\BRoehrich\Desktop\Julia_data'
 
-"""
-**Type %matplotlib in console before running file**
-
-Python script for interactive analysis of single entity echem step data.
-
-Analyzes all files in specified folder.
-
-The program will automatically try to find steps (with >2% 
-
-relative change). Click to select or deselect step points.
-
-Click "Export" when finished to save a list of all step sizes
-
-to a folder of your choice.
-
-NOTE: the script assumes current data is given in mA. Edit
-
-the get_data function to change this.
-
-"""
 
 
 # PARAMETERS TO ADJUST
 POTENTIOSTAT = 'Biologic'
 # POTENTIOSTAT = 'HEKA'
 
-threshold  = 1     # Autopick steps with 1st derivative n stdevs above average
+threshold  = 3     # Autopick steps with 1st derivative n stdevs above average
 cutoff     = 10    # Remove first n seconds
 
 
@@ -53,7 +64,7 @@ filter_win = 101      # S-G filter window (int)
 filter_ord = 1        # S-G filter order (int)
 
 fit_type   = 'savgol' # Fit to do between steps
-linear_fit = True     # Do linear fit between points. If False, uses median
+linear_fit = False    # Do linear fit between points. If False, uses median
                       #    value between points instead. True accounts for 
                       #    non-zero baseline. Either way, the values are the 
                       #    raw, non-filtered data!
