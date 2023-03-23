@@ -44,8 +44,8 @@ the get_data function to change this.
 ##### Put all your data in a folder and put the path here #####
 
 # folder = r'C:\Users\Eric Liu\Desktop\LiorLab\InsulatingProject\cubese12'
-# folder = r'C:\Users\BRoehrich\Desktop\data'
-folder = r'C:\Users\BRoehrich\Desktop\Julia_data'
+folder = r'C:\Users\BRoehrich\Desktop\data'
+# folder = r'C:\Users\BRoehrich\Desktop\Julia_data'
 
 
 
@@ -63,11 +63,11 @@ filtered   = False    # Apply Savinsky-Golay filter to plotted current (raw data
 filter_win = 101      # S-G filter window (int)
 filter_ord = 1        # S-G filter order (int)
 
-fit_type   = 'savgol' # Fit to do between steps
-linear_fit = False    # Do linear fit between points. If False, uses median
-                      #    value between points instead. True accounts for 
-                      #    non-zero baseline. Either way, the values are the 
-                      #    raw, non-filtered data!
+# fit_type   = 'savgol' # Fit to do between steps
+# linear_fit = False    # Do linear fit between points. If False, uses median
+#                       #    value between points instead. True accounts for 
+#                       #    non-zero baseline. Either way, the values are the 
+#                       #    raw, non-filtered data!
 
 
 
@@ -77,6 +77,19 @@ linear_fit = False    # Do linear fit between points. If False, uses median
 
 
 def get_data(file, potentiostat):
+    '''
+    Function to read chronoamperometry data from a file
+
+    Parameters
+    ----------
+    file : string, file path
+    potentiostat : string. 'HEKA' or 'Biologic'. Determines how to parse file
+
+    Returns
+    -------
+    pd.DataFrame, columns: 't': time in s
+                           'i': current in A
+    '''
     if file.endswith('.asc'): 
         potentiostat = 'HEKA'
         
@@ -114,6 +127,11 @@ def get_data(file, potentiostat):
         s.seek(0) #return to top of StringIO
         
         
+        # Main reason to use StringIO: when parsing through the file,
+        # we stored only lines that contain only floats. So, we can
+        # use the C engine from pandas and tell it dtype=float,
+        # and it creates the dataframe much faster than if it has to 
+        # parse through and determine the datatypes itself.
         df = pd.read_csv(s, names=(
             "index", "t", "i", "time2", "v"), 
             engine='c', dtype=float)
@@ -126,15 +144,29 @@ def get_data(file, potentiostat):
         return df
 
 
+
 def isEven(x):
     return not bool(x%2)
 
+
+
+def find_nearest(array,value):
+    idx = np.searchsorted(array, value, side="left")
+    if idx > 0 and (idx == len(array) or abs(value - array[idx-1]) < abs(value - array[idx])):
+        return array[idx-1]
+    else:
+        return array[idx]
+ 
+    
 
 class StepPicker:
     
     global threshold, linear_fit, filtered, filter_win, filter_ord
     
-    """Based on
+    """
+    Class for automatically and interactively picking steps in time domain data    
+    
+    Interactive parts based on
     https://scipy-cookbook.readthedocs.io/items/Matplotlib_Interactive_Plotting.html
     """
 
@@ -143,27 +175,29 @@ class StepPicker:
         self.ydata = np.array(ydata)            # Raw current data
         self.plot_ydata = np.array(plot_ydata)  # (possibly) filtered current
         self.criticalPoints = dict()            # Step points (x,y):1
-        self.steps = []
-        self.steptimes = []
+        self.steps = []                         # List of steps
+        self.steptimes = []                     # List of step times
         
-        self.frequency = 1/np.mean(np.diff(xdata))
+        self.frequency = 1/np.mean(np.diff(xdata)) # calculated sample frequency
         
-        self.min_spacing = max(5, int(0.2 * self.frequency)) # at least 5 points, or 0.2 s
-        # print(f'freq: {self.frequency:0.2f}, spacing: {self.min_spacing}')
+        # at least 5 points, or 0.2 s in between automatically picked steps
+        self.min_spacing = max(5, int(0.2 * self.frequency)) 
+        
         
         if ax is None:
             self.ax = plt.gca()
         else:
-            self.ax = ax
+            self.ax = ax # axes to plot to
         
-        # self.line = average (stairstep) line
-        # self.drawnpoints = step location markers
+        # self.line        --> average (stairstep) line
+        # self.drawnpoints --> step location markers
         self.line, = self.ax.plot([self.xdata[0]], [self.ydata[0]], '.-') 
         self.drawnpoints = self.ax.add_line(
             matplotlib.lines.Line2D([],[],linewidth=0, 
                                     marker='d', c='r', zorder=100))
         
-          
+        
+        # Do automatic step detection
         foundPoints = self.detect_steps()
         for (x,y) in foundPoints:
             self.drawPoints(ax, x, y)
@@ -174,9 +208,11 @@ class StepPicker:
     def _update(self, xdata=None, ydata=None, 
                 pts=None, ax=None, avg=None):
         '''
+        Called by Index class when reloading a data file that already 
+        has had step processing.
+        
         Call to redraw avg line and critical point
         markers. Can pass new x,y data, add critical points, etc.
-
         '''
         if xdata is not None:
             self.xdata = xdata
@@ -237,9 +273,10 @@ class StepPicker:
         
         deleted = False
         if event.inaxes and fig.canvas.manager.toolbar.mode == "":
-            # print(xtol)
             clickX = event.xdata
+            
             if (self.ax is None) or (self.ax is event.inaxes):
+                
                 # Prioritizing removing marked point
                 for (x,y) in list(self.criticalPoints):
                     if (clickX-xtol < x < clickX+xtol):
@@ -247,6 +284,7 @@ class StepPicker:
                         deleted = True
                     else:
                         continue
+                    
                 # Otherwise, add a new point
                 if not deleted:
                     i = np.abs(self.xdata-clickX).argmin()
@@ -256,6 +294,7 @@ class StepPicker:
     
     
     def keypress_event_handler(self, event):
+        # Pressing arrow keys pans around graph
         key = event.key
         if key in ['left', 'right', 'up', 'down']:
             shift_axes(self.ax, key)
@@ -263,6 +302,7 @@ class StepPicker:
     
     
     def scroll_event_handler(self, event):
+        # Scrolling mousewheel zooms in/out
         key = event.button
         x, y = event.xdata, event.ydata
         if key in ['down', 'up']:
@@ -272,7 +312,7 @@ class StepPicker:
     
     def drawPoints(self, ax, x, y):
         """
-        Draw or remove the point on the plot and from self.criticalPoints
+        Draw/remove the point on the plot and from self.criticalPoints
         """
         if (x, y) in self.criticalPoints:
             self.criticalPoints.pop((x,y), None)
@@ -282,15 +322,14 @@ class StepPicker:
             for (x,y) in self.criticalPoints:
                 xlist.append(x)
                 ylist.append(y)
-                
+            
+            # Redraw without that point
             self.drawnpoints.set_data(xlist, ylist)
             self.ax.figure.canvas.draw_idle()
-            # print(len(self.criticalPoints))
 
             
         else:
             # Draw new point, add to criticalPoints dict
-
             self.criticalPoints[(x, y)] = 1
             xlist = []
             ylist = []
@@ -299,9 +338,7 @@ class StepPicker:
                 ylist.append(y)
             
             self.drawnpoints.set_data(xlist, ylist)
-                
             self.ax.figure.canvas.draw_idle()
-            # print(len(self.criticalPoints))
     
     
     def remove_hanging_points(self, xmin, xmax):
@@ -343,7 +380,7 @@ class StepPicker:
         
         # idxs = np.where(abs(dy) > avg + std)
         
-        idxs = []
+        idxs = [] # list of indices corresponding to steps
         in_spike = False
         _out_counter = 0
         
@@ -394,10 +431,7 @@ class StepPicker:
         
         # Refine step locations
         for i in range(len(self.xdata)-1):
-            delta[i] = abs((self.plot_ydata[i+1]-self.plot_ydata[i])/self.plot_ydata[i])
-        
-        # delta = self.dy
-        
+            delta[i] = abs((self.ydata[i+1]-self.ydata[i])/self.ydata[i])
         
         for (x,y) in sorted(list(self.criticalPoints), key=lambda x:x[0]):
             
@@ -408,9 +442,10 @@ class StepPicker:
                 
             n = np.where(delta == max(delta[xi-m:xi+m]))[0][0]
             if not n == xi:
-                # Remove old point
+                # Remove old point (x,y)
                 # print(f'Removing {x:0.3f}. Found better point {self.xdata[n]:0.3f}')
                 self.drawPoints(self.ax, x, y)
+                
                 # Add new point (xdata[n], ydata[n])
                 if (self.xdata[n], self.plot_ydata[n]) not in self.criticalPoints:
                     self.drawPoints(self.ax, self.xdata[n], 
@@ -427,6 +462,7 @@ class StepPicker:
         indices.sort()
         noises = []
         
+        # Do smoothing between each step index
         for i in range(len(indices)-1):
             index = indices[i]
             next_index = indices[i+1]
@@ -437,6 +473,8 @@ class StepPicker:
             if pad < 2: pad = 2
             
             this_ydata = self.ydata[index+pad: next_index-pad]
+            
+            # Determine size of window for Savitzky-Golay filter
             window = len(this_ydata)//5 
             if window == 1:
                 window = 3
@@ -445,44 +483,23 @@ class StepPicker:
             if window > 100:
                 window = 99
             
-            if window == 1:
+            if window == 1: # from window = 0 -> isEven() -> window += 1
                 filtered = this_ydata
             else:
                 filtered = savgol_filter(this_ydata, window,
                                      polyorder=1)
             
             # Calculate noise as data - filtered data
-            this_noise = np.sqrt(
-                np.mean( (this_ydata-filtered)**2 )
-                )
-            noises.append(this_noise)
+            if window >= len(this_ydata)//5:
+                this_noise = np.sqrt(
+                    np.mean( (this_ydata-filtered)**2 )
+                    )
+                noises.append(this_noise)
             filtered = np.pad(filtered, pad, mode='constant',
                               constant_values=(this_ydata[0],
                                                this_ydata[-1]))
             self.avg[index:next_index] = filtered
-                        
-            # if linear_fit:
-            #     # Fit line in between steps to account for sloped baseline
-            #     m, b = np.polyfit(np.arange(index+pad,next_index-pad), 
-            #                           this_ydata, 1)
-            
-            #     for i in range(index, next_index):
-            #         self.avg[i] = m*i + b
-                
-            #     this_noise = np.sqrt(np.mean((this_ydata - self.avg[index+pad:next_index-pad])**2))
-            #     noises.append(this_noise)
-                    
-            
-            # else:
-            #     medianvalue = np.median(this_ydata)
-            #     for i in range(index, next_index):
-            #         self.avg[i] = medianvalue
-                
-            
-            
-        
-            
-                
+                            
             if index != 0:
                 self.avg[index] = self.avg[index-1]
              
@@ -535,7 +552,7 @@ class StepPicker:
 
 class Index:
     '''
-    Class for cycling through multiple graphs
+    GUI class for cycling through multiple graphs
     '''
     
     global folder, files, checkbox, pointsbox, POTENTIOSTAT, filtered, filter_ord, filter_win
@@ -562,7 +579,7 @@ class Index:
         df = get_data(files[i], POTENTIOSTAT)
         
         # Initialize plot
-        name = files[i].split('/')[-1][:-4]
+        name = files[i].split('\\')[-1][:-4]
         ax.set_title('%s: %s'%((i+1), name), pad=15)
         
         self.xs[i] = df['t'].to_numpy()
@@ -579,30 +596,20 @@ class Index:
         self.sp[i] = StepPicker(self.xs[i], self.ys[i], 
                                 self.plot_ys[i], ax=ax)
         
-        self.cid = fig.canvas.mpl_connect('button_press_event', 
-                                          self.sp[i])
-        self.cid2 = fig.canvas.mpl_connect('key_press_event',
-                                           self.sp[i].keypress_event_handler)
-        self.cid3 = fig.canvas.mpl_connect('scroll_event',
-                                           self.sp[i].scroll_event_handler)
+        self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
+        self.cid2 = fig.canvas.mpl_connect('key_press_event', self.sp[i].keypress_event_handler)
+        self.cid3 = fig.canvas.mpl_connect('scroll_event', self.sp[i].scroll_event_handler)
         
         self.slider2[i] = len(self.xs[i]) - 1
         
         plt.show()
     
-        
     
-    def next(self, event):
+    def load_file(self):
         '''
-        Load next file
+        Load file indexed at self.i
         '''
-        ax.clear()
-        fig.canvas.mpl_disconnect(self.cid)
-        fig.canvas.mpl_disconnect(self.cid2)
-        self.ind += 1
-        i = self.ind % len(files)  
-        self.i = i
-        
+        i = self.i
         name = files[i].split('/')[-1][:-4]
         ax.set_title('%s: %s'%((i+1), name), pad=15)
         
@@ -628,7 +635,6 @@ class Index:
             
         else:
             # Reinitialize
-            
             ind  = self.slider[i]
             ind2 = self.slider2[i]
             slider.set_val(self.xs[i][ind])
@@ -636,14 +642,30 @@ class Index:
             
             self.line, = ax.plot(self.xs[i][ind:ind2], 
                                  self.plot_ys[i][ind:ind2], 'k-')
-            
             self.sp[i]._update()
             
-        self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
-        self.cid2 = fig.canvas.mpl_connect('key_press_event',
-                                           self.sp[i].keypress_event_handler)
+        self.cid  = fig.canvas.mpl_connect('button_press_event', self.sp[i])
+        self.cid2 = fig.canvas.mpl_connect('key_press_event', self.sp[i].keypress_event_handler)
+        self.cid3 = fig.canvas.mpl_connect('scroll_event', self.sp[i].scroll_event_handler)
+
+        plt.show()    
         
-        plt.show()
+    
+    
+    
+    def next(self, event):
+        '''
+        Load next file
+        '''
+        ax.clear()
+        fig.canvas.mpl_disconnect(self.cid)
+        fig.canvas.mpl_disconnect(self.cid2)
+        fig.canvas.mpl_disconnect(self.cid3)
+        self.ind += 1
+        i = self.ind % len(files)  
+        self.i = i
+        
+        self.load_file()
         
     
     def prev(self, event):
@@ -653,59 +675,19 @@ class Index:
         ax.clear()
         fig.canvas.mpl_disconnect(self.cid)
         fig.canvas.mpl_disconnect(self.cid2)
+        fig.canvas.mpl_disconnect(self.cid3)
         self.ind -= 1
         i = self.ind % len(files)
         self.i = i
         
-        name = files[i].split('/')[-1][:-4]
-        ax.set_title('%s: %s'%((i+1), name), pad=15)
+        self.load_file()
         
-        if i not in self.sp:
-            # Create new
-            df = get_data(files[i], POTENTIOSTAT)
-            
-            self.xs[i] = df['t'].to_numpy()
-            self.ys[i] = df['i'].to_numpy()
-        
-            if filtered:
-                from scipy.signal import savgol_filter
-                self.plot_ys[i] = savgol_filter(self.ys[i], 
-                                           filter_win, filter_ord)
-            else:
-                self.plot_ys[i] = self.ys[i]
-            
-            slider.set_val(self.xs[i][0])
-            slider2.set_val(self.xs[i][-1])
-            self.line, = ax.plot(self.xs[i], self.plot_ys[i], 'k-')
- 
-            self.sp[i] = StepPicker(self.xs[i], self.ys[i], 
-                                    self.plot_ys[i], ax=ax)
-            
-        else:
-            # Reinitialize
-            
-            ind  = self.slider[i]
-            ind2 = self.slider2[i]
-            slider.set_val(self.xs[i][ind])
-            slider2.set_val(self.xs[i][ind2])
-            
-            self.line, = ax.plot(self.xs[i][ind:ind2], 
-                                 self.plot_ys[i][ind:ind2], 'k-')
-            
-            self.sp[i]._update()
-            
-        self.cid = fig.canvas.mpl_connect('button_press_event', self.sp[i])
-        self.cid2 = fig.canvas.mpl_connect('key_press_event',
-                                           self.sp[i].keypress_event_handler)
-    
-        
-        plt.show()        
+
     
         
     def recalc(self, event):
         '''
         Call calculate_steps on current graph instance
-        
         Accounts for slider removing first data points
         '''
         # i = self.ind % len(files)
@@ -864,13 +846,6 @@ class Index:
         
         i = self.i
         
-        def find_nearest(array,value):
-            idx = np.searchsorted(array, value, side="left")
-            if idx > 0 and (idx == len(array) or abs(value - array[idx-1]) < abs(value - array[idx])):
-                return array[idx-1]
-            else:
-                return array[idx]
-        
         try:
             ind = np.where(self.xs[i] == find_nearest(self.xs[i], val))[0][0]
             self.slider[i]  = ind
@@ -892,13 +867,6 @@ class Index:
         '''        
         
         i = self.i
-        
-        def find_nearest(array,value):
-            idx = np.searchsorted(array, value, side="left")
-            if idx > 0 and (idx == len(array) or abs(value - array[idx-1]) < abs(value - array[idx])):
-                return array[idx-1]
-            else:
-                return array[idx]
         
         try:
             ind2 = np.where(self.xs[i] == find_nearest(self.xs[i], val))[0][0]
@@ -976,8 +944,8 @@ def zoom_axes(ax, direction, center):
     ydelta = 0.2*(ylim[1] - ylim[0])
     
     if direction == 'down':
-        xdelta = - xdelta
-        ydelta = - ydelta
+        xdelta = -xdelta
+        ydelta = -ydelta
     
     xlim = [
         xlim[0] + xdelta,
@@ -1004,19 +972,23 @@ except: # Already removed
     pass
 
 
+# Get list of data files
 os.chdir(folder)
 files = []
 for file in os.listdir(folder):
-    if (file.endswith('.txt')
-        or file.endswith('.asc')):
+    if (file.endswith('.txt') or file.endswith('.asc')):
         files.append(os.path.join(folder,file))
 
 
+# Initialize plot and GUI
 fig, ax = plt.subplots(figsize=(5,6), dpi=100)
 plt.subplots_adjust(bottom=0.3)
 
 
+
+### Make all the buttons ###
 callback = Index()
+
 
 # Recalculate step sizes
 axcalc = plt.axes([0.5, 0.075, 0.25, 0.05])
