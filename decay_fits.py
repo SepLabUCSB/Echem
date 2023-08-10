@@ -207,6 +207,23 @@ class InteractivePicker:
                         
                     else:
                         continue
+    
+    
+    def keypress_event_handler(self, event):
+        # Pressing arrow keys pans around graph
+        key = event.key
+        if key in ['left', 'right', 'up', 'down']:
+            shift_axes(self.ax, key)
+        self.ax.figure.canvas.draw_idle()
+    
+    
+    def scroll_event_handler(self, event):
+        # Scrolling mousewheel zooms in/out
+        key = event.button
+        x, y = event.xdata, event.ydata
+        if key in ['down', 'up']:
+            zoom_axes(self.ax, key, (x,y))
+        self.ax.figure.canvas.draw_idle() 
                 
                     
     def _reset(self, event):
@@ -704,11 +721,19 @@ class Index:
                                            delay, start_after, self.params,
                                            self.exp_func, thresh)
         
-        self.cid = self.fig.canvas.mpl_connect('button_press_event', 
-                                    self.Picker[self.ind])
+        self.load_cids(self.Picker[self.ind])
         
         plt.show()
-        
+    
+    
+    def load_cids(self, Picker):
+        if hasattr(self, 'cid'):
+            for cid in [self.cid, self.cid2, self.cid3]:
+                self.fig.canvas.mpl_disconnect(cid)
+        self.cid  = self.fig.canvas.mpl_connect('button_press_event', Picker)
+        self.cid2 = self.fig.canvas.mpl_connect('key_press_event', Picker.keypress_event_handler)
+        self.cid3 = self.fig.canvas.mpl_connect('scroll_event', Picker.scroll_event_handler)
+      
         
     def _next(self, event):
         
@@ -722,7 +747,6 @@ class Index:
         self.file = self.files[self.ind]
         
         self.ax.clear()
-        self.fig.canvas.mpl_disconnect(self.cid)
         
         self.Picker[self.ind] = InteractivePicker(self.file, self.fig, self.ax,
                                                   self.params, self.exp_func)
@@ -730,8 +754,7 @@ class Index:
                                            delay, start_after, self.params,
                                            self.exp_func, thresh)
         
-        self.cid = self.fig.canvas.mpl_connect('button_press_event', 
-                                    self.Picker[self.ind])
+        self.load_cids(self.Picker[self.ind])
         
         plt.show()
         
@@ -748,7 +771,6 @@ class Index:
         self.file = self.files[self.ind]
         
         self.ax.clear()
-        self.fig.canvas.mpl_disconnect(self.cid)
         
         self.Picker[self.ind] = InteractivePicker(self.file, self.fig, self.ax,
                                                   self.params, self.exp_func)
@@ -756,8 +778,7 @@ class Index:
                                            delay, start_after, self.params,
                                            self.exp_func, thresh)
         
-        self.cid = self.fig.canvas.mpl_connect('button_press_event', 
-                                    self.Picker[self.ind])
+        self.load_cids(self.Picker[self.ind])
         
         plt.show()
     
@@ -841,7 +862,82 @@ class Index:
         print(f'Saved as {self.folder}/output.xlsx')
         
         return
+
+
+def shift_axes(ax, direction):
+    # Pan axes if arrow keys are pressed
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    xdelta = 0.2*(xlim[1] - xlim[0])
+    ydelta = 0.2*(ylim[1] - ylim[0])
+    if direction == 'right':
+        xlim = [
+            xlim[0] + xdelta,
+            xlim[1] + xdelta,
+            ]
+    if direction == 'left':
+        xlim = [
+            xlim[0] - xdelta,
+            xlim[1] - xdelta,
+            ]
+    if direction == 'up':
+        ylim = [
+            ylim[0] + ydelta,
+            ylim[1] + ydelta,
+            ]
+    if direction == 'down':
+        ylim = [
+            ylim[0] - ydelta,
+            ylim[1] - ydelta,
+            ]
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    return
+
+
+def zoom_axes(ax, direction, center):
+    # Zoom axes by mouse scroll wheel
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    
+    # Shift (almost) to new center
+    x, y = center
+    shift_x = x - (xlim[0] + xlim[1])/2 
+    shift_y = y - (ylim[0] + ylim[1])/2 
+    
+    if direction == 'down':
+        shift_x = -shift_x
+        shift_y = -shift_y
+    
+    xlim = [
+        xlim[0] + 0.7*shift_x,
+        xlim[1] + 0.7*shift_x,
+        ]  
+    ylim = [
+        ylim[0] + 0.7*shift_y,
+        ylim[1] + 0.7*shift_y,
+        ]
         
+    # Zoom in or out
+    xdelta = 0.2*(xlim[1] - xlim[0])
+    ydelta = 0.2*(ylim[1] - ylim[0])
+    
+    if direction == 'down':
+        xdelta = -xdelta
+        ydelta = -ydelta
+    
+    xlim = [
+        xlim[0] + xdelta,
+        xlim[1] - xdelta,
+        ]
+    ylim = [
+        ylim[0] + ydelta,
+        ylim[1] - ydelta,
+        ]
+        
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    return        
     
 
 
