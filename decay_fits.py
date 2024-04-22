@@ -16,7 +16,7 @@ data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
 
 
 
-correct_baselines = False
+correct_baselines = True
 start_after = 100 # cut off first (n) seconds
 min_s_to_fit = 10  # Requires n seconds of data to accept the fit
 delay = 10 # Points after "fast" spike to skip fitting on
@@ -559,26 +559,7 @@ class InteractivePicker:
             fit_y = exp_func(ts, *popt) # Fits
             residuals = abs((data - fit_y)/fit_y)
             chi_sq = np.sum(residuals**2)/len(residuals)
-            
-            
-            ### Calculate integral (excludes initial sharp spike)      
-            # area to draw
-            verts = [(t[this_idx], fit_y[-1]),
-                     *zip(t[this_idx:next_idx], data),
-                     (t[next_idx], fit_y[-1])]
-            poly = Polygon(verts, color= colors[0], alpha = 0.7)
-            ax.add_patch(poly)
-            
-            # actual calculation
-            xs = t[this_idx:next_idx]
-            ys = data - fit_y[-1]
-            integ = np.trapz(ys, xs)
-            
-            
-            # fig, ax2 = plt.subplots(figsize=(5,5), dpi=100)
-            # ax2.plot(ts, data, '.')
-            # ax2.plot(ts, fit_y)
-            
+                        
             
             ### Remove point based on fit criteria ###
             # Remove if a > 0 (reductive spikes should have a < 0)
@@ -606,9 +587,24 @@ class InteractivePicker:
                               fit_y + baseline[this_idx:next_idx])
                              )
             
+            ### Calculate integral (excludes initial sharp spike)      
+            # area to draw
+            verts = [(t[this_idx], baseline[this_idx]),
+                      *zip(t[this_idx:next_idx], y[this_idx:next_idx]),
+                      (t[next_idx], baseline[next_idx])]
+            poly = Polygon(verts, color= colors[0], alpha = 0.7)
+            ax.add_patch(poly)
+            
+            # actual calculation
+            xs = t[this_idx:next_idx]
+            ys = data - fit_y[-1]
+            integ = np.trapz(ys, xs)
+            
             # ax.plot(ts+t[this_idx], fit_y + baseline[this_idx:next_idx], 'gold')
             if baseline_correct:
                 ax.plot(t[last_idx:next_idx], baseline[last_idx:next_idx], 'r--')
+            
+            
             
             fits.append(popt)
             integrals.append(integ)
