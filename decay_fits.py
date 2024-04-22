@@ -9,34 +9,33 @@ import warnings
 plt.ion()
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-# plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
-# data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
-plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
-data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
-
-
+plt.style.use('C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/scientific.mplstyle')
+data_folder = r'C:/Users/orozc/Google Drive (miguelorozco@ucsb.edu)/Research/Spyder/Run'
+# plt.style.use('C:/Users/BRoehrich/Desktop/git/echem/scientific.mplstyle')
+# data_folder = r'C:\Users\BRoehrich\Desktop\Miguel data'
 
 correct_baselines = False
-start_after = 100 # cut off first (n) seconds
-min_s_to_fit = 10  # Requires n seconds of data to accept the fit
-delay = 10 # Points after "fast" spike to skip fitting on
+start_after = 10 # cut off first (n) seconds
+min_s_to_fit = 5  # Requires n seconds of data to accept the fit
+delay = 0 # Points after "fast" spike to skip fitting on
 thresh = 0.01 # Used to determine acceptable baseline "flatness"
                # Smaller = more picky, need flatter baseline to accept spike
 
 apply_filter     = False
 filter_freq      = 25
 
+'Fitting options'
 # fit = 'monoexponential'
-fit = 'monoexp-linear'
+# fit = 'monoexp-linear'
+# fit = 'monoexponential-inflection'
 # fit = 'biexponential'
+fit = 'biexponential-inflection'
 # fit = 'linear'
-
 
 
 ''' 
 TO-DO
     
-Interactive picking/deleting points
 
 '''
 
@@ -52,7 +51,16 @@ if fit == 'biexponential':
     def exp_func(x, a,b,c,d,e):
         return a * np.exp(-b * x) + c * np.exp(-d * x) + e
 
-
+elif fit == 'biexponential-inflection':
+    params=['a/ A',
+            'b/ s-1',
+            'c/ A',
+            'd/ s-1',
+            'e/ A']
+    
+    def exp_func(x, a,b,c,d,e):
+        return a * np.exp(-b * x) + c * np.exp(-d * x) + e
+    
 elif fit == 'monoexponential':
     params = ['a/ A',
             'b/ s-1',
@@ -60,7 +68,6 @@ elif fit == 'monoexponential':
     
     def exp_func(x, a,b,c):
         return a * np.exp(-b * x) + c
-
 
 elif fit == 'linear':
     params = ['a/ A s-1', 
@@ -78,7 +85,14 @@ elif fit == 'monoexp-linear':
     def exp_func(x, a, b, m, c):
         return a*np.exp(-b * x) + m*x + c
 
-
+elif fit == 'monoexponential-inflection':
+    params = ['a/ A',
+            'b/ s-1',
+            'c/ A']
+    
+    def exp_func(x, a,b,c):
+        return a * np.exp(-b * x) + c
+  
 
 # Filtering functions
 def lowpass(y, t, cutoff):
@@ -96,7 +110,6 @@ def lowpass(y, t, cutoff):
         print('Bad filter_freq, not filtering.')
         print(f'Valid filter_freq from 0 < f < {fs/2}')
         return y
-
 
 
 def thresholding_algo(y, lag, threshold, influence):
@@ -139,8 +152,6 @@ def thresholding_algo(y, lag, threshold, influence):
     return signals, np.array(avgFilter), np.array(stdFilter)
 
 
-
-
 class InteractivePicker:
     
     global colors
@@ -176,7 +187,6 @@ class InteractivePicker:
         diff = upper-lower
         xtol = 0.01*diff
         
-        
         if event.inaxes and self.fig.canvas.manager.toolbar.mode == "":
             # print(xtol)
             clickX = event.xdata
@@ -189,13 +199,12 @@ class InteractivePicker:
                         idx = np.where(self.t == x)[0][0]
                         i   = np.where(self.idxs == idx)[0][0]
                         self.idxs.remove(idx)
+                        # print(self.fits[0])
                         
                         t = [(i, x, y) for (i, x, y) in self.fits if i == idx][0]
                         self.fits.remove(t)
-                        
                         self.draw_fits(xlim=self.ax.get_xlim(),
                                        ylim=self.ax.get_ylim())
-                        
                         
                         # Remove from output lists
                         self.save_fits  = np.delete(self.save_fits, i, axis=1)
@@ -246,16 +255,10 @@ class InteractivePicker:
         self.__init__(file, fig, ax, params, exp_func)
         self.fig.canvas.mpl_connect('button_press_event', self)
         
-        fits, integrals, chi_sqs, points, ms = self.analyze_file(
-                                                    correct_baselines, apply_filter, 
-                                                    delay, start_after, self.params,
-                                                    self.exp_func, thresh
-                                                    )
-        
-        
+        self.analyze_file(correct_baselines, apply_filter,
+                          delay, start_after, self.params, 
+                          self.exp_func, thresh)
         return
-    
-    
     
     def draw_fits(self, xlim=[], ylim=[]):
         if not self.plot:
@@ -265,7 +268,7 @@ class InteractivePicker:
             self.fitline.remove()
         
         self.fitline, = self.ax.plot([0], [0], 'o', color='gold',
-                                     ms=1)
+                                     ms=3)
         
         xs = np.array([])
         ys = np.array([])
@@ -285,7 +288,7 @@ class InteractivePicker:
         ys = []
         for idx in self.idxs:
             xs.append(self.t[idx])
-            ys.append(0.95*self.i[idx])
+            ys.append(1*self.i[idx])
         
         self.drawnpoints.set_data(xs, ys)        
         
@@ -295,7 +298,6 @@ class InteractivePicker:
             self.ax.set_xlim(xlim)
         if len(ylim) != 0:
             self.ax.set_ylim(ylim)
-            
         return
     
     
@@ -345,7 +347,6 @@ class InteractivePicker:
                     #print(f'Removing {i} because of duplicate')
                     idxs.remove(i)
             
-            
         # Refine peak location            
         for idx in idxs[:]:
             if any(abs(y[idx-10:idx+10]) > abs(y[idx])):
@@ -357,9 +358,7 @@ class InteractivePicker:
                 idxs.remove(idx)
                 idxs.append(i)
                 idxs.sort()
-                
         return idxs
-    
     
     
     def integrate_spikes(self, t, y, idxs, avg):
@@ -386,7 +385,6 @@ class InteractivePicker:
         pops      = []
         
         for idx in idxs:
-            
             # Determine left and right bounds for integration.
             # Defaults to peak location +- 1 point
             # Try to refine bounds by looking for where the data crosses
@@ -427,9 +425,6 @@ class InteractivePicker:
             
             else:
                 integrals.append(integral)
-            
-                    
-            
             # fig = plt.figure(figsize=(5,5), dpi=100)
             # plt.plot(t[idx-500:idx+500], y[idx-500:idx+500])
             # plt.plot(t[idx], y[idx], 'ro')
@@ -437,13 +432,11 @@ class InteractivePicker:
             # plt.plot(t[bounds], y[bounds], 'o', color = 'orange')
                     
             # print(integral)
-        
         return integrals, pops
     
     
-    
-    def fit_peaks(self, t, y, idxs, sara, ax=None, t_max=60, t_min=min_s_to_fit, 
-                  delay = 10, baseline_correct=True, app_filter=False, 
+    def fit_peaks(self, t, y, idxs, sara, ax=None, t_max=15, t_min=min_s_to_fit, 
+                  delay = delay, baseline_correct=True, app_filter=False, 
                   thresh= 0.005): 
         '''
         Fit exponential decay betweek this peak and next peak,
@@ -494,69 +487,146 @@ class InteractivePicker:
             except: # Last point
                 next_idx = min(len(y)-1, this_idx + int(round(t_max/sara)))
             
-                
             # Subtract out baseline
             # Either use previous 500 pts, or last index
-            
             if i > 0:
                 last_idx = max(idxs[i-1] + delay, this_idx - 500)
             elif i == 0: # first spike
                 last_idx = max(0, this_idx - 500)
             
-            if (this_idx-delay - last_idx) < 100:
-                print(f'Not enough points to fit baseline {t[this_idx-delay]} s.')
+            # Remove point if baseline cannot be calculated
+            # print(len(t[last_idx:this_idx-delay-5]))
+            if len(t[last_idx:this_idx-delay-5]) <= 5:
+                print(f'Baseline cannot be calculated. Removing point at {t[this_idx-delay]} s.')
                 pops.append(this_idx - delay)
                 continue
-            
-            
-            
+        
             # Calculate the baseline
             m, b = np.polyfit(t[last_idx:this_idx-delay-5], 
                   y[last_idx:this_idx-delay-5], deg=1)
-            
-            
-            if abs(m/y[last_idx]) > thresh:
-                print(f'Baseline not flat enough {t[this_idx-delay]} s.')
-                pops.append(this_idx - delay)
-                continue
             
             if baseline_correct:    
                 baseline = m*t + b
             else:
                 baseline = 0*t + 0
                 
-                
-            
-            
-            if (next_idx - this_idx) < int(round(t_min/sara)):
-                print(f'Not enough points to fit {t[this_idx - delay]} s.')
-                pops.append(this_idx - delay)
-                continue
-            
-            
             ### Do fitting ###
             ts = t[this_idx:next_idx] - t[this_idx]
             data = y[this_idx:next_idx] - baseline[this_idx:next_idx]
             
+            if len(data) <= 50:
+                print(f'Data < 50 points. Removing point at {t[this_idx-delay]} s.')
+                pops.append(this_idx - delay)
+                continue 
+            
+            inflection_pt = self.find_inflection(ts, data)
+            
             if fit == 'biexponential':
                 bounds=(-np.inf, [1., np.inf, np.inf, np.inf, np.inf])
+                inflection_pt = 0
             elif fit == 'monoexponential':
                 bounds=(-np.inf, [1., np.inf, np.inf])
+                inflection_pt = 0
+            elif fit == 'monoexponential-inflection':
+                bounds=(-np.inf, [1., np.inf, np.inf])
+                this_idx = this_idx + inflection_pt
+                try:
+                    next_idx = min(idxs[i+1] - 2, this_idx + int(round(t_max/sara)))
+                except: # Last point
+                    next_idx = min(len(y)-1, this_idx + int(round(t_max/sara)))
+                
+                # Subtract out baseline
+                # Either use previous 500 pts, or last index
+                
+                if i > 0:
+                    last_idx = max(idxs[i-1] + delay + inflection_pt, this_idx - 500)
+                elif i == 0: # first spike
+                    last_idx = max(0, this_idx - 500)
+               
+                if last_idx > this_idx-delay-inflection_pt-5:
+                    print(f'Baseline cannot be calculated. Removing point at {t[this_idx-delay]} s.')
+                    pops.append(this_idx - delay - inflection_pt)
+                    continue
+                
+                # Calculate the baseline
+                m, b = np.polyfit(t[last_idx:this_idx-delay-inflection_pt-5], 
+                      y[last_idx:this_idx-delay-inflection_pt-5], deg=1)
+                
+                if baseline_correct:    
+                    baseline = m*t + b
+                else:
+                    baseline = 0*t + 0
+                    
+                ts = t[this_idx:next_idx] - t[this_idx]
+                data = y[this_idx:next_idx] - baseline[this_idx:next_idx]
+                
+            elif fit == 'biexponential-inflection':
+                bounds=(-np.inf, [1., np.inf, np.inf, np.inf, np.inf])
+                this_idx = this_idx + inflection_pt
+                try:
+                    next_idx = min(idxs[i+1] - 2, this_idx + int(round(t_max/sara)))
+                except: # Last point
+                    next_idx = min(len(y)-1, this_idx + int(round(t_max/sara)))
+                
+                # Subtract out baseline
+                # Either use previous 500 pts, or last index
+                
+                if i > 0:
+                    last_idx = max(idxs[i-1] + delay + inflection_pt, this_idx - 500)
+                elif i == 0: # first spike
+                    last_idx = max(0, this_idx - 500)
+                
+                if last_idx > this_idx-delay-inflection_pt-5:
+                    print(f'Baseline cannot be calculated. Removing point at {t[this_idx-delay]} s.')
+                    pops.append(this_idx - delay - inflection_pt)
+                    continue
+                
+                # Calculate the baseline
+                m, b = np.polyfit(t[last_idx:this_idx-delay-inflection_pt-5], 
+                      y[last_idx:this_idx-delay-inflection_pt-5], deg=1)
+                
+                if baseline_correct:    
+                    baseline = m*t + b
+                else:
+                    baseline = 0*t + 0
+                    
+                ts = t[this_idx:next_idx] - t[this_idx]
+                data = y[this_idx:next_idx] - baseline[this_idx:next_idx]
             
+            if (this_idx-delay-inflection_pt - last_idx) < 100:
+                print(f'Not enough points to fit baseline {t[this_idx-delay]} s.')
+                pops.append(this_idx - delay - inflection_pt)
+                continue
+            
+            
+            if abs(m/y[last_idx]) > thresh:
+                print(f'Baseline not flat enough {t[this_idx-delay]} s.')
+                pops.append(this_idx - delay - inflection_pt)
+                continue
+            
+            if (next_idx - this_idx) < int(round(t_min/sara)):
+                print(f'Not enough points to fit {t[this_idx - delay]} s.')
+                pops.append(this_idx - delay - inflection_pt)
+                continue
+                
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
                     popt, pcov = optimize.curve_fit(exp_func, ts, data, 
                                     maxfev=100000,
-                                    # bounds=bounds
+                                    #bounds=bounds
                                     )
             except: 
                 popt = [0,0,0,0,0]
             
-                       
             
             # Calculate chi^2
             fit_y = exp_func(ts, *popt) # Fits
+            if fit_y[0] == 0:
+                print('Chi^2 could not compute (divide by zero).')
+                pops.append(this_idx - delay - inflection_pt)
+                continue
+            
             residuals = abs((data - fit_y)/fit_y)
             chi_sq = np.sum(residuals**2)/len(residuals)
             
@@ -574,7 +644,7 @@ class InteractivePicker:
             ys = data - fit_y[-1]
             integ = np.trapz(ys, xs)
             
-            
+            ### Plot each fit individually
             # fig, ax2 = plt.subplots(figsize=(5,5), dpi=100)
             # ax2.plot(ts, data, '.')
             # ax2.plot(ts, fit_y)
@@ -586,14 +656,14 @@ class InteractivePicker:
                      if 'a' in param]
             if popt[a_idx] > 0:
                 print(f'Fitted a > 0 at {t[this_idx-delay]} s. Removing point.')
-                pops.append(this_idx - delay)
+                pops.append(this_idx - delay - inflection_pt)
                 continue
             
             c_idx = [idx for idx, param in enumerate(self.params) 
                      if 'c' in param]
             if popt[c_idx] > 0:
                 print(f'Fitted c > 0 at {t[this_idx-delay]} s. Removing point.')
-                pops.append(this_idx - delay)
+                pops.append(this_idx - delay - inflection_pt)
                 continue 
             
             
@@ -601,7 +671,7 @@ class InteractivePicker:
             # Plot fit to main graph
             
             self.fits.append(
-                            (this_idx - delay, 
+                            (this_idx - delay - inflection_pt, 
                               ts+t[this_idx],
                               fit_y + baseline[this_idx:next_idx])
                              )
@@ -614,10 +684,47 @@ class InteractivePicker:
             integrals.append(integ)
             ms.append(m)
             chi_sqs.append(chi_sq)
-        
+
         
         return fits, integrals, chi_sqs, pops, ms
     
+    
+    def find_inflection(self, ts, data):
+        
+        '''
+        Calculate the slope for the first 'n' points, where n = 50.
+    
+        Parameters
+        ----------
+        slopes : list
+            List of slopes after each spike.
+        inflection_pt : value
+            Index where slope is 10% of the first slope in slopes.
+    
+        Returns
+        -------
+        inflection_pt : index value
+            Index after spike where the slope changes by 5%.
+        '''
+
+        count = 0
+        slopes = []
+        # print(len(data))
+        # print(len(ts))
+        # Calculate the slope for the first 50 points
+        while count < 50:
+            m = (data[count+1]-data[count])/(ts[count+1]-ts[count])
+            slopes.append(m)
+            count += 1
+        # print(slopes)
+        
+        # Calculate IP by comparing slope to first until < 10%
+        for slope in slopes:
+              if slope < 0.05*slopes[0]:
+                  #print(slopes.index(slope))
+                  inflection_pt = slopes.index(slope)
+                  # print(inflection_pt)
+                  return inflection_pt
     
     
     def analyze_file(self, baseline_correct, app_filter, 
@@ -648,11 +755,12 @@ class InteractivePicker:
         if app_filter:
             self.line, = self.ax.plot(t, lowpass(i,t,filter_freq))
         else:
-            self.line, = self.ax.plot(t, i, color = colors[0])
+            self.line, = self.ax.plot(t, i, '.', color = 'k')
         
-        self.ax.set_xlabel('Time/ s')
-        self.ax.set_ylabel('Current/ A')
+        self.ax.set_xlabel('Time (s)')
+        self.ax.set_ylabel('Current (A)')
         self.ax.set_title(fname, fontsize=9, )
+        self.ax.set_facecolor("#ddddff")
         
         
         # Fit peaks. Optionally plot fits onto same ax    
@@ -662,7 +770,7 @@ class InteractivePicker:
                                       app_filter = app_filter, delay=delay,
                                       thresh = thresh
                                       )
-        
+        # print(self.idxs)
         for pt in pops:
             # Remove spike indices that we couldn't fit
             self.idxs.pop(np.where(self.idxs==pt)[0][0])
@@ -690,7 +798,6 @@ class InteractivePicker:
         self.ms         = ms
         
         return fits, areas, integrals, chi_sqs, points, ms
-
 
 
 class Index:
@@ -860,11 +967,10 @@ class Index:
         df.to_excel(writer, index=False, header=True, startcol=0)
         writer.save()
         print(f'Saved as {self.folder}/output.xlsx')
-        
         return
 
 
-def shift_axes(ax, direction):
+def shift_axes(self, ax, direction):
     # Pan axes if arrow keys are pressed
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
@@ -893,9 +999,9 @@ def shift_axes(ax, direction):
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     return
-
-
-def zoom_axes(ax, direction, center):
+    
+    
+def zoom_axes(self, ax, direction, center):
     # Zoom axes by mouse scroll wheel
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
@@ -939,7 +1045,6 @@ def zoom_axes(ax, direction, center):
     ax.set_ylim(ylim)
     return        
     
-
 
 if __name__ == '__main__':
 
